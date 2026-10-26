@@ -7,7 +7,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
 import { type Kind, kinds, type TreeEntry } from "./api.ts";
-import { customKey, groupKeys, groupName, nextObject, treeLines } from "./tree.ts";
+import { customKey, groupKeys, groupName, kindNames, nextObject, treeLines } from "./tree.ts";
 
 type Props = {
   kind: Kind;
@@ -18,24 +18,15 @@ type Props = {
   selected: string | null;
   onkind: (kind: Kind) => void;
   onselect: (id: string) => void;
+  /** The filter text (name or id); the Table view filters its rows by it too. */
+  filter?: string;
 };
 
-let { kind, entries, error, selected, onkind, onselect }: Props = $props();
-
-const kindNames: Record<Kind, string> = {
-  unit: "Units",
-  item: "Items",
-  destructable: "Destructables",
-  doodad: "Doodads",
-  ability: "Abilities",
-  buff: "Buffs",
-  upgrade: "Upgrades",
-};
+let { kind, entries, error, selected, onkind, onselect, filter = $bindable("") }: Props = $props();
 
 const rowHeight = 26;
 const overscan = 12;
 
-let filter = $state("");
 // Groups the user opened or closed, by `kind:path`; any other is closed, except Custom, which starts open.
 let toggled = $state<Record<string, boolean>>({});
 let scroller: HTMLDivElement | undefined = $state();

@@ -154,10 +154,11 @@ export type Lookup = (listOf: string, id: string) => { kind: Kind; name: string 
 
 /**
  * The text shown for a field's value: a choice's label (or the labels of the values a list or bits hold), a list's
- * ids with the objects' names where known, Yes or No for a true-or-false field, else the value itself.
+ * ids with the objects' names where known, Yes or No for a true-or-false field, else the value itself. Only the
+ * field's type, choice list, list kind and value are read, so a table cell shows the same way.
  */
 export function shownValue(
-  field: FieldView,
+  field: Pick<FieldView, "type" | "choice" | "listOf" | "value">,
   choices: Record<string, ChoiceList> | null,
   nameOf: NameOf,
 ): string {

@@ -49,7 +49,9 @@ import {
   type Settling,
   settleUnsaved,
 } from "./lib/settle.ts";
+import TableView from "./lib/TableView.svelte";
 import Tree from "./lib/Tree.svelte";
+import { newTableState, type TableState } from "./lib/table.ts";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
 import { nameField, savedText } from "./lib/values.ts";
 
@@ -91,6 +93,14 @@ let picked = $state<Partial<Record<Kind, string>>>({});
 let current = $state.raw<ObjectView | null>(null);
 let objectError = $state("");
 let choiceLists = $state.raw<Record<string, ChoiceList> | null>(null);
+
+// Which view the middle of the window shows: the selected object's details, or the kind's table.
+let page = $state<"details" | "table">("details");
+// The tree's filter text; the table filters its rows by it too.
+let treeFilter = $state("");
+// The table's chips, sort and columns per kind, while the map is open.
+let tableState = $state<TableState>(newTableState());
+let tableView: { focusFilter(): void } | undefined = $state();
 
 let fieldFilter = $state("");
 let changedOnly = $state(false);
@@ -274,6 +284,7 @@ async function showMap(info: MapInfo): Promise<void> {
   objectError = "";
   history = [];
   at = -1;
+  tableState = newTableState();
   showProblems = info.problems.length > 0;
   await ensureTree(kind);
 }
@@ -574,8 +585,15 @@ function switchKind(each: Kind): void {
   objectError = "";
 }
 
+/** Opens an object in the details view (a row's name in the table). */
+function openInDetails(each: Kind, id: string): void {
+  page = "details";
+  show(each, id);
+}
+
 async function pick(hit: Hit): Promise<void> {
   paletteOpen = false;
+  page = "details";
   if (!hit.field) {
     await show(hit.kind, hit.id);
     return;
@@ -595,11 +613,37 @@ async function pick(hit: Hit): Promise<void> {
   if (first) await show(hit.kind, first.id);
 }
 
+/**
+ * The keys that act differently in the table: Ctrl F goes to its filter; the details view's keys for the object shown
+ * (F2, Ctrl D, Ctrl Shift D, Delete, Alt ←/→) do nothing there, as that object is not in view. True when handled.
+ */
+function tableKey(event: KeyboardEvent, key: string): boolean {
+  const ctrl = event.ctrlKey && !event.altKey;
+  if (ctrl && key === "f") {
+    event.preventDefault();
+    tableView?.focusFilter();
+    return true;
+  }
+  if (event.key === "F2" || (ctrl && key === "d")) {
+    event.preventDefault();
+    return true;
+  }
+  if (event.key === "Delete" && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+    return !typingIn(event.target) && !inPopup(event.target);
+  }
+  if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+    event.preventDefault();
+    return true;
+  }
+  return false;
+}
+
 function onkeydown(event: KeyboardEvent): void {
   if (paletteOpen) return; // the palette has its own keys
   if (unsaved || diskChanged || creating || deleting) return; // and so do the dialogs
   const key = event.key.toLowerCase();
   const ctrl = event.ctrlKey && !event.altKey;
+  if (page === "table" && tableKey(event, key)) return;
   if (ctrl && key === "s") {
     event.preventDefault();
     saveMap();
@@ -760,21 +804,19 @@ onMount(() => {
       >
     </button>
     <div class="flex shrink-0 gap-0.5" role="group" aria-label="Views">
-      <button
-        type="button"
-        class="rounded-[5px] bg-accent-lo px-2.5 py-1.5 text-accent-hi"
-        aria-pressed="true"
-      >
-        Details
-      </button>
-      <button
-        type="button"
-        class="rounded-[5px] px-2.5 py-1.5 text-muted opacity-50"
-        disabled
-        title="Coming in a later version"
-      >
-        Table
-      </button>
+      {#each [{ key: "details", name: "Details" }, { key: "table", name: "Table" }] as const as each (each.key)}
+        <button
+          type="button"
+          class="rounded-[5px] px-2.5 py-1.5 {page === each.key
+            ? 'bg-accent-lo text-accent-hi'
+            : 'text-muted hover:text-fg disabled:opacity-50 disabled:hover:text-muted'}"
+          aria-pressed={page === each.key}
+          disabled={!map}
+          onclick={() => (page = each.key)}
+        >
+          {each.name}
+        </button>
+      {/each}
       <button
         type="button"
         class="rounded-[5px] px-2.5 py-1.5 text-muted opacity-50"
@@ -850,8 +892,31 @@ onMount(() => {
       </div>
     </main>
   {:else}
+    {#if page === "table"}
+      <main class="min-h-0" aria-label="Table">
+        <TableView
+          bind:this={tableView}
+          {kind}
+          entries={trees[kind] ?? null}
+          treeError={treeErrors[kind] ?? ""}
+          selected={picked[kind] ?? null}
+          bind:filter={treeFilter}
+          bind:tableState
+          {session}
+          choices={choiceLists}
+          {lookup}
+          onkind={switchKind}
+          onneed={ensureTree}
+          onopen={openInDetails}
+        />
+      </main>
+    {/if}
+    <!-- The details view stays in the page while the table shows, so it comes back as it was. -->
     <main
-      class="grid min-h-0 grid-cols-[290px_1fr_300px] max-[1100px]:grid-cols-[230px_1fr_240px]"
+      class="grid min-h-0 grid-cols-[290px_1fr_300px] max-[1100px]:grid-cols-[230px_1fr_240px] {page ===
+      'table'
+        ? 'hidden'
+        : ''}"
     >
       <aside class="min-h-0 overflow-hidden border-r border-line bg-surface" aria-label="Objects">
         <Tree
@@ -861,6 +926,7 @@ onMount(() => {
           selected={picked[kind] ?? null}
           onkind={switchKind}
           onselect={(id) => show(kind, id)}
+          bind:filter={treeFilter}
         />
       </aside>
       <section class="min-h-0 overflow-auto" aria-label="Details">

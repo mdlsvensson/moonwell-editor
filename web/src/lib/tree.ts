@@ -42,6 +42,23 @@ export function groupKeys(kind: Kind, entry: TreeEntry): string[] {
   return entry.path.map((_, depth) => `${kind}:${entry.path.slice(0, depth + 1).join("/")}`);
 }
 
+/** The kinds' names, as the kind buttons show them. */
+export const kindNames: Record<Kind, string> = {
+  unit: "Units",
+  item: "Items",
+  destructable: "Destructables",
+  doodad: "Doodads",
+  ability: "Abilities",
+  buff: "Buffs",
+  upgrade: "Upgrades",
+};
+
+/** True when an object's id, name or suffix holds `filter`, ignoring case; an empty filter keeps every object. */
+export function entryMatches(entry: TreeEntry, filter: string): boolean {
+  const needle = filter.trim().toLowerCase();
+  return needle === "" || matches(entry, needle);
+}
+
 function matches(entry: TreeEntry, needle: string): boolean {
   return (
     entry.id.toLowerCase().includes(needle) ||
