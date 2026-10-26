@@ -1,9 +1,19 @@
 /**
  * The table's logic with no screen: which cells a selection covers, how rows sort, and the edits that paste, fill
- * down, reset and the bar's expressions make from the selected cells. A cell can be changed in bulk only when its row
- * is not read only and the cell applies.
+ * down, reset and the bar's expressions make from the selected cells. A bulk change is all or nothing: a cell of a
+ * read-only row that it would change refuses the whole change, naming the cell, as does a value its field cannot
+ * take; a cell that does not apply is skipped (the bar refuses it too).
  */
-import type { CellEdit, Column, FieldInfo, FieldView, Kind, TableCell, TableRow } from "./api.ts";
+import type {
+  CellEdit,
+  ChoiceList,
+  Column,
+  FieldInfo,
+  FieldView,
+  Kind,
+  TableCell,
+  TableRow,
+} from "./api.ts";
 import { applyExpression, parseExpression } from "./expression.ts";
 
 /** A cell of the shown table: a row and a column, both from 0. */
@@ -210,10 +220,20 @@ function targetOf(at: Cell, rows: TableRow[], columns: Column[]): Target | null 
   return { row, cell, column };
 }
 
-/** The target of a cell a bulk change may change: its row is not read only and the cell applies; else null. */
-function editableTarget(at: Cell, rows: TableRow[], columns: Column[]): Target | null {
-  const target = targetOf(at, rows, columns);
-  return target && target.row.readOnly === null && target.cell.applies ? target : null;
+/** A cell as a message names it: its row's name and its column (`Footman · Gold cost`). */
+function whereOf(target: Target, fields: FieldInfo[]): string {
+  return `${target.row.name} · ${columnName(target.column, fields)}`;
+}
+
+/** The refusal of a change of a cell whose row is read only, naming the cell; null when its row can be changed. */
+function readOnlyRefusal(target: Target, fields: FieldInfo[]): { error: string } | null {
+  if (target.row.readOnly === null) return null;
+  return { error: `${whereOf(target, fields)}: ${target.row.readOnly}` };
+}
+
+/** The field a column shows; undefined when the kind's fields do not have it. */
+function fieldOf(column: Column, fields: FieldInfo[]): FieldInfo | undefined {
+  return fields.find((field) => field.id === column.field);
 }
 
 /** The edit that sets (or, with a null value, resets) a cell. */
@@ -248,17 +268,78 @@ export function sortRows(rows: TableRow[], col: number, descending: boolean): Ta
 
 const emptyTypes = ["string", "objectList", "objectRef"];
 
-/** True when an empty pasted cell is a value for the column's field (text and lists), not a gap. */
-function takesEmpty(column: Column, fields: FieldInfo[]): boolean {
-  const type = fields.find((field) => field.id === column.field)?.type;
-  return type !== undefined && emptyTypes.includes(type);
+/** True when an empty pasted cell is a value for the field (text and lists), not a gap. */
+function takesEmpty(field: FieldInfo | undefined): boolean {
+  return field !== undefined && emptyTypes.includes(field.type);
+}
+
+const numberTypes = ["int", "float"];
+const yes = ["1", "yes", "true"];
+const no = ["0", "no", "false"];
+// How many of a choice's labels a refusal lists.
+const labelsShown = 8;
+
+/** What a value for a field is, as the data spells it, or why the field cannot take it. */
+type Plain = { value: string } | { error: string };
+
+/**
+ * A plain value for a field, as the data spells it. A yes/no field takes 1, 0, yes, no, true or false (case aside,
+ * spaces around ignored) and is sent as 1 or 0. A choice of one value takes one of its list's values, one of the other
+ * spellings the game's data uses for it, or its label (case aside, in that order, so a value wins over another
+ * entry's label), and is sent as the value. Anything else is taken as it is: text, lists, a flags list, and a choice
+ * whose list is not known (the app checks those).
+ */
+function plainValue(
+  field: FieldInfo | undefined,
+  text: string,
+  choices: Record<string, ChoiceList> | null,
+): Plain {
+  if (field?.type === "bool") {
+    const typed = text.trim().toLowerCase();
+    if (yes.includes(typed)) return { value: "1" };
+    if (no.includes(typed)) return { value: "0" };
+    return { error: `takes Yes or No (1 or 0), not "${text}".` };
+  }
+  const list = field?.type === "choice" && field.choice ? choices?.[field.choice] : undefined;
+  if (!list || list.flags) return { value: text };
+  const typed = text.trim().toLowerCase();
+  const entry =
+    list.entries.find((each) => each.value.toLowerCase() === typed) ??
+    list.entries.find((each) => each.alternates?.some((other) => other.toLowerCase() === typed)) ??
+    list.entries.find((each) => each.label.toLowerCase() === typed);
+  if (entry) return { value: entry.value };
+  const labels = list.entries.slice(0, labelsShown).map((each) => each.label);
+  const more = list.entries.length > labelsShown ? ", …" : "";
+  return { error: `"${text}" is not one of its values (${labels.join(", ")}${more}).` };
+}
+
+/**
+ * A number pasted with a decimal comma (`1,5`), as spreadsheets in many countries copy it, with a dot (`1.5`): only a
+ * plain decimal with exactly one comma and no dot. Anything else is left as it is.
+ */
+function decimalComma(value: string): string {
+  if (value.split(",").length !== 2 || value.includes(".")) return value;
+  const dotted = value.replace(",", ".");
+  return plainNumber.test(dotted) ? dotted : value;
+}
+
+/** A pasted cell's value for a field: a number with a decimal comma read, yes/no and choices as `plainValue`. */
+function pastedValue(
+  field: FieldInfo | undefined,
+  value: string,
+  choices: Record<string, ChoiceList> | null,
+): Plain {
+  if (field && numberTypes.includes(field.type)) return { value: decimalComma(value) };
+  return plainValue(field, value, choices);
 }
 
 /**
  * The edits that paste a block starting at a cell: down the shown rows and right across the columns, stopping at the
- * table's edge. Cells that cannot be changed (read only row, cell that does not apply) are skipped. An empty cell
- * in the block is a gap: skipped for a column that is not text (`int`, `float`, `bool`, `choice`, or a field not in
- * `fields`), and written as "" for a `string`, `objectList` or `objectRef` column.
+ * table's edge. An empty cell in the block is a gap: skipped for a column that is not text (`int`, `float`, `bool`,
+ * `choice`, or a field not in `fields`), and written as "" for a `string`, `objectList` or `objectRef` column. A cell
+ * that does not apply is skipped. A number with a decimal comma (`1,5`) is read as `1.5`; a yes/no or choice cell
+ * is read as the bar reads it (`Yes`, a choice's label). All or nothing: a cell of a read-only row that the paste
+ * would write, or a value its field cannot take, is an error that names the first such cell.
  */
 export function pasteEdits(
   start: Cell,
@@ -266,14 +347,21 @@ export function pasteEdits(
   rows: TableRow[],
   columns: Column[],
   fields: FieldInfo[],
-): CellEdit[] {
+  choices: Record<string, ChoiceList> | null,
+): CellEdit[] | { error: string } {
   const edits: CellEdit[] = [];
   for (const [r, blockRow] of block.entries()) {
     for (const [c, value] of blockRow.entries()) {
-      const target = editableTarget({ row: start.row + r, col: start.col + c }, rows, columns);
+      const target = targetOf({ row: start.row + r, col: start.col + c }, rows, columns);
       if (!target) continue;
-      if (value === "" && !takesEmpty(target.column, fields)) continue;
-      edits.push(editOf(target, value));
+      const field = fieldOf(target.column, fields);
+      if (value === "" && !takesEmpty(field)) continue;
+      const refused = readOnlyRefusal(target, fields);
+      if (refused) return refused;
+      if (!target.cell.applies) continue;
+      const checked = pastedValue(field, value, choices);
+      if ("error" in checked) return { error: `${whereOf(target, fields)}: ${checked.error}` };
+      edits.push(editOf(target, checked.value));
     }
   }
   return edits;
@@ -281,46 +369,69 @@ export function pasteEdits(
 
 /**
  * The edits that copy the top cell of each selected column down the rest of the selection. A column whose top cell
- * does not apply copies nothing; cells that cannot be changed are skipped.
+ * does not apply copies nothing; a cell below that does not apply is skipped. The top row is only read, but a cell
+ * below in a read-only row refuses the whole fill, an error that names the first such cell.
  */
-export function fillDownEdits(s: Selection, rows: TableRow[], columns: Column[]): CellEdit[] {
-  const cells = cellsOf(s);
+export function fillDownEdits(
+  s: Selection,
+  rows: TableRow[],
+  columns: Column[],
+  fields: FieldInfo[],
+): CellEdit[] | { error: string } {
   const top = Math.min(s.anchor.row, s.focus.row);
   const edits: CellEdit[] = [];
-  for (const at of cells) {
-    const target = editableTarget(at, rows, columns);
+  for (const at of cellsOf(s)) {
     const source = rows[top]?.cells[at.col];
+    const target = targetOf(at, rows, columns);
     if (at.row === top || !target || !source?.applies) continue;
-    edits.push(editOf(target, source.value));
+    const refused = readOnlyRefusal(target, fields);
+    if (refused) return refused;
+    if (target.cell.applies) edits.push(editOf(target, source.value));
   }
   return edits;
 }
 
-/** The edits that reset the selected cells to their standard values (a null value); cells that cannot be changed are skipped. */
-export function resetEdits(s: Selection, rows: TableRow[], columns: Column[]): CellEdit[] {
+/**
+ * The edits that reset the selected cells to their standard values (a null value). A cell that does not apply is
+ * skipped; a cell of a read-only row refuses the whole reset, an error that names the first such cell.
+ */
+export function resetEdits(
+  s: Selection,
+  rows: TableRow[],
+  columns: Column[],
+  fields: FieldInfo[],
+): CellEdit[] | { error: string } {
   const edits: CellEdit[] = [];
   for (const at of cellsOf(s)) {
-    const target = editableTarget(at, rows, columns);
-    if (target) edits.push(editOf(target, null));
+    const target = targetOf(at, rows, columns);
+    if (!target) continue;
+    const refused = readOnlyRefusal(target, fields);
+    if (refused) return refused;
+    if (target.cell.applies) edits.push(editOf(target, null));
   }
   return edits;
 }
 
 /** A column as a message names it: the field's label (its id when unknown), with the level for a per-level column. */
 function columnName(column: Column, fields: FieldInfo[]): string {
-  const label = fields.find((field) => field.id === column.field)?.label ?? column.field;
+  const label = fieldOf(column, fields)?.label ?? column.field;
   return column.level > 0 ? `${label} · ${column.level}` : label;
 }
 
-const numberTypes = ["int", "float"];
+/** What the bar sets a column that is not a number to: the text trimmed, without one `=` in front. */
+function barValue(text: string): string {
+  const typed = text.trim();
+  return typed.startsWith("=") ? typed.slice(1).trim() : typed;
+}
 
 /**
  * The edits that apply what was typed in the bar (a value or an expression) to every selected cell, one edit for each
- * cell. A number column (`int`, `float`) reads it as an expression; any other column (`string`, `bool`, `choice`,
- * `objectList`, `objectRef` ...) takes the text as typed, so `x001` or `-1` is a value there, not a calculation. All
- * or nothing: when a cell cannot be changed (read only row, cell that does not apply, a selection outside the table)
- * or the expression does not fit its field, the answer is an error that names the first such cell by its row name and
- * column. Empty text is an error.
+ * cell. A number column (`int`, `float`) reads it as an expression; any other column takes a plain value: the text
+ * trimmed, without one `=` in front (`=Footman` sets `Footman`), so `x001` or `-1` is a value there, not a
+ * calculation. A yes/no or choice column reads that value as `plainValue` does (`Yes`, a choice's label) and gets
+ * the data's spelling. All or nothing: when a cell cannot be changed (read only row, cell that does not apply, a
+ * selection outside the table) or the value or expression does not fit its field, the answer is an error that names
+ * the first such cell by its row name and column. Empty text is an error.
  */
 export function bulkEdits(
   s: Selection,
@@ -328,6 +439,7 @@ export function bulkEdits(
   columns: Column[],
   fields: FieldInfo[],
   text: string,
+  choices: Record<string, ChoiceList> | null,
 ): CellEdit[] | { error: string } {
   const parsed = parseExpression(text);
   if ("error" in parsed) return parsed;
@@ -336,19 +448,22 @@ export function bulkEdits(
   for (const at of cellsOf(s)) {
     const target = targetOf(at, rows, columns);
     if (!target) return { error: "The selection is outside the table." };
-    const where = `${target.row.name} · ${columnName(target.column, fields)}`;
-    if (target.row.readOnly !== null) return { error: `${where}: ${target.row.readOnly}` };
-    if (!target.cell.applies) return { error: `${where}: the field does not apply.` };
+    const refused = readOnlyRefusal(target, fields);
+    if (refused) return refused;
+    if (!target.cell.applies)
+      return { error: `${whereOf(target, fields)}: the field does not apply.` };
     targets.push(target);
   }
 
   const edits: CellEdit[] = [];
   for (const target of targets) {
-    const field = fields.find((candidate) => candidate.id === target.column.field);
-    const where = `${target.row.name} · ${columnName(target.column, fields)}`;
+    const field = fieldOf(target.column, fields);
+    const where = whereOf(target, fields);
     if (!field) return { error: `${where}: unknown field.` };
     if (!numberTypes.includes(field.type)) {
-      edits.push(editOf(target, text));
+      const plain = plainValue(field, barValue(text), choices);
+      if ("error" in plain) return { error: `${where}: ${plain.error}` };
+      edits.push(editOf(target, plain.value));
       continue;
     }
     const value = applyExpression(parsed, target.cell.value, field.type);

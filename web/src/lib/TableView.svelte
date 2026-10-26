@@ -459,7 +459,7 @@ async function copy(s: Selection): Promise<void> {
 }
 
 /** Pastes the clipboard's text (read before the wait for the rows) from the block's upper left cell. */
-function paste(s: Selection, text: string): void {
+async function paste(s: Selection, text: string): Promise<void> {
   const at = shown;
   if (!at) return;
   const block = parseTsv(text);
@@ -467,12 +467,16 @@ function paste(s: Selection, text: string): void {
     onnotice("The clipboard holds no text to paste.");
     return;
   }
-  const edits = pasteEdits(topLeft(s), block, rows, at.columns, shownFields());
+  const edits = pasteEdits(topLeft(s), block, rows, at.columns, shownFields(), choices);
+  if ("error" in edits) {
+    onnotice(edits.error, true);
+    return;
+  }
   if (edits.length === 0) {
     onnotice("None of the cells the paste covers can be changed.");
     return;
   }
-  change(at.kind, edits, "Pasted");
+  await change(at.kind, edits, "Pasted");
 }
 
 async function bulk(action: BulkAction): Promise<void> {
@@ -495,36 +499,35 @@ async function bulk(action: BulkAction): Promise<void> {
   const at = shown;
   if (!s || !at) return;
   if (action === "copy") {
-    copy(s);
+    await copy(s);
     return;
   }
   if (action === "paste") {
-    paste(s, text);
+    await paste(s, text);
     return;
   }
-  if (action === "fill") {
-    if (blockSize(s).rows < 2) {
-      onnotice("Ctrl D fills the top cell of each selected column down: select more than one row.");
-      return;
-    }
-    const edits = fillDownEdits(s, rows, at.columns);
-    if (edits.length === 0) {
-      onnotice("None of the selected cells can be filled.");
-      return;
-    }
-    change(at.kind, edits, "Filled");
+  if (action === "fill" && blockSize(s).rows < 2) {
+    onnotice("Ctrl D fills the top cell of each selected column down: select more than one row.");
     return;
   }
-  const edits = resetEdits(s, rows, at.columns);
+  const edits =
+    action === "fill"
+      ? fillDownEdits(s, rows, at.columns, shownFields())
+      : resetEdits(s, rows, at.columns, shownFields());
+  if ("error" in edits) {
+    onnotice(edits.error, true);
+    return;
+  }
   if (edits.length === 0) {
-    onnotice("None of the selected cells can be reset.");
+    onnotice(`None of the selected cells can be ${action === "fill" ? "filled" : "reset"}.`);
     return;
   }
-  change(at.kind, edits, "Reset");
+  await change(at.kind, edits, action === "fill" ? "Filled" : "Reset");
 }
 
 /** The bar's Apply: the selected cells set to the value or expression typed. */
 async function apply(): Promise<void> {
+  const text = bulkText;
   const problem = await ready();
   if (problem) {
     bulkError = problem;
@@ -536,7 +539,7 @@ async function apply(): Promise<void> {
     bulkError = "Select the cells to set first.";
     return;
   }
-  const edits = bulkEdits(s, rows, at.columns, shownFields(), bulkText);
+  const edits = bulkEdits(s, rows, at.columns, shownFields(), text, choices);
   if ("error" in edits) {
     bulkError = edits.error;
     return;
