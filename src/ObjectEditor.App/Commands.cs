@@ -40,6 +40,11 @@ public sealed record MapInfo(
     IReadOnlyList<string> Problems,
     IReadOnlyDictionary<string, int> Counts);
 
+/// <summary>The open map and where it stands, for a page that was loaded again (the <c>currentMap</c> command).</summary>
+/// <param name="Map">The open map, as <c>openMap</c> gave it.</param>
+/// <param name="Session">Where it stands: whether it has unsaved edits.</param>
+public sealed record CurrentMap(MapInfo Map, SessionState Session);
+
 /// <summary>
 /// The commands the page can call, the game data they work on and the open map. The window gives it what it cannot
 /// do itself (a way to ask the user for a folder, a way to load the game data), so it can be tested without a window.
@@ -157,8 +162,9 @@ public sealed class Commands
     /// <exception cref="UnknownCommandException">There is no command of that name.</exception>
     /// <exception cref="CommandException">
     /// The command failed for a reason the page can act on: an <see cref="EditException"/>'s code,
-    /// <c>changedOnDisk</c>, <c>noMap</c>, <c>badRequest</c> for a missing or wrong argument, or a game data code
-    /// (see <see cref="NeedGameData"/>).
+    /// <c>changedOnDisk</c>, <c>noMap</c>, <c>unsaved</c> (<c>openMap</c> or <c>reload</c> would drop unsaved edits
+    /// and the page did not say to discard them), <c>badRequest</c> for a missing or wrong argument, or a game data
+    /// code (see <see cref="NeedGameData"/>).
     /// </exception>
     public Task<object?> Run(string command, JsonElement args)
     {
@@ -183,7 +189,8 @@ public sealed class Commands
             "gameData" => State(),
             "startup" => TakeStartup(),
             "chooseGameData" => ChooseGameData(),
-            "openMap" => OpenMap(OptionalText(args, "path")),
+            "openMap" => OpenMap(OptionalText(args, "path"), Flag(args, "discard")),
+            "currentMap" => Current(),
             "tree" => Map().Tree(Kind(args)),
             "object" => ObjectOf(Kind(args), Text(args, "id")),
             "setField" => SetField(args),
@@ -195,7 +202,7 @@ public sealed class Commands
             "undo" => Changed(Map().Undo()),
             "redo" => Changed(Map().Redo()),
             "save" => Changed(Map().Save()),
-            "reload" => Reload(),
+            "reload" => Reload(Flag(args, "discard")),
             "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
             "choices" => NeedGameData().Choices,
             "closeAsking" => Raise(CloseAsking),
@@ -212,10 +219,11 @@ public sealed class Commands
     }
 
     // Opens a map folder, asking for one when the page gives no path. Null when the user cancels the dialog. The game
-    // data is checked first, so the user is not asked for a folder that cannot be opened yet.
-    private MapInfo? OpenMap(string? path)
+    // data and the unsaved edits are checked first, so the user is not asked for a folder that cannot be opened yet.
+    private MapInfo? OpenMap(string? path, bool discard)
     {
         var data = NeedGameData();
+        RefuseUnsaved(discard, "open another map");
         path ??= _askFolder("Choose a map folder (a World Editor folder map, or a Moonwell project's map folder)");
         if (string.IsNullOrEmpty(path))
         {
@@ -238,11 +246,32 @@ public sealed class Commands
         return Changed(Info(folder, session));
     }
 
-    private MapInfo Reload()
+    private MapInfo Reload(bool discard)
     {
         var session = Map();
+        RefuseUnsaved(discard, "reload the map");
         session.Reload();
         return Changed(Info(_folder!, session));
+    }
+
+    // Unsaved edits are dropped only when the page says so: its dialog asked the user, who chose Discard (or saved). A
+    // page that was loaded again, and so does not know about them, cannot drop them by mistake.
+    private void RefuseUnsaved(bool discard, string action)
+    {
+        if (!discard && Dirty)
+        {
+            throw new CommandException(
+                "unsaved", $"The map has unsaved changes; save or discard them before you {action}.");
+        }
+    }
+
+    // The open map for a page that was loaded again (after a reload of the page, or a crash of its process).
+    private CurrentMap? Current()
+    {
+        var session = _session;
+        return session == null
+            ? null
+            : new CurrentMap(Info(_folder!, session), new SessionState(session.Dirty, session.ChangedObjects()));
     }
 
     private static MapInfo Info(MapFolder folder, Session session)
@@ -324,6 +353,24 @@ public sealed class Commands
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : throw BadRequest($"The argument {name} must be text.");
+    }
+
+    // A yes/no argument; false when it is missing or null.
+    private static bool Flag(JsonElement args, string name)
+    {
+        if (args.ValueKind != JsonValueKind.Object
+            || !args.TryGetProperty(name, out var value)
+            || value.ValueKind == JsonValueKind.Null)
+        {
+            return false;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw BadRequest($"The argument {name} must be true or false."),
+        };
     }
 
     private static int Number(JsonElement args, string name)

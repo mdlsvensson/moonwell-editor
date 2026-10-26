@@ -26,6 +26,13 @@ describe("each wrapper calls its command with the app's argument names", () => {
       { path: "C:\\maps\\arena" },
     ],
     ["openMap with the dialog", () => api.openMap(), "openMap", {}],
+    [
+      "openMap dropping unsaved edits",
+      () => api.openMap(undefined, true),
+      "openMap",
+      { discard: true },
+    ],
+    ["currentMap", () => api.currentMap(), "currentMap", {}],
     ["tree", () => api.tree("ability"), "tree", { kind: "ability" }],
     ["object", () => api.object("unit", "hfoo"), "object", { kind: "unit", id: "hfoo" }],
     [
@@ -68,6 +75,7 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["redo", () => api.redo(), "redo", {}],
     ["save", () => api.save(), "save", {}],
     ["reload", () => api.reload(), "reload", {}],
+    ["reload dropping unsaved edits", () => api.reload(true), "reload", { discard: true }],
     ["search", () => api.search("foot", 20), "search", { query: "foot", limit: 20 }],
     ["choices", () => api.choices(), "choices", {}],
     ["startup", () => api.startup(), "startup", {}],
@@ -103,15 +111,17 @@ describe("onSessionChanged", () => {
 });
 
 describe("onCloseRequested", () => {
-  it("listens to the closeRequested event", () => {
-    let heard = 0;
-    api.onCloseRequested(() => heard++);
+  it("listens to the closeRequested event and passes on whether the window saw the map dirty", () => {
+    const heard: boolean[] = [];
+    api.onCloseRequested((request) => heard.push(request.dirty));
 
     const [event, handler] = listened.mock.calls[0] ?? [];
     expect(event).toBe("closeRequested");
+    handler?.({ dirty: true });
+    handler?.({ dirty: false });
     handler?.({});
 
-    expect(heard).toBe(1);
+    expect(heard).toEqual([true, false, false]);
   });
 });
 

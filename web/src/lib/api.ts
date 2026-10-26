@@ -29,6 +29,7 @@ export type ErrorCode =
   | "badText"
   | "changedOnDisk"
   | "noMap"
+  | "unsaved"
   | "unknownCommand"
   | "badRequest"
   | "failed"
@@ -133,6 +134,9 @@ export type SessionState = { dirty: boolean; changedObjects: number };
 /** One field of one object at one level, for an edit. */
 export type FieldRef = { kind: Kind; id: string; field: string; level: number };
 
+/** The open map and where it stands, for a page that was loaded again. */
+export type CurrentMap = { map: MapInfo; session: SessionState };
+
 /** What the app was started with: `map` is the folder from its command line, given once (null after). */
 export type Startup = { map: string | null };
 
@@ -141,9 +145,21 @@ export function startup(): Promise<Startup> {
   return call<Startup>("startup");
 }
 
-/** Opens a map folder: `path`, or the one the user picks in the app's dialog (null when they cancel). */
-export function openMap(path?: string): Promise<MapInfo | null> {
-  return call<MapInfo | null>("openMap", path === undefined ? {} : { path });
+/**
+ * Opens a map folder: `path`, or the one the user picks in the app's dialog (null when they cancel). While the open
+ * map has unsaved edits it fails with `unsaved`, unless `discard` is true: pass it only once the user chose Discard
+ * (or saved).
+ */
+export function openMap(path?: string, discard = false): Promise<MapInfo | null> {
+  return call<MapInfo | null>("openMap", {
+    ...(path === undefined ? {} : { path }),
+    ...(discard ? { discard } : {}),
+  });
+}
+
+/** The map that is open in the app and where it stands, or null: a page loaded again shows it. */
+export function currentMap(): Promise<CurrentMap | null> {
+  return call<CurrentMap | null>("currentMap");
 }
 
 /** A kind's tree: the map's custom objects first, then every standard object. */
@@ -203,9 +219,12 @@ export function save(): Promise<SaveReport> {
   return call<SaveReport>("save");
 }
 
-/** Reads the map again from disk, dropping the edits that were not saved. */
-export function reload(): Promise<MapInfo> {
-  return call<MapInfo>("reload");
+/**
+ * Reads the map again from disk, dropping the edits that were not saved. With unsaved edits it fails with `unsaved`,
+ * unless `discard` is true: pass it only once the user chose Discard.
+ */
+export function reload(discard = false): Promise<MapInfo> {
+  return call<MapInfo>("reload", discard ? { discard } : {});
 }
 
 /** Searches the objects of every kind and the kinds' fields; at most `limit` hits, best first. */
@@ -226,13 +245,18 @@ export function onSessionChanged(handler: (state: SessionState) => void): () => 
   return on("sessionChanged", (payload) => handler(payload as SessionState));
 }
 
+/** What `closeRequested` carries: whether the window saw the map with unsaved edits. */
+export type CloseRequest = { dirty: boolean };
+
 /**
- * Listens to `closeRequested`, which the app sends when the user closes the window while the map has unsaved
- * edits. The window stays open; the page answers with `closeAsking` at once, then `closeWindow` once the user has
- * saved or chosen to discard the edits. Returns a function that stops listening.
+ * Listens to `closeRequested`, which the app sends when the user closes the window while the page is loaded. The
+ * window stays open; the page answers with `closeAsking` at once, then `closeWindow` at once when nothing is typed or
+ * unsaved, else once the user has saved or chosen to discard the edits. Returns a function that stops listening.
  */
-export function onCloseRequested(handler: () => void): () => void {
-  return on("closeRequested", () => handler());
+export function onCloseRequested(handler: (request: CloseRequest) => void): () => void {
+  return on("closeRequested", (payload) =>
+    handler({ dirty: (payload as Partial<CloseRequest> | null)?.dirty === true }),
+  );
 }
 
 /** Tells the app the page is asking the user about the unsaved edits (so the window does not ask on its own). */

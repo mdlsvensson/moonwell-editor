@@ -12,6 +12,11 @@ export function typing(send: () => void): () => void {
   };
 }
 
+/** True when a box holds a typed value not sent yet (closing the window then asks, even with nothing unsaved). */
+export function hasTyped(): boolean {
+  return boxes.size > 0;
+}
+
 /** Sends every typed value not sent yet. Each goes on the edit queue at once, before what is asked after this. */
 export function sendTyped(): void {
   for (const send of [...boxes]) send();

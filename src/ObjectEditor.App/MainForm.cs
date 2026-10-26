@@ -8,7 +8,8 @@ public sealed class MainForm : Form
 {
     private const string Host = "app.objecteditor";
 
-    private readonly WebView2 _web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(0x12, 0x12, 0x12) };
+    // Made again when the browser process ends (see OnProcessFailed).
+    private WebView2 _web = NewWeb();
     private readonly Commands _commands;
     private readonly Bridge _bridge;
 
@@ -19,9 +20,12 @@ public sealed class MainForm : Form
     // and be navigated to; set when the page starts.
     private readonly HashSet<string> _origins = new(StringComparer.OrdinalIgnoreCase);
 
-    // Closing with unsaved edits asks the page first; a page that does not answer within the timer's wait is skipped.
+    // Closing asks the page first; a page that does not answer within the timer's wait is skipped.
     private readonly CloseGuard _closeGuard = new();
     private readonly System.Windows.Forms.Timer _pageWait = new() { Interval = 3000 };
+
+    // True once the page has loaded (it may then hold a typed value), until it navigates again or its process fails.
+    private bool _pageLoaded;
 
     /// <summary>Makes the window. The page loads once the window is shown.</summary>
     /// <param name="startupMap">A map folder for the page to open once the game data is ready; null for none.</param>
@@ -76,9 +80,11 @@ public sealed class MainForm : Form
             return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedPath : null;
         });
 
-    // With unsaved edits, the window stays open and asks the page, which asks the user to save, discard or cancel;
-    // the page closes the window with the closeWindow command. A shutdown of Windows is held up the same way (Windows
-    // then shows that the app is keeping it from shutting down); the Task Manager always closes.
+    // While a page is loaded, the window stays open and asks it: the page sends what is still typed, closes the window
+    // at once when nothing is unsaved, and otherwise asks the user to save, discard or cancel; it closes the window
+    // with the closeWindow command. With no page, only unsaved edits keep the window open (the window then asks). A
+    // shutdown of Windows is held up the same way (Windows then shows that the app is keeping it from shutting down);
+    // the Task Manager always closes.
     private void OnClosing(object? sender, FormClosingEventArgs e)
     {
         if (e.CloseReason is not (CloseReason.UserClosing or CloseReason.WindowsShutDown))
@@ -86,29 +92,39 @@ public sealed class MainForm : Form
             return;
         }
 
-        if (_closeGuard.Closing(_commands.Dirty) == CloseStep.Close)
+        var pageLoaded = _pageLoaded && _web.CoreWebView2 != null;
+        if (_closeGuard.Closing(_commands.Dirty, pageLoaded) == CloseStep.Close)
         {
             _pageWait.Stop();
             return;
         }
 
         e.Cancel = true;
-        if (_web.CoreWebView2 == null)
+        if (!pageLoaded)
         {
             AskIfPageSilent();
             return;
         }
 
-        Post(Bridge.Event("closeRequested", new { }));
+        Post(Bridge.Event("closeRequested", new { dirty = _commands.Dirty }));
         _pageWait.Stop();
         _pageWait.Start();
     }
 
-    // The page did not say it is asking the user (it failed to load, or is broken): the window asks instead.
+    // The page did not say it is handling the close (it failed to load, or is broken): the window closes, or asks the
+    // user itself when the map has unsaved edits.
     private void AskIfPageSilent()
     {
         _pageWait.Stop();
-        if (!_closeGuard.PageSilent())
+        var step = _closeGuard.PageSilent(_commands.Dirty);
+        if (step == CloseStep.Close)
+        {
+            _closeGuard.Approve();
+            Close();
+            return;
+        }
+
+        if (step != CloseStep.AskUser)
         {
             return;
         }
@@ -155,6 +171,9 @@ public sealed class MainForm : Form
         });
     }
 
+    private static WebView2 NewWeb() =>
+        new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(0x12, 0x12, 0x12) };
+
     private async Task StartPage()
     {
         var dataFolder = Path.Combine(
@@ -178,8 +197,32 @@ public sealed class MainForm : Form
             if (!_origins.Contains(Origin(e.Uri)))
             {
                 e.Cancel = true;
+                return;
+            }
+
+            _pageLoaded = false;
+        };
+        core.NavigationCompleted += (_, e) => _pageLoaded = e.IsSuccess;
+        core.ProcessFailed += OnProcessFailed;
+
+#if !DEBUG
+        // The page is not a web page to reload or go back from: a reload would drop what is typed, and the page would
+        // start over. A Debug build keeps them, for live development; there, the openMap and reload commands still
+        // refuse to drop unsaved edits (the "unsaved" code), and a page loaded again shows the open map (the
+        // currentMap command).
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+        core.ContextMenuRequested += (_, e) =>
+        {
+            var items = e.MenuItems;
+            for (var i = items.Count - 1; i >= 0; i--)
+            {
+                if (items[i].Name is "back" or "forward" or "reload")
+                {
+                    items.RemoveAt(i);
+                }
             }
         };
+#endif
 
 #if DEBUG
         var devUrl = Environment.GetEnvironmentVariable("OBJECT_EDITOR_DEV_URL");
@@ -193,6 +236,48 @@ public sealed class MainForm : Form
         var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
         core.SetVirtualHostNameToFolderMapping(Host, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
         core.Navigate($"https://{Host}/index.html");
+    }
+
+    // The page's process ended or hung: the page is loaded again, and shows the open map through the currentMap
+    // command (the edits live in this process, so none are lost; a value being typed is). When the browser process
+    // itself ended, its WebView2 cannot be used again, so a new one is made.
+    private async void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+    {
+        try
+        {
+            switch (e.ProcessFailedKind)
+            {
+                case CoreWebView2ProcessFailedKind.RenderProcessExited:
+                case CoreWebView2ProcessFailedKind.RenderProcessUnresponsive:
+                    _pageLoaded = false;
+                    _web.CoreWebView2?.Reload();
+                    break;
+                case CoreWebView2ProcessFailedKind.BrowserProcessExited:
+                    _pageLoaded = false;
+                    await RestartPage();
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                $"The page stopped and could not be loaded again: {exception.Message}",
+                "Object Editor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    // Puts a new WebView2 in place of one whose browser process ended, and loads the page in it.
+    private async Task RestartPage()
+    {
+        var old = _web;
+        _web = NewWeb();
+        Controls.Remove(old);
+        old.Dispose();
+        Controls.Add(_web);
+        await StartPage();
     }
 
     // A URL's scheme, host and port (https://app.objecteditor); "" for a URL that cannot be read, which matches none.

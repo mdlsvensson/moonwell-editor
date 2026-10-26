@@ -117,8 +117,9 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.True(Ok(await Ask(bridge, "deleteObject", new { kind = "unit", id = "h00X" })));
         Assert.Equal(new SessionState(true, 1), _events[^1]);
 
-        // Reload drops the edits that were not saved, and keeps the saved one.
-        var reloaded = Result(await Ask(bridge, "reload", new { }));
+        // Reload drops the edits that were not saved (once the page says to), and keeps the saved one.
+        Assert.Equal("unsaved", ErrorCode(await Ask(bridge, "reload", new { })));
+        var reloaded = Result(await Ask(bridge, "reload", new { discard = true }));
         Assert.Equal(1, reloaded.GetProperty("counts").GetProperty("unit").GetInt32());
         Assert.Equal(new SessionState(false, 0), _events[^1]);
         var saved = Result(await Ask(bridge, "object", new { kind = "unit", id = "hfoo" }));
@@ -190,6 +191,76 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         var units = Path.Combine(map, "war3map.w3u");
         File.SetLastWriteTimeUtc(units, DateTime.UtcNow.AddMinutes(1));   // newer than every file as read
         Assert.Equal("changedOnDisk", ErrorCode(await Ask(bridge, "save", new { })));
+    }
+
+    [Fact]
+    public async Task A_map_with_unsaved_edits_is_dropped_only_with_discard()
+    {
+        var asked = 0;
+        if (Skipped(out var commands, () =>
+            {
+                asked++;
+                return Path.Combine(_root, "map");
+            }))
+        {
+            return;
+        }
+
+        var map = CopyFixture("we-3.0");
+        var bridge = new Bridge(commands.Run);
+        Assert.True(Ok(await Ask(bridge, "openMap", new { path = map })));
+        Assert.True(Ok(await SetLife(bridge, "500")));
+
+        // A page that was reloaded does not know the edits: opening or reloading is refused, the edits stay.
+        Assert.Equal("unsaved", ErrorCode(await Ask(bridge, "openMap", new { path = map })));
+        Assert.Equal("unsaved", ErrorCode(await Ask(bridge, "openMap", new { })));
+        Assert.Equal(0, asked);   // no folder dialog for a map that could not be opened
+        Assert.Equal("unsaved", ErrorCode(await Ask(bridge, "openMap", new { path = map, discard = false })));
+        Assert.Equal("unsaved", ErrorCode(await Ask(bridge, "reload", new { })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "reload", new { discard = "yes" })));
+        Assert.True(commands.Dirty);
+        var kept = Result(await Ask(bridge, "object", new { kind = "unit", id = "hfoo" }));
+        Assert.Equal("500", Field(kept, "uhpm", 0).GetProperty("value").GetString());
+
+        // The user chose Discard in the page's dialog.
+        Assert.True(Ok(await Ask(bridge, "reload", new { discard = true })));
+        Assert.False(commands.Dirty);
+        Assert.True(Ok(await SetLife(bridge, "600")));
+        Assert.True(Ok(await Ask(bridge, "openMap", new { path = map, discard = true })));
+        Assert.False(commands.Dirty);
+
+        // With nothing unsaved, no discard is needed.
+        Assert.True(Ok(await Ask(bridge, "reload", new { })));
+        Assert.True(Ok(await Ask(bridge, "openMap", new { })));
+        Assert.Equal(1, asked);
+    }
+
+    [Fact]
+    public async Task Current_map_gives_the_open_map_and_where_it_stands()
+    {
+        if (Skipped(out var commands))
+        {
+            return;
+        }
+
+        var map = CopyFixture("we-3.0");
+        var bridge = new Bridge(commands.Run);
+        Assert.Equal(JsonValueKind.Null, Result(await Ask(bridge, "currentMap", new { })).ValueKind);
+
+        Assert.True(Ok(await Ask(bridge, "openMap", new { path = map })));
+        var events = _events.Count;
+        var current = Result(await Ask(bridge, "currentMap", new { }));
+        Assert.Equal("map", current.GetProperty("map").GetProperty("name").GetString());
+        Assert.Equal(map, current.GetProperty("map").GetProperty("path").GetString());
+        Assert.Equal(1, current.GetProperty("map").GetProperty("counts").GetProperty("unit").GetInt32());
+        Assert.False(current.GetProperty("session").GetProperty("dirty").GetBoolean());
+
+        // A page loaded again sees the edits that are not saved.
+        Assert.True(Ok(await SetLife(bridge, "500")));
+        current = Result(await Ask(bridge, "currentMap", new { }));
+        Assert.True(current.GetProperty("session").GetProperty("dirty").GetBoolean());
+        Assert.Equal(1, current.GetProperty("session").GetProperty("changedObjects").GetInt32());
+        Assert.Equal(events + 1, _events.Count);   // asking changes nothing, so no sessionChanged
     }
 
     [Fact]

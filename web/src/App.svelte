@@ -10,6 +10,7 @@ import {
   closeWindow,
   copyObject,
   createObject,
+  currentMap,
   deleteObject,
   type FieldRef,
   type FieldView,
@@ -41,9 +42,15 @@ import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./l
 import Palette from "./lib/Palette.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
-import { type Choice, settleUnsaved } from "./lib/settle.ts";
+import {
+  type Choice,
+  dropUnsaved,
+  type Settled,
+  type Settling,
+  settleUnsaved,
+} from "./lib/settle.ts";
 import Tree from "./lib/Tree.svelte";
-import { sendTyped } from "./lib/typing.ts";
+import { hasTyped, sendTyped } from "./lib/typing.ts";
 import { nameField, savedText } from "./lib/values.ts";
 
 /** A place in the visited-objects history (Alt ← and Alt →). */
@@ -165,12 +172,12 @@ function say(text: string, options: { title?: string; warn?: boolean } = {}): vo
 }
 
 /**
- * Asks what to do with the unsaved edits before an action (`question` names it), once a value still being typed and
- * every edit on its way have been answered (see `settle.ts`): true when it may go on, false when the user cancels or
- * the save failed. With nothing unsaved it does not ask, unless `always` (the window saw the map dirty).
+ * How to ask what to do with the unsaved edits before an action (`question` names it), once a value still being typed
+ * and every edit on its way have been answered (see `settle.ts`). With nothing unsaved it does not ask, unless
+ * `always` (the window saw the map dirty, or a box holds a typed value).
  */
-function settle(question: string, canSave = true, always = false): Promise<boolean> {
-  return settleUnsaved({
+function settling(question: string, canSave = true, always = false): Settling {
+  return {
     flush: async () => {
       sendTyped(); // puts what was typed on the queue before the queue is waited for
       await queue;
@@ -191,41 +198,81 @@ function settle(question: string, canSave = true, always = false): Promise<boole
           }),
     save: saveMap,
     always,
+  };
+}
+
+/** Asks about the unsaved edits before an action that keeps them (closing asks this way). */
+function settle(question: string, canSave = true, always = false): Promise<Settled> {
+  return settleUnsaved(settling(question, canSave, always));
+}
+
+/**
+ * Runs an action that drops the unsaved edits (opening another map, reloading) once they are settled; `act` tells the
+ * app to discard them only when the user chose to. When the app holds edits the page did not know of (the page was
+ * loaded again), it refuses, and the page asks after all. True when it acted.
+ */
+function dropping(
+  question: string,
+  canSave: boolean,
+  act: (discard: boolean) => Promise<unknown>,
+): Promise<boolean> {
+  return dropUnsaved({
+    ...settling(question, canSave),
+    act,
+    refresh: async () => {
+      const open = await currentMap();
+      if (open) session = open.session;
+    },
   });
 }
 
-/** "Open map…" in the header: asks about unsaved edits first. */
+/** "Open map…": asks about unsaved edits first. */
 async function openAnother(): Promise<void> {
-  if (await settle("Save them before opening another map?")) await openMapFolder();
+  try {
+    await dropping("Save them before opening another map?", true, (discard) =>
+      openMapFolder(undefined, discard),
+    );
+  } catch (error) {
+    mapProblem = message(error);
+  }
 }
 
-/** Opens a map folder: `path`, or the one picked in the app's dialog. */
-async function openMapFolder(path?: string): Promise<void> {
+/**
+ * Opens a map folder: `path`, or the one picked in the app's dialog. `discard` lets the app drop unsaved edits; without
+ * it, it refuses with `unsaved`, which is passed on (every other failure is shown).
+ */
+async function openMapFolder(path?: string, discard = false): Promise<void> {
   mapProblem = "";
   opening = true;
   try {
     const started = performance.now();
-    const info = await openMap(path);
+    const info = await openMap(path, discard);
     if (!info) return;
     console.info(`[timing] openMap ${info.name}: ${Math.round(performance.now() - started)} ms`);
-    mapGeneration++;
-    map = info;
-    trees = {};
-    treeErrors = {};
-    treesAsked.clear();
-    picked = {};
-    objectAsked++;
-    current = null;
-    objectError = "";
-    history = [];
-    at = -1;
-    showProblems = info.problems.length > 0;
-    await ensureTree(kind);
+    await showMap(info);
   } catch (error) {
+    if (error instanceof BridgeError && error.code === "unsaved") throw error;
     mapProblem = message(error);
   } finally {
     opening = false;
   }
+}
+
+/** Shows a map that was opened (or that the app had open when the page loaded): its tree, no object picked yet. */
+async function showMap(info: MapInfo): Promise<void> {
+  mapGeneration++;
+  map = info;
+  trees = {};
+  treeErrors = {};
+  treesAsked.clear();
+  picked = {};
+  objectAsked++;
+  current = null;
+  objectError = "";
+  history = [];
+  at = -1;
+  showProblems = info.problems.length > 0;
+  await ensureTree(kind);
 }
 
 async function ensureTree(each: Kind): Promise<void> {
@@ -340,11 +387,13 @@ async function reloadMap(afterDiskChange = false): Promise<void> {
   const question = afterDiskChange
     ? "Reloading the map from disk drops them."
     : "Save them before reloading the map from disk?";
-  if (!(await settle(question, !afterDiskChange))) return;
   try {
-    const info = await queued(reload);
-    map = info;
-    showProblems = info.problems.length > 0;
+    const done = await dropping(question, !afterDiskChange, async (discard) => {
+      const info = await queued(() => reload(discard));
+      map = info;
+      showProblems = info.problems.length > 0;
+    });
+    if (!done) return;
     await Promise.all([refreshTrees(), refreshObject()]);
     say("Reloaded the map from disk");
   } catch (error) {
@@ -592,14 +641,18 @@ onMount(() => {
       onSessionChanged((state) => {
         session = state;
       }),
-      onCloseRequested(async () => {
-        // At once, so the window does not ask on its own; then the dialog, and close only on its answer.
+      onCloseRequested(async (request) => {
+        // At once, so the window does not ask on its own; then, if needed, the dialog, and close only on its answer.
         closeAsking().catch(() => {});
         if (closing) return;
         closing = true;
         try {
-          // The window sends closeRequested only while the map is dirty, so the page asks even if it has not heard yet.
-          if (await settle("Save them before closing the window?", true, true)) await closeWindow();
+          // It asks when the window saw the map dirty (the page may not have heard yet) or a box holds a typed value
+          // (even one the app may refuse); otherwise it closes at once, once what was typed has been sent.
+          const always = request.dirty || hasTyped();
+          if ((await settle("Save them before closing the window?", true, always)) !== "stopped") {
+            await closeWindow();
+          }
         } finally {
           closing = false;
         }
@@ -614,6 +667,12 @@ onMount(() => {
       await call<string>("ping");
       const state = await gameData();
       data = newer(data, state); // the event may have brought a newer state meanwhile
+      // A page loaded again (reloaded, or after its process failed) shows the map the app has open, edits and all.
+      const open = await currentMap();
+      if (open && !map) {
+        session = open.session;
+        await showMap(open.map);
+      }
     } catch (error) {
       connection = message(error);
     }
@@ -752,7 +811,7 @@ onMount(() => {
           type="button"
           class="inline-flex items-center gap-2 rounded-md border border-accent bg-raised px-3 py-1.5 text-fg hover:bg-hover disabled:opacity-50"
           disabled={view !== "ready" || opening}
-          onclick={() => openMapFolder()}
+          onclick={openAnother}
         >
           <FolderOpen size={16} />
           {opening ? "Opening…" : "Open map…"}
