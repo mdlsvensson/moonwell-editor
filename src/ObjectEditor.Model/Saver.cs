@@ -95,6 +95,7 @@ public sealed partial class Session
         _problems = loaded.Problems;
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
+        _unreadable = loaded.Unreadable;
         _history = new History();
         _search.Rebuild(_kinds, _strings);
         _savedObjects = Describe();

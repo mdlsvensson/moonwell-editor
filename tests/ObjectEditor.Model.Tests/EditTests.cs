@@ -219,6 +219,30 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Trigstr_is_written_inline_while_an_object_file_is_unreadable()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // War3Net cannot read war3map.w3a, so whether one of its modifications refers to TRIGSTR_012 is not known: the
+        // entry is taken for shared, and the new text goes inline.
+        using var map = TempMap.Of("we-3.0");
+        File.WriteAllBytes(Path.Combine(map.Folder, "war3map.w3a"), [3, 0, 0, 0, 0]);
+        var wts = File.ReadAllBytes(Path.Combine(map.Folder, "war3map.wts"));
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        Assert.Null(session.FileOf(ObjectKind.Ability, false));
+
+        session.Set(ObjectKind.Unit, "h000", "unam", 0, "Knight");
+
+        Assert.Equal("Knight", session.Object(ObjectKind.Unit, "h000")!.Name);
+        var skin = session.FileOf(ObjectKind.Unit, true)!.Custom.Single(entry => entry.Id == "h000");
+        Assert.Equal(new FieldValue.Text("Knight"), skin.Find("unam", 0)!.Value);
+        Assert.Equal(wts, session.Strings!.ToBytes());
+    }
+
+    [Fact]
     public void New_ids_follow_world_editor()
     {
         if (Skipped(out var game))

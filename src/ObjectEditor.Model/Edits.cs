@@ -29,7 +29,8 @@ public sealed partial class Session
     /// A value equal to the standard one (numbers compared as numbers) removes the map's modification instead, unless
     /// the standard value differs between graphics modes. Text whose modification holds <c>TRIGSTR_n</c> changes
     /// that entry of <c>war3map.wts</c> and keeps the reference, unless another modification of the map refers to the
-    /// same entry: then the new text is written inline, so the other field keeps its text.
+    /// same entry (or the map has an object file War3Net cannot read, which might): then the new text is written
+    /// inline, so the other field keeps its text.
     /// </summary>
     /// <exception cref="EditException">
     /// <c>noObject</c>, <c>noField</c>, <c>readOnly</c>, <c>notNumber</c>, or <c>badText</c> for text an object file
@@ -381,10 +382,16 @@ public sealed partial class Session
 
     /// <summary>
     /// Whether a modification other than <paramref name="own"/>, in any object file of the map (any kind, main or
-    /// skin), refers to entry <paramref name="number"/> of the strings file.
+    /// skin), refers to entry <paramref name="number"/> of the strings file. While the map has an object file War3Net
+    /// cannot read, what that file refers to is not known, so every entry counts as shared.
     /// </summary>
     private bool SharedTriggerString(int number, FieldMod own)
     {
+        if (_unreadable)
+        {
+            return true;
+        }
+
         var mods = _kinds.Values
             .SelectMany(map => new[] { map.Main, map.Skin })
             .SelectMany(file => (file?.Original ?? []).Concat(file?.Custom ?? []))

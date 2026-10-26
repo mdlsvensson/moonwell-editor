@@ -25,6 +25,7 @@ public sealed partial class Session
     private List<string> _problems;
     private Dictionary<string, byte[]?> _baseline;
     private DateTime _stamp;
+    private bool _unreadable;
     private History _history = new();
 
     private Session(MapFolder folder, GameData.GameData game, Loaded loaded)
@@ -36,6 +37,7 @@ public sealed partial class Session
         _problems = loaded.Problems;
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
+        _unreadable = loaded.Unreadable;
         _search = new SearchIndex(game, _kinds, _strings);
         _savedObjects = Describe();
     }
@@ -73,6 +75,7 @@ public sealed partial class Session
 
         var baseline = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
         var kinds = new Dictionary<ObjectKind, MapKind>();
+        var unreadable = false;
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
             var mainName = "war3map." + ObjectKinds.Extension(kind);
@@ -83,6 +86,7 @@ public sealed partial class Session
             var main = ReadFile(kind, mainName, baseline[mainName], kindProblems);
             var skin = ReadFile(kind, skinName, baseline[skinName], kindProblems);
             problems.AddRange(kindProblems);
+            unreadable |= (baseline[mainName] != null && main == null) || (baseline[skinName] != null && skin == null);
             var problem = kindProblems.Count == 0 ? null : string.Join(" ", kindProblems);
             kinds[kind] = new MapKind(mainName, main, skinName, skin, problem);
         }
@@ -90,7 +94,7 @@ public sealed partial class Session
         var stringBytes = map.Read(StringsName);
         baseline[StringsName] = stringBytes;
         var strings = stringBytes == null ? null : WtsFile.Read(stringBytes);
-        return new Loaded(kinds, strings, problems, baseline, stamp);
+        return new Loaded(kinds, strings, problems, baseline, stamp, unreadable);
     }
 
     /// <summary>
@@ -209,12 +213,14 @@ public sealed partial class Session
     /// <param name="Problems">The problems found.</param>
     /// <param name="Baseline">Each file's bytes as read (null when the folder has none), by name.</param>
     /// <param name="Stamp">The folder's <see cref="MapFolder.Stamp"/> before reading.</param>
+    /// <param name="Unreadable">True when the folder has an object file War3Net cannot read.</param>
     private sealed record Loaded(
         Dictionary<ObjectKind, MapKind> Kinds,
         WtsFile? Strings,
         List<string> Problems,
         Dictionary<string, byte[]?> Baseline,
-        DateTime Stamp);
+        DateTime Stamp,
+        bool Unreadable);
 }
 
 /// <summary>
