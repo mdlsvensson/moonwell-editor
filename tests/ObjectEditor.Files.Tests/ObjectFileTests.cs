@@ -70,6 +70,7 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
             var problem = Assert.Throws<ObjectFileException>(() => ObjectFile.Read(kind, cut));
 
             Assert.Contains("war3map." + ObjectKinds.Extension(kind), problem.Message);
+            Assert.Null(problem.Parsed);
         }
     }
 
@@ -86,6 +87,17 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
         Assert.Contains("exactly", problem.Message);
         Assert.Contains("war3map." + ObjectKinds.Extension(kind), problem.Message);
         output.WriteLine(problem.Message);
+
+        // War3Net read it, so what it read is kept for showing (never for saving).
+        var parsed = problem.Parsed;
+        Assert.NotNull(parsed);
+        var read = ObjectFile.Read(kind, bytes);
+        Assert.Equal(kind, parsed.Kind);
+        Assert.Equal(read.Original.Count, parsed.Original.Count);
+        Assert.Equal(read.Custom.Select(entry => entry.Id), parsed.Custom.Select(entry => entry.Id));
+        Assert.Equal(
+            read.Original.Concat(read.Custom).SelectMany(entry => entry.Mods).Select(mod => mod.Value),
+            parsed.Original.Concat(parsed.Custom).SelectMany(entry => entry.Mods).Select(mod => mod.Value));
     }
 
     [Fact]
@@ -101,6 +113,11 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
 
         Assert.Contains("war3mapSkin.w3a", problem.Message);
         output.WriteLine(problem.Message);
+
+        // War3Net reads the byte as a replacement character, so the file reads but does not write back exactly.
+        Assert.Contains("exactly", problem.Message);
+        var name = problem.Parsed!.Custom[0].Find("anam", 0)!.Value;
+        Assert.Equal(new FieldValue.Text("�RIGSTR_016"), name);
     }
 
     [Fact]

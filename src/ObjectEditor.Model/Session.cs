@@ -138,8 +138,9 @@ public sealed class Session
     }
 
     /// <summary>
-    /// Reads one object file; null when the folder has none, or when it is a problem, which is added to
-    /// <paramref name="problems"/>.
+    /// Reads one object file; null when the folder has none. A problem is added to <paramref name="problems"/>: a file
+    /// War3Net read but cannot write back exactly is still returned, to show (its kind is then read only, so it is
+    /// never saved); a file War3Net cannot read gives null.
     /// </summary>
     private static ObjectFile? ReadFile(MapFolder map, ObjectKind kind, string name, List<string> problems)
     {
@@ -156,7 +157,7 @@ public sealed class Session
         catch (ObjectFileException e)
         {
             problems.Add(e.Message);
-            return null;
+            return e.Parsed;
         }
     }
 
@@ -178,21 +179,22 @@ public sealed class Session
 }
 
 /// <summary>
-/// One kind's object files as the map has them: the main and the skin file, either of which may be missing; when one
-/// is a problem it is not read at all and the kind is read only.
+/// One kind's object files as the map has them: the main and the skin file, either of which may be missing. When one
+/// is a problem the kind is read only; a file War3Net read but cannot write back exactly is kept for showing, one it
+/// cannot read is missing here.
 /// </summary>
 internal sealed class MapKind(string mainName, ObjectFile? main, string skinName, ObjectFile? skin, string? problem)
 {
     /// <summary>The main file's name (<c>war3map.w3u</c>).</summary>
     public string MainName { get; } = mainName;
 
-    /// <summary>The main file, or null when the folder has none or it is a problem.</summary>
+    /// <summary>The main file, or null when the folder has none or War3Net cannot read it.</summary>
     public ObjectFile? Main { get; } = main;
 
     /// <summary>The skin file's name (<c>war3mapSkin.w3u</c>).</summary>
     public string SkinName { get; } = skinName;
 
-    /// <summary>The skin file, or null when the folder has none or it is a problem.</summary>
+    /// <summary>The skin file, or null when the folder has none or War3Net cannot read it.</summary>
     public ObjectFile? Skin { get; } = skin;
 
     /// <summary>Why the kind is read only (its files' problems), or null.</summary>

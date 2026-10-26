@@ -50,8 +50,9 @@ public sealed class ObjectFile
     /// <summary>
     /// Reads an object file with War3Net, then checks that War3Net writes it back to the same bytes. Throws an
     /// <see cref="ObjectFileException"/> naming the problem when War3Net cannot read the file or cannot write it back
-    /// exactly. <paramref name="name"/> is the file's name in messages (by default <c>war3map.</c> and the kind's
-    /// extension).
+    /// exactly; in the second case the exception's <see cref="ObjectFileException.Parsed"/> holds what War3Net read,
+    /// to show but never to save. <paramref name="name"/> is the file's name in messages (by default <c>war3map.</c>
+    /// and the kind's extension).
     /// </summary>
     public static ObjectFile Read(ObjectKind kind, byte[] bytes, string? name = null)
     {
@@ -232,7 +233,7 @@ public sealed class ObjectFile
         }
         catch (Exception e)
         {
-            throw new ObjectFileException($"War3Net cannot write {name} back: {e.Message}", e);
+            throw new ObjectFileException($"War3Net cannot write {name} back: {e.Message}", e, this);
         }
 
         if (written.AsSpan().SequenceEqual(bytes))
@@ -244,7 +245,7 @@ public sealed class ObjectFile
         var detail = at == written.Length
             ? $"it would drop the last {bytes.Length - written.Length} bytes, from offset {at}"
             : $"the bytes differ from offset {at} ({written.Length} bytes written, {bytes.Length} read)";
-        throw new ObjectFileException($"War3Net cannot write {name} back exactly: {detail}.");
+        throw new ObjectFileException($"War3Net cannot write {name} back exactly: {detail}.", null, this);
     }
 }
 
@@ -264,4 +265,19 @@ public sealed class ObjectFileException : Exception
         : base(message, inner)
     {
     }
+
+    /// <summary>
+    /// A file War3Net read but cannot write back exactly: <paramref name="parsed"/> is what it read.
+    /// </summary>
+    internal ObjectFileException(string message, Exception? inner, ObjectFile parsed)
+        : base(message, inner)
+    {
+        Parsed = parsed;
+    }
+
+    /// <summary>
+    /// What War3Net read when it read the file but cannot write it back exactly, so its records can still be shown;
+    /// it must never be saved. Null when War3Net could not read the file at all.
+    /// </summary>
+    public ObjectFile? Parsed { get; }
 }
