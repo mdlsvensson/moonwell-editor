@@ -23,14 +23,14 @@ The second starts the window and points it at Vite (Debug build only):
 
 ```
 # PowerShell
-$env:OBJECT_EDITOR_DEV_URL = "http://localhost:5173"
-dotnet run --project src/ObjectEditor.App
+$env:MOONWELL_EDITOR_DEV_URL = "http://localhost:5173"
+dotnet run --project src/MoonwellEditor.App
 
 # Git Bash
-OBJECT_EDITOR_DEV_URL=http://localhost:5173 dotnet run --project src/ObjectEditor.App
+MOONWELL_EDITOR_DEV_URL=http://localhost:5173 dotnet run --project src/MoonwellEditor.App
 ```
 
-Without `OBJECT_EDITOR_DEV_URL` the window shows the built page instead: run `npm run build` in `web/` first, then
+Without `MOONWELL_EDITOR_DEV_URL` the window shows the built page instead: run `npm run build` in `web/` first, then
 `dotnet build` copies `web/dist` next to the exe as `wwwroot`. (`dotnet build` does not run npm.)
 
 ## Open a map at start
@@ -40,9 +40,9 @@ game data is ready, as if it had been picked with "Open map…" (handy for check
 for "open with"):
 
 ```
-dotnet run --project src/ObjectEditor.App -- "C:\Maps\Arena"
-dotnet run --project src/ObjectEditor.App -- "C:\Maps\Arena.w3x"
-src/ObjectEditor.App/bin/Debug/net10.0-windows/ObjectEditor.App.exe "C:\Maps\Arena"
+dotnet run --project src/MoonwellEditor.App -- "C:\Maps\Arena"
+dotnet run --project src/MoonwellEditor.App -- "C:\Maps\Arena.w3x"
+src/MoonwellEditor.App/bin/Debug/net10.0-windows/MoonwellEditor.exe "C:\Maps\Arena"
 ```
 
 The page asks for it with the `startup` command, which gives the map once; a page loaded again (live reload) does
@@ -56,12 +56,12 @@ Build the page first, then publish a Release build:
 
 ```
 cd web && npm run build
-dotnet publish src/ObjectEditor.App -c Release -r win-x64 --self-contained false
+dotnet publish src/MoonwellEditor.App -c Release -r win-x64 --self-contained false
 ```
 
-The app is then `src/ObjectEditor.App/bin/Release/net10.0-windows/win-x64/publish/ObjectEditor.App.exe`, about 6 MB
-with the DLLs and the page (`wwwroot`) next to it: copy the whole `publish` folder to move it. It needs the .NET 10
-Desktop Runtime (the SDK includes it); `--self-contained true` bundles .NET instead, for a PC without it, at about
+The app is then `src/MoonwellEditor.App/bin/Release/net10.0-windows/win-x64/publish/MoonwellEditor.exe`, about
+6 MB with the DLLs and the page (`wwwroot`) next to it: copy the whole `publish` folder to move it. It needs the .NET
+10 Desktop Runtime (the SDK includes it); `--self-contained true` bundles .NET instead, for a PC without it, at about
 70 MB more.
 
 A single-file exe (`-p:PublishSingleFile=true`) does not build yet: Moonwell's generator code, linked in from wc3-cs,

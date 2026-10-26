@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>MoonwellEditor</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MoonwellEditor.GameData\MoonwellEditor.GameData.csproj" />
+    <ProjectReference Include="..\MoonwellEditor.Model\MoonwellEditor.Model.csproj" />
+  </ItemGroup>
+
+  <!--
+    The Svelte front end is built by `npm run build` in web/ (dotnet build does not run npm). When web/dist exists,
+    its files are copied next to the exe as wwwroot, where MainForm maps them to https://app.moonwelleditor/.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\web\dist\**" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

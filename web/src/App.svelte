@@ -863,7 +863,7 @@ onMount(() => {
   {#if view === "missing" || view === "failed"}
     <main class="grid min-h-0 place-items-center" data-testid="first-start">
       <div class="flex max-w-lg flex-col gap-3 px-6">
-        <h1 class="font-heading text-2xl font-bold text-fg">Welcome to the Object Editor</h1>
+        <h1 class="font-heading text-2xl font-bold text-fg">Welcome to Moonwell Editor</h1>
         <p>
           The editor needs the game's own data to show the standard units, items and abilities. Point
           it at a game data folder (a <span class="font-mono text-fg">war3.w3mod</span> export).

@@ -30,7 +30,7 @@ const listening = new WeakSet<Webview>();
 
 function webview(): Webview {
   const found = window.chrome?.webview;
-  if (!found) throw new Error("The page is not running inside the Object Editor window.");
+  if (!found) throw new Error("The page is not running inside the Moonwell Editor window.");
   if (!listening.has(found)) {
     listening.add(found);
     found.addEventListener("message", (event) => receive(event.data));
@@ -72,7 +72,7 @@ function errorOf(reply: Reply): BridgeError {
 
 /**
  * Runs a command in the app. Rejects with a BridgeError (the app's code and message) when the command fails, and
- * with an Error when the page is not inside the Object Editor window.
+ * with an Error when the page is not inside the Moonwell Editor window.
  */
 export async function call<T>(command: string, args: object = {}): Promise<T> {
   const channel = webview();

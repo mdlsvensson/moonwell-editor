@@ -4,6 +4,10 @@ A desktop app, written in C# on War3Net with a Svelte interface in a WebView2 wi
 Editor's Object Editor (units, items, abilities, buffs, upgrades, destructables and doodads) and is faster,
 searchable and easier to use.
 
+Renamed **Moonwell Editor** (Sven, 2026-10-26): the app shows that name, the exe is `MoonwellEditor.exe`, and the
+projects, namespaces and environment variables are `MoonwellEditor.*` and `MOONWELL_EDITOR_*`. This document and the
+plans keep the old `ObjectEditor.*` names as they were written; "the Object Editor" in them is World Editor's.
+
 Status: **draft, not approved.** Sven skipped the open design questions on 2026-10-26 ("skip"), so every choice below
 is the agent's call unless it says otherwise. Sven's own decisions are marked **Sven, 2026-10-26**:
 

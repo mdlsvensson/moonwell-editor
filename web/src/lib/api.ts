@@ -1,6 +1,6 @@
 /**
  * The app's commands for the open map, one typed function each, and the types of what they answer. The types follow
- * the C# records (camelCase): `Session`'s views in ObjectEditor.Model and the records in ObjectEditor.App's Commands.
+ * the C# records (camelCase): `Session`'s views in MoonwellEditor.Model and the records in MoonwellEditor.App's Commands.
  */
 import { call, on } from "./bridge.ts";
 

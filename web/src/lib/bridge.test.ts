@@ -63,12 +63,12 @@ describe("call", () => {
     await expect(second).resolves.toBe("from b");
   });
 
-  it("rejects, rather than throws, outside the Object Editor window", async () => {
+  it("rejects, rather than throws, outside the Moonwell Editor window", async () => {
     vi.stubGlobal("window", {});
 
     const pending = call("ping");
 
-    await expect(pending).rejects.toThrow("not running inside the Object Editor window");
+    await expect(pending).rejects.toThrow("not running inside the Moonwell Editor window");
   });
 
   it("rejects every waiting call when an error reply has no id", async () => {
