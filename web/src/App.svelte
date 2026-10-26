@@ -51,7 +51,7 @@ import {
 } from "./lib/settle.ts";
 import Tree from "./lib/Tree.svelte";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
-import { nameField, savedText } from "./lib/values.ts";
+import { nameField, saveCaution, savedText, smallMapsWarning } from "./lib/values.ts";
 
 /** A place in the visited-objects history (Alt ← and Alt →). */
 type Place = { kind: Kind; id: string };
@@ -164,11 +164,14 @@ function queued<T>(work: () => Promise<T>): Promise<T> {
   return next;
 }
 
-/** Shows a short message in the status bar for a few seconds. */
-function say(text: string, options: { title?: string; warn?: boolean } = {}): void {
+/** Shows a short message in the status bar for a few seconds (longer for a warning or a caution). */
+function say(
+  text: string,
+  options: { title?: string; warn?: boolean; caution?: string } = {},
+): void {
   clearTimeout(noticeTimer);
   notice = { text, ...options };
-  noticeTimer = setTimeout(() => (notice = null), options.warn ? 10000 : 6000);
+  noticeTimer = setTimeout(() => (notice = null), options.warn || options.caution ? 10000 : 6000);
 }
 
 /**
@@ -370,6 +373,7 @@ async function saveMap(): Promise<boolean> {
     const files = report.written.join(", ");
     say(savedText(report), {
       title: report.backup ? `${files}\nBackup: ${report.backup}` : files || undefined,
+      caution: saveCaution(report) ?? undefined,
     });
     return true;
   } catch (error) {
@@ -785,7 +789,7 @@ onMount(() => {
       type="button"
       class="shrink-0 rounded-[5px] bg-accent px-3 py-[5px] font-bold text-bg hover:bg-accent-hi disabled:opacity-40"
       disabled={!map || saving || !session?.dirty}
-      title="Save the map (Ctrl S). Saving is tested only on small maps."
+      title="Save the map (Ctrl S). {smallMapsWarning}."
       onclick={saveMap}
     >
       {saving ? "Saving…" : "Save"}

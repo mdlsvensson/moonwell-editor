@@ -1,15 +1,18 @@
 <script lang="ts">
 /**
  * The status bar: whether the map has unsaved edits, a short notice (what a save wrote, what went wrong), the map's
- * problems (a count; a click lists them), and the game data in use.
+ * problems (a count; a click lists them), and the game data in use (the base tables: no balance set is applied yet).
  */
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { SessionState } from "./api.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
 
-/** A short message in the status bar, such as what a save wrote; `title` is its tooltip. */
-export type Notice = { text: string; title?: string; warn?: boolean };
+/**
+ * A short message in the status bar, such as what a save wrote; `title` is its tooltip, `caution` a warning shown
+ * after it in full (it is not cut off when the text is long).
+ */
+export type Notice = { text: string; title?: string; warn?: boolean; caution?: string };
 
 type Props = {
   /** Where the open map stands; null with no map open. */
@@ -33,6 +36,14 @@ let {
   connection,
   notice,
 }: Props = $props();
+
+// The values come from the game's base tables: a map's balance set is a later switch (see the spec).
+const dataTitle = $derived(
+  dataView === "ready"
+    ? `${data?.source ?? ""}\nThe values shown are the game's base tables; a map's balance set ` +
+        "(melee_v0, custom_v0, custom_v1) is not applied yet."
+    : (data?.source ?? ""),
+);
 
 const folderName = $derived(
   data?.source ? (data.source.split(/[\\/]/).filter(Boolean).pop() ?? "") : "",
@@ -62,6 +73,11 @@ const folderName = $derived(
     >
       {notice.text}
     </span>
+    {#if notice.caution}
+      <span class="shrink-0 whitespace-nowrap text-warn" data-testid="notice-caution">
+        {notice.caution}
+      </span>
+    {/if}
   {:else if session}
     <span class="whitespace-nowrap">Undo Ctrl Z · Redo Ctrl Y</span>
   {/if}
@@ -77,11 +93,15 @@ const folderName = $derived(
       {problems.length === 1 ? "map problem" : "map problems"}
     </button>
   {/if}
-  <span class="ml-auto truncate" data-testid="game-data-status" title={data?.source ?? ""}>
+  <span
+    class="ml-auto truncate"
+    data-testid="game-data-status"
+    title={dataTitle}
+  >
     {#if dataView === "loading"}
       Loading the game data from <span class="font-mono">{folderName}</span>…
     {:else if dataView === "ready"}
-      Game data <span class="font-mono">{folderName}</span>
+      Game data <span class="font-mono">{folderName}</span> · base tables
     {:else if dataView === "failed"}
       <span class="text-warn">Game data failed to load</span>
     {:else if dataView === "missing"}

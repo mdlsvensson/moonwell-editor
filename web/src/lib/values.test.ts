@@ -8,7 +8,9 @@ import {
   nameField,
   parseFlags,
   removeId,
+  saveCaution,
   savedText,
+  smallMapsWarning,
 } from "./values.ts";
 
 /** A field with plain defaults; `over` sets what a test cares about. */
@@ -215,5 +217,13 @@ describe("savedText", () => {
     ).toBe("Saved 2 files · backup in Arena.backup\\2026-10-26 12-00-00");
     expect(savedText({ written: ["war3map.w3u"], backup: "" })).toBe("Saved 1 file");
     expect(savedText({ written: [], backup: "" })).toBe("Nothing to save");
+  });
+});
+
+describe("saveCaution", () => {
+  it("warns after every save that wrote files, until saves are checked in World Editor", () => {
+    expect(smallMapsWarning).toBe("Saving is tested only on small maps");
+    expect(saveCaution({ written: ["war3map.w3u"], backup: "" })).toBe(smallMapsWarning);
+    expect(saveCaution({ written: [], backup: "" })).toBeNull();
   });
 });

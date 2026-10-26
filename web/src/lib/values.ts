@@ -132,6 +132,17 @@ export function nameField(view: ObjectView): FieldView | undefined {
   return undefined;
 }
 
+/**
+ * The warning a save shows until the app's saves have been checked in World Editor (Sven's answer 4 in the spec): one
+ * constant, so it is easy to remove then.
+ */
+export const smallMapsWarning = "Saving is tested only on small maps";
+
+/** The warning to show with a save's notice: after every save that wrote files; null when none were written. */
+export function saveCaution(report: SaveReport): string | null {
+  return report.written.length > 0 ? smallMapsWarning : null;
+}
+
 /** What the status bar says after a save: the files written and where the backup went (its last two parts). */
 export function savedText(report: SaveReport): string {
   const count = report.written.length;
