@@ -166,7 +166,8 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
             : 0;
     }
 
-    private FieldView Field(FieldInfo field, int level, StandardObject standard, MapObject? map)
+    /// <summary>One field of an object at a level, as <see cref="View"/> shows it.</summary>
+    internal FieldView Field(FieldInfo field, int level, StandardObject standard, MapObject? map)
     {
         var standardValue = StandardValue(field, level, standard);
         var mapValue = MapValue(field, level, map);

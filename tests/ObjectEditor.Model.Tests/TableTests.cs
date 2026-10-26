@@ -244,6 +244,151 @@ public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output
         Assert.Equal(OnDisk(map), Snapshot(session));
     }
 
+    [Fact]
+    public void Table_matches_object_view()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        // A value past World Editor's limit gives a warning; a name changed through the strings file shows its text.
+        session.SetCells(ObjectKind.Unit, [new CellEdit("hfoo", "uhpm", 0, "99999999")]);
+
+        var units = new[] { "H001", "u001", "H002", "hpea", "hfoo" };
+        var unitColumns = new[] { "unam", "uhpm", "udef", "ustr", "umvs", "ubdg" }
+            .Select(field => new Column(field, 0))
+            .ToList();
+        var abilities = new[] { "A001", "A003" };
+        var abilityColumns = new List<Column>
+        {
+            new("anam", 0),
+            new("acdn", 1),
+            new("acdn", 3),
+            new("acdn", 4),
+        };
+
+        var changed = 0;
+        var warned = 0;
+        foreach (var (kind, ids, columns) in new[]
+        {
+            (ObjectKind.Unit, units, unitColumns),
+            (ObjectKind.Ability, abilities, abilityColumns),
+        })
+        {
+            var rows = session.Table(kind, ids, columns);
+            Assert.Equal(ids, rows.Select(row => row.Id));
+            foreach (var row in rows)
+            {
+                var view = session.Object(kind, row.Id)!;
+                Assert.Equal(view.Name, row.Name);
+                Assert.Equal(view.BaseId, row.BaseId);
+                Assert.Equal(view.ReadOnly, row.ReadOnly);
+                Assert.Equal(columns.Count, row.Cells.Count);
+                for (var i = 0; i < columns.Count; i++)
+                {
+                    var cell = row.Cells[i];
+                    var field = view.Fields.SingleOrDefault(
+                        candidate => candidate.Id == columns[i].Field && candidate.Level == columns[i].Level);
+                    if (field == null)
+                    {
+                        Assert.Equal(new TableCell("", "", false, false, null), cell);
+                        continue;
+                    }
+
+                    Assert.Equal(new TableCell(field.Value, field.Base, field.Changed, true, field.Warning), cell);
+                    changed += cell.Changed ? 1 : 0;
+                    warned += cell.Warning != null ? 1 : 0;
+                }
+            }
+        }
+
+        // The comparison above is not empty: the map changes cells, and one has a warning.
+        Assert.True(changed > 0);
+        Assert.True(warned > 0);
+    }
+
+    [Fact]
+    public void Table_marks_cells_that_do_not_apply()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // Strength is a hero's field; hfoo is a footman.
+        var unit = Assert.Single(
+            session.Table(ObjectKind.Unit, ["hfoo"], [new Column("ustr", 0), new Column("uhpm", 0)]));
+        Assert.Equal(new TableCell("", "", false, false, null), unit.Cells[0]);
+        Assert.True(unit.Cells[1].Applies);
+
+        // A level above the ability's count (acdn has a value for each level).
+        var levels = session.Object(ObjectKind.Ability, "A001")!.Levels;
+        Assert.True(levels is > 0 and < 4, $"A001 has {levels} levels; the test needs fewer than 4.");
+        var ability = Assert.Single(session.Table(
+            ObjectKind.Ability,
+            ["A001"],
+            [new Column("acdn", levels), new Column("acdn", levels + 1), new Column("acdn", 0)]));
+        Assert.True(ability.Cells[0].Applies);
+        Assert.Equal(new TableCell("", "", false, false, null), ability.Cells[1]);
+        Assert.Equal(new TableCell("", "", false, false, null), ability.Cells[2]);
+    }
+
+    [Fact]
+    public void Table_keeps_the_order_of_ids_and_skips_unknown()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        var rows = session.Table(ObjectKind.Unit, ["hpea", "zzzz", "H001", "hfoo"], [new Column("uhpm", 0)]);
+
+        Assert.Equal(["hpea", "H001", "hfoo"], rows.Select(row => row.Id));
+        Assert.Empty(session.Table(ObjectKind.Unit, [], [new Column("uhpm", 0)]));
+        var noField = Assert.Throws<EditException>(
+            () => session.Table(ObjectKind.Unit, ["hfoo"], [new Column("uhpm", 0), new Column("nope", 0)]));
+        Assert.Equal("noField", noField.Code);
+    }
+
+    [Fact]
+    public void Table_of_every_unit_is_fast()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        var ids = game.Kind(ObjectKind.Unit).Objects.Select(unit => unit.Id).ToList();
+        var columns = new[] { "unam", "uhpm", "umpm", "udef", "ustr", "uagi", "uint", "umvs", "ua1b", "ua1c" }
+            .Select(field => new Column(field, 0))
+            .ToList();
+        Assert.Equal(10, columns.Count);
+
+        session.Table(ObjectKind.Unit, ids, columns);   // warm-up
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var rows = session.Table(ObjectKind.Unit, ids, columns);
+        watch.Stop();
+
+        output.WriteLine($"{rows.Count} units x {columns.Count} columns: {watch.ElapsedMilliseconds} ms");
+        Assert.Equal(ids.Count, rows.Count);
+#if DEBUG
+        Assert.True(watch.ElapsedMilliseconds < 1500, $"{watch.ElapsedMilliseconds} ms");
+#else
+        Assert.True(watch.ElapsedMilliseconds < 300, $"{watch.ElapsedMilliseconds} ms");
+#endif
+    }
+
     /// <summary>Writes names into the map's war3mapSkin.w3u: each custom unit's (id, base id, name).</summary>
     private static void Name(TempMap map, params (string Id, string BaseId, string Name)[] names)
     {
