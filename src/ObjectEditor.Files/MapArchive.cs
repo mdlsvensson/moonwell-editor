@@ -101,8 +101,9 @@ public sealed class MapArchive : IMapStore
     /// one, and only then replaces the map (the old one kept as <c>&lt;archive&gt;.replacing</c> until that is done).
     /// A failure leaves the map as it was, deletes the new file and throws <see cref="MapArchiveException"/> saying
     /// why; when the replace fails half way, the map's path is never left empty, and the message says whether the old
-    /// map or the new one is there. A delete (null bytes) is refused: a save never removes a file from
-    /// an archive. War3Net writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any
+    /// map or the new one is there (<see cref="MapArchiveException.Saved"/> is true for the new one). A
+    /// <c>&lt;archive&gt;.replacing</c> left by an earlier save cut short that cannot be deleted refuses the save before
+    /// anything is written. A delete (null bytes) is refused: a save never removes a file from an archive. War3Net writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any
     /// bytes after the archive (a signature cannot stay valid after an edit).
     /// </summary>
     public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
@@ -121,6 +122,22 @@ public sealed class MapArchive : IMapStore
 
         var saving = Path + ".saving";
         var replacing = Path + ".replacing";
+
+        // A backup left by an earlier save cut short is stale: the map itself was just read. One that cannot be
+        // deleted would make the replace fail, so the save is refused before anything is written.
+        if (File.Exists(replacing))
+        {
+            try
+            {
+                File.Delete(replacing);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                throw MapArchiveException.NotSaved(Path, $"an earlier save left {replacing}, which cannot be deleted "
+                    + $"({e.Message}); delete it, or move it away, and save again", e);
+            }
+        }
+
         try
         {
             Save(written, saving);
@@ -136,7 +153,6 @@ public sealed class MapArchive : IMapStore
             throw IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
         }
 
-        // A backup left by an earlier save cut short is stale: the map itself was just read.
         Delete(replacing);
         try
         {
@@ -194,8 +210,8 @@ public sealed class MapArchive : IMapStore
         Delete(replacing);
         if (saved)
         {
-            return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} was saved (the new archive passed "
-                + $"the check and is in its place), but replacing the old one reported an error: {e.Message}");
+            return MapArchiveException.SavedWithError(Path, e, $"The map archive {Path} was saved (the new archive "
+                + $"passed the check and is in its place), but replacing the old one reported an error: {e.Message}");
         }
 
         return IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
@@ -609,7 +625,8 @@ public sealed class MapArchive : IMapStore
 
 /// <summary>
 /// A map archive the app cannot open (War3Net cannot read it, a damaged or protected map, or it is a protected map a
-/// save would damage), or a save of one that failed and left the map as it was. The message says why.
+/// save would damage), or a save of one that failed and left the map as it was; or, with <see cref="Saved"/>, a save
+/// that put the new archive in place but reported an error on the way. The message says why.
 /// </summary>
 public sealed class MapArchiveException : Exception
 {
@@ -619,14 +636,21 @@ public sealed class MapArchiveException : Exception
     {
     }
 
-    private MapArchiveException(string path, Exception? inner, string message)
+    private MapArchiveException(string path, Exception? inner, string message, bool saved = false)
         : base(message, inner)
     {
         Path = path;
+        Saved = saved;
     }
 
     /// <summary>The archive file's path.</summary>
     public string Path { get; }
+
+    /// <summary>
+    /// True only for a save whose new archive passed the check and ended up at the map's path although replacing the
+    /// old one reported an error: the map is saved. False for every other failure (the map is as it was).
+    /// </summary>
+    public bool Saved { get; }
 
     /// <summary>A save of the archive at <paramref name="path"/> failed, for <paramref name="reason"/>.</summary>
     internal static MapArchiveException NotSaved(string path, string reason, Exception? inner = null) =>
@@ -635,6 +659,13 @@ public sealed class MapArchiveException : Exception
     /// <summary>A save that ended otherwise, with a message that says how.</summary>
     internal static MapArchiveException WithMessage(string path, Exception inner, string message) =>
         new(path, inner, message);
+
+    /// <summary>
+    /// A save whose checked new archive is in the map's place, although replacing the old one reported an error
+    /// (<see cref="Saved"/> is true).
+    /// </summary>
+    internal static MapArchiveException SavedWithError(string path, Exception inner, string message) =>
+        new(path, inner, message, saved: true);
 
     /// <summary>A save failed because another program holds the archive.</summary>
     internal static MapArchiveException Locked(string path, Exception inner) =>

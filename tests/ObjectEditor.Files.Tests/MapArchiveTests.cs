@@ -254,6 +254,7 @@ public sealed class MapArchiveTests : IDisposable
 
             Assert.Contains(path, problem.Message);
             Assert.Contains(named, problem.Message);
+            Assert.False(problem.Saved);
             Assert.Equal(bytes, File.ReadAllBytes(path));
             Assert.Equal(time, File.GetLastWriteTimeUtc(path));
             Assert.False(File.Exists(path + ".saving"));
@@ -279,6 +280,7 @@ public sealed class MapArchiveTests : IDisposable
         };
         var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", w3u)]));
         Assert.Contains("is as it was", problem.Message);
+        Assert.False(problem.Saved);
         Assert.Equal(original, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + ".saving"));
         Assert.False(File.Exists(path + ".replacing"));
@@ -294,6 +296,7 @@ public sealed class MapArchiveTests : IDisposable
         };
         problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", w3u)]));
         Assert.Contains("was saved", problem.Message);
+        Assert.True(problem.Saved);
         Assert.False(File.Exists(path + ".saving"));
         Assert.False(File.Exists(path + ".replacing"));
         AssertCarried(before, Entries(path), "war3map.w3u");
@@ -335,6 +338,7 @@ public sealed class MapArchiveTests : IDisposable
                 Assert.Equal(
                     "The map is open in another program (World Editor?): close it there and save again.",
                     problem.Message);
+                Assert.False(problem.Saved);
                 Assert.Equal(path, problem.Path);
                 Assert.False(File.Exists(path + ".saving"));
                 Assert.False(File.Exists(path + ".replacing"));
@@ -345,6 +349,46 @@ public sealed class MapArchiveTests : IDisposable
 
         // Once it is closed there, the save goes through.
         map.Write([("war3map.w3u", [1, 2, 3])]);
+        Assert.Equal([1, 2, 3], War3NetReads(path, "war3map.w3u"));
+    }
+
+    [Fact]
+    public void Stale_backup_that_cannot_be_deleted_refuses_the_save()
+    {
+        // A <map>.replacing left by an earlier save cut short, which cannot be deleted now: held by another program,
+        // or read only (File.Replace gives it the old map's attributes).
+        var path = Copy(Sample, "Sample.w3x");
+        var bytes = File.ReadAllBytes(path);
+        var replacing = path + ".replacing";
+        var map = MapArchive.Open(path);
+
+        File.WriteAllBytes(replacing, [1, 2, 3]);
+        using (new FileStream(replacing, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])]));
+            Assert.Contains(replacing, problem.Message);
+            Assert.Contains("was not saved", problem.Message);
+            Assert.False(problem.Saved);
+        }
+
+        File.SetAttributes(replacing, FileAttributes.ReadOnly);
+        try
+        {
+            var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])]));
+            Assert.Contains(replacing, problem.Message);
+        }
+        finally
+        {
+            File.SetAttributes(replacing, FileAttributes.Normal);
+        }
+
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".saving"));
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(replacing));
+
+        // One that can be deleted is: it is stale, since the map itself was just read.
+        map.Write([("war3map.w3u", [1, 2, 3])]);
+        Assert.False(File.Exists(replacing));
         Assert.Equal([1, 2, 3], War3NetReads(path, "war3map.w3u"));
     }
 
