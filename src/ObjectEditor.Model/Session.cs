@@ -25,7 +25,7 @@ public sealed partial class Session
     private WtsFile? _strings;
     private List<string> _problems;
     private Dictionary<string, byte[]?> _baseline;
-    private DateTime _stamp;
+    private string _stamp;
     private bool _unreadable;
     private History _history = new();
 
@@ -237,7 +237,7 @@ public sealed partial class Session
         WtsFile? Strings,
         List<string> Problems,
         Dictionary<string, byte[]?> Baseline,
-        DateTime Stamp,
+        string Stamp,
         bool Unreadable);
 }
 

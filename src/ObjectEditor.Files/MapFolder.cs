@@ -4,7 +4,7 @@ namespace ObjectEditor.Files;
 /// A map stored as a folder of loose files (a World Editor folder map, or a Moonwell project's <c>map/</c>). Files are
 /// named by their plain file name, such as <c>war3map.w3u</c>.
 /// </summary>
-public sealed class MapFolder
+public sealed class MapFolder : IMapStore
 {
     private MapFolder(string path)
     {
@@ -13,6 +13,9 @@ public sealed class MapFolder
 
     /// <summary>The folder's full path.</summary>
     public string Path { get; }
+
+    /// <summary>False: a folder is not an archive.</summary>
+    public bool IsArchive => false;
 
     /// <summary>
     /// Opens a map folder; throws <see cref="DirectoryNotFoundException"/> when there is no folder there.
@@ -59,24 +62,20 @@ public sealed class MapFolder
     }
 
     /// <summary>
-    /// The newest write time (UTC) of the folder's object files, main and skin, and its <c>war3map.wts</c>;
-    /// <see cref="DateTime.MinValue"/> when it has none. A later stamp means the map changed on disk.
+    /// The newest write time (UTC, in ticks) of the folder's object files, main and skin, and its
+    /// <c>war3map.wts</c>, and how many of those files there are, as <c>ticks:count</c> (<c>0:0</c> when it has
+    /// none). A different stamp means the map changed on disk; the count sees a file deleted that was not the newest.
     /// </summary>
-    public DateTime Stamp()
+    public string Stamp()
     {
-        var names = new List<string> { "war3map.wts" };
-        foreach (var kind in Enum.GetValues<ObjectKind>())
-        {
-            names.Add("war3map." + ObjectKinds.Extension(kind));
-            names.Add("war3mapSkin." + ObjectKinds.Extension(kind));
-        }
-
         var newest = DateTime.MinValue;
-        foreach (var name in names)
+        var count = 0;
+        foreach (var name in MapStore.ObjectAndStringFiles)
         {
             var path = FilePath(name);
             if (File.Exists(path))
             {
+                count++;
                 var time = File.GetLastWriteTimeUtc(path);
                 if (time > newest)
                 {
@@ -85,7 +84,7 @@ public sealed class MapFolder
             }
         }
 
-        return newest;
+        return $"{newest.Ticks}:{count}";
     }
 
     // A file of this folder: the name must be a plain file name, never a path that leaves the folder.

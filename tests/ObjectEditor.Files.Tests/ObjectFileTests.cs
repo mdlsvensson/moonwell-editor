@@ -388,14 +388,17 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
             Assert.Equal(path, map.Path);
             Assert.Equal(Fixtures.Bytes("we-3.0/war3map.w3u"), map.Read("war3map.w3u"));
             Assert.Null(map.Read("war3map.w3o"));
-            Assert.Equal(stamp, map.Stamp());
+            Assert.False(map.IsArchive);
+            var before = map.Stamp();
+            Assert.StartsWith(stamp.Ticks + ":", before);
+            Assert.Equal(before, map.Stamp());
 
             map.Write([("war3map.w3u", [1, 2, 3]), ("war3mapSkin.w3u", null), ("war3map.w3o", null)]);
 
             Assert.Equal([1, 2, 3], map.Read("war3map.w3u"));
             Assert.Null(map.Read("war3mapSkin.w3u"));
             Assert.False(File.Exists(Path.Combine(path, "war3mapSkin.w3u")));
-            Assert.True(map.Stamp() > stamp);
+            Assert.NotEqual(before, map.Stamp());
             Assert.Throws<ArgumentException>(() => map.Read("..\\war3map.w3u"));
             Assert.Throws<DirectoryNotFoundException>(() => MapFolder.Open(Path.Combine(path, "missing")));
         }
