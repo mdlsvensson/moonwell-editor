@@ -37,8 +37,9 @@ public sealed partial class Session
     /// bytes of each file that is replaced go first into a new folder of <c>&lt;map folder&gt;.backup</c>, which keeps
     /// the newest 10. An archive is written once, with every changed file (see <see cref="MapArchive.Write"/>); the
     /// whole previous archive is copied first into a new folder of <c>&lt;archive&gt;.backup</c>, which keeps the
-    /// newest 5, as <c>&lt;archive name&gt;.bak</c> (so the game's map list does not show it). An archive that was saved although replacing the old one reported an error is a save, with that
-    /// error as the report's <see cref="SaveReport.Note"/>.
+    /// newest 5, as <c>&lt;archive name&gt;.bak</c> (so the game's map list does not show it). An archive that was
+    /// saved although replacing the old one reported an error is a save, with that error as the report's
+    /// <see cref="SaveReport.Note"/>.
     /// </para>
     /// </summary>
     /// <exception cref="ChangedOnDiskException">
@@ -397,7 +398,8 @@ public sealed partial class Session
 /// </param>
 /// <param name="Backup">
 /// The backup folder: for a folder map it holds the previous bytes of the files written, for an archive the whole
-/// previous archive (<c>&lt;archive name&gt;.bak</c>). "" when there is none (nothing was written, or only files a folder map did not have).
+/// previous archive (<c>&lt;archive name&gt;.bak</c>). "" when there is none (nothing was written, or only files a
+/// folder map did not have).
 /// </param>
 /// <param name="Note">
 /// What the user should know about a save that worked: for an archive saved although replacing the old one reported

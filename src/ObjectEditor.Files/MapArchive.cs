@@ -651,8 +651,8 @@ public sealed class MapArchive : IMapStore
                 .ToList();
             if (locales.Count > 0)
             {
-                problems[name] = $"{name} is in the archive under locale {string.Join(" and ", locales)}, not only "
-                    + "the neutral one, and a save would add a neutral copy beside it: it is read only.";
+                problems[name] = $"{name} is in the archive under locale {string.Join(" and ", locales)}, and the game "
+                    + "may read that copy instead of the neutral one the app would save: it is read only.";
             }
         }
 
