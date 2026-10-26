@@ -386,6 +386,17 @@ function settled(): Promise<string | null> {
 }
 
 /**
+ * Waits as `settled` does, and again while another bulk change woken by the same wait went first (its edit is now on
+ * its way), so two quick ones each work from the values the other left. Answers null when ready, or why not.
+ */
+async function ready(): Promise<string | null> {
+  for (;;) {
+    const problem = await settled();
+    if (problem !== null || readiness === "ready") return problem;
+  }
+}
+
+/**
  * Changes cells as one edit (`onedit`), counted while on its way. An edit that changed cells leaves the rows stale
  * until the map's next state comes (if it has not come yet) and the rows are fetched for it.
  */
@@ -447,14 +458,8 @@ async function copy(s: Selection): Promise<void> {
   onnotice(`Copied ${cellCount(block.length * (block[0]?.length ?? 0))}`);
 }
 
-async function paste(s: Selection): Promise<void> {
-  let text: string;
-  try {
-    text = await navigator.clipboard.readText();
-  } catch {
-    onnotice("Paste needs clipboard access", true);
-    return;
-  }
+/** Pastes the clipboard's text (read before the wait for the rows) from the block's upper left cell. */
+function paste(s: Selection, text: string): void {
   const at = shown;
   if (!at) return;
   const block = parseTsv(text);
@@ -467,11 +472,21 @@ async function paste(s: Selection): Promise<void> {
     onnotice("None of the cells the paste covers can be changed.");
     return;
   }
-  await change(at.kind, edits, "Pasted");
+  change(at.kind, edits, "Pasted");
 }
 
 async function bulk(action: BulkAction): Promise<void> {
-  const problem = await settled();
+  // The clipboard is read first: the edit must follow the wait for the rows at once, with nothing to wait for between.
+  let text = "";
+  if (action === "paste") {
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      onnotice("Paste needs clipboard access", true);
+      return;
+    }
+  }
+  const problem = await ready();
   if (problem) {
     onnotice(problem, true);
     return;
@@ -484,7 +499,7 @@ async function bulk(action: BulkAction): Promise<void> {
     return;
   }
   if (action === "paste") {
-    paste(s);
+    paste(s, text);
     return;
   }
   if (action === "fill") {
@@ -510,7 +525,7 @@ async function bulk(action: BulkAction): Promise<void> {
 
 /** The bar's Apply: the selected cells set to the value or expression typed. */
 async function apply(): Promise<void> {
-  const problem = await settled();
+  const problem = await ready();
   if (problem) {
     bulkError = problem;
     return;

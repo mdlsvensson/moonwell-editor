@@ -82,8 +82,11 @@ export function columnKey(column: Column): string {
 /** A cell kept by its object and column (`columnKey`), with where it was when it was kept. */
 export type CellRef = { id: string; key: string; at: Cell };
 
-/** A selection kept by objects and columns, so it stays on them when the rows are sorted or fetched again. */
-export type SelectionRef = { anchor: CellRef; focus: CellRef };
+/**
+ * A selection kept by objects and columns, so it stays on them when the rows are sorted or fetched again: its two
+ * ends, and the objects (`rows`) and columns (`cols`) the block covers.
+ */
+export type SelectionRef = { anchor: CellRef; focus: CellRef; rows: string[]; cols: string[] };
 
 function cellRef(at: Cell, rows: TableRow[], columns: Column[]): CellRef {
   const row = rows[at.row];
@@ -93,13 +96,29 @@ function cellRef(at: Cell, rows: TableRow[], columns: Column[]): CellRef {
 
 /** The selection as its objects and columns, to find again after the rows or columns change. */
 export function selectionRef(s: Selection, rows: TableRow[], columns: Column[]): SelectionRef {
-  return { anchor: cellRef(s.anchor, rows, columns), focus: cellRef(s.focus, rows, columns) };
+  const start = topLeft(s);
+  const size = blockSize(s);
+  return {
+    anchor: cellRef(s.anchor, rows, columns),
+    focus: cellRef(s.focus, rows, columns),
+    rows: rows.slice(start.row, start.row + size.rows).map((row) => row.id),
+    cols: columns.slice(start.col, start.col + size.cols).map(columnKey),
+  };
+}
+
+/** True when the items hold exactly the values wanted, in any order. */
+function sameSet(items: string[], wanted: string[]): boolean {
+  const set = new Set(wanted);
+  return items.length === set.size && items.every((item) => set.has(item));
 }
 
 /**
  * Where a kept selection is in rows and columns that changed (sorted again, fetched again after an edit, a column
  * added or removed): each end on its object's row and its column. An object or column that is gone falls back to the
- * old place, pulled inside the table. Nothing kept, or an empty table, selects nothing.
+ * old place, pulled inside the table. The block is kept only when it then covers exactly its own objects and columns
+ * (in any order inside it); otherwise (other rows sorted in between, a column added inside it, one of its rows or
+ * columns gone) it is never widened but becomes the one focused cell. Nothing kept, or an empty table, selects
+ * nothing.
  */
 export function relocateSelection(
   ref: SelectionRef | null,
@@ -113,7 +132,13 @@ export function relocateSelection(
     const col = columns.findIndex((column) => columnKey(column) === kept.key);
     return clampCell({ row: row < 0 ? kept.at.row : row, col: col < 0 ? kept.at.col : col }, size);
   };
-  return { anchor: find(ref.anchor), focus: find(ref.focus) };
+  const moved = { anchor: find(ref.anchor), focus: find(ref.focus) };
+  const start = topLeft(moved);
+  const span = blockSize(moved);
+  const covered = rows.slice(start.row, start.row + span.rows).map((row) => row.id);
+  const coveredCols = columns.slice(start.col, start.col + span.cols).map(columnKey);
+  if (sameSet(covered, ref.rows) && sameSet(coveredCols, ref.cols)) return moved;
+  return { anchor: moved.focus, focus: moved.focus };
 }
 
 /** True when two selections have the same anchor and focus (both none counts). */

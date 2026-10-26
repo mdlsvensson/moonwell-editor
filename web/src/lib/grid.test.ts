@@ -430,25 +430,51 @@ describe("selectionRef and relocateSelection", () => {
   const ref = () => selectionRef(sel(0, 0, 1, 1), rows(), columns);
   const reversed = () => [...rows()].reverse();
 
-  it("finds the same objects and columns after the rows are sorted again", () => {
+  it("keeps the block on its objects when a sort keeps its rows together", () => {
     expect(relocateSelection(ref(), reversed(), columns)).toEqual(sel(2, 0, 1, 1));
   });
 
-  it("finds the same columns after a column is added to the left", () => {
+  it("keeps the block on its columns after a column is added to the left", () => {
     const wider: Column[] = [{ field: "ulum", level: 0 }, ...columns];
     expect(relocateSelection(ref(), rows(), wider)).toEqual(sel(0, 1, 1, 2));
   });
 
-  it("falls back to the old place, pulled inside the table, for a row that is gone", () => {
-    const fewer = rows().filter((item) => item.id !== "h001");
-    expect(relocateSelection(ref(), fewer, columns)).toEqual(sel(0, 0, 1, 1));
-    expect(relocateSelection(ref(), fewer.slice(0, 1), columns)).toEqual(sel(0, 0, 0, 1));
+  it("never widens the block: a sort that puts other rows between its own collapses it to the focus", () => {
+    // Sorted by gold: A100 B150 C200 D210 E300, A..C selected; +100% gives A200 B300 C400, sorted again
+    // A200 D210 B300 E300 C400.
+    const gold = (id: string, value: string) => row(id, [value, "1", id]);
+    const before = [gold("A", "100"), gold("B", "150"), gold("C", "200"), gold("D", "210")];
+    before.push(gold("E", "300"));
+    const kept = selectionRef(sel(0, 0, 2, 0), before, columns);
+    const after = [gold("A", "200"), gold("D", "210"), gold("B", "300"), gold("E", "300")];
+    after.push(gold("C", "400"));
+    expect(relocateSelection(kept, after, columns)).toEqual(sel(4, 0, 4, 0));
   });
 
-  it("falls back to the old place, pulled inside the table, for a column that is gone", () => {
+  it("collapses the block to the focus when a column is inserted inside it", () => {
+    const inside: Column[] = [
+      columns[0] as Column,
+      { field: "ulum", level: 0 },
+      ...columns.slice(1),
+    ];
+    expect(relocateSelection(ref(), rows(), inside)).toEqual(sel(1, 2, 1, 2));
+  });
+
+  it("collapses the block to the focus when a row of it is gone", () => {
+    const withoutAnchor = rows().filter((item) => item.id !== "h000");
+    expect(relocateSelection(ref(), withoutAnchor, columns)).toEqual(sel(0, 1, 0, 1));
+  });
+
+  it("falls back to the focus's old place, pulled inside the table, when its row is gone", () => {
+    const fewer = rows().filter((item) => item.id !== "h001");
+    expect(relocateSelection(ref(), fewer, columns)).toEqual(sel(1, 1, 1, 1));
+    expect(relocateSelection(ref(), fewer.slice(0, 1), columns)).toEqual(sel(0, 1, 0, 1));
+  });
+
+  it("falls back to the focus's old place, pulled inside the table, when its column is gone", () => {
     const fewer: Column[] = [columns[0] as Column, columns[2] as Column];
-    expect(relocateSelection(ref(), rows(), fewer)).toEqual(sel(0, 0, 1, 1));
-    expect(relocateSelection(ref(), rows(), fewer.slice(0, 1))).toEqual(sel(0, 0, 1, 0));
+    expect(relocateSelection(ref(), rows(), fewer)).toEqual(sel(1, 1, 1, 1));
+    expect(relocateSelection(ref(), rows(), fewer.slice(0, 1))).toEqual(sel(1, 0, 1, 0));
   });
 
   it("selects nothing with nothing kept or in an empty table", () => {
