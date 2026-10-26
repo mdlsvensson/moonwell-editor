@@ -7,13 +7,21 @@ namespace ObjectEditor.GameData;
 
 /// <summary>
 /// The game data of a folder saved as JSON in a cache folder, as <c>&lt;hash of the folder's path&gt;.json</c>, with
-/// the newest write time and the number of the folder's files: a cache whose folder has changed since is not used.
+/// the newest write time and the number of the folder's files and the version of the code that made it: a cache whose
+/// folder or code has changed since is not used.
 /// </summary>
 internal static class Cache
 {
     // Raised whenever what is cached changes (these records, or what Moonwell's generator makes), so an older cache is
     // built again.
     private const int Format = 1;
+
+    /// <summary>
+    /// The version of the code that builds the data: this assembly's module id, which a deterministic build changes
+    /// whenever its code does, Moonwell's linked generator files and embedded field names included. A cache another
+    /// build of the code wrote is built again, so a changed generator never serves stale values.
+    /// </summary>
+    public static string CodeVersion { get; } = typeof(Cache).Assembly.ManifestModule.ModuleVersionId.ToString("N");
 
     /// <summary>The cache's file for a game data folder.</summary>
     public static string PathOf(string folder, string cacheFolder)
@@ -38,8 +46,8 @@ internal static class Cache
     }
 
     /// <summary>
-    /// The cached data of the folder, or null when there is no cache, it is of another stamp or format, or it cannot be
-    /// read.
+    /// The cached data of the folder, or null when there is no cache, it is of another stamp, format or code version,
+    /// or it cannot be read.
     /// </summary>
     public static GameData? Read(string path, string folder, (long Newest, int Files) stamp)
     {
@@ -60,7 +68,7 @@ internal static class Cache
             return null;
         }
 
-        if (file?.Kinds == null || file.Choices == null || file.Format != Format
+        if (file?.Kinds == null || file.Choices == null || file.Format != Format || file.Code != CodeVersion
             || file.Newest != stamp.Newest || file.Files != stamp.Files
             || !string.Equals(file.Folder, Normalized(folder), StringComparison.OrdinalIgnoreCase))
         {
@@ -91,7 +99,8 @@ internal static class Cache
             kinds[ObjectKinds.Key(kind)] = new CachedKind(kindData.LevelField, kindData.Fields, kindData.Objects);
         }
 
-        var file = new CacheFile(Format, Normalized(data.Source), stamp.Newest, stamp.Files, data.Choices, kinds);
+        var file = new CacheFile(
+            Format, CodeVersion, Normalized(data.Source), stamp.Newest, stamp.Files, data.Choices, kinds);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         using (var stream = File.Create(temporary))
@@ -107,6 +116,7 @@ internal static class Cache
     /// <summary>The cache file.</summary>
     internal sealed record CacheFile(
         int Format,
+        string Code,
         string Folder,
         long Newest,
         int Files,

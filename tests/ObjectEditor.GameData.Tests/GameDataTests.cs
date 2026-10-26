@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ObjectEditor.Files;
 using Xunit.Abstractions;
 
@@ -218,6 +219,47 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
         var elapsed = clock.Elapsed;
         _output.WriteLine($"cached load {elapsed.TotalMilliseconds:F0} ms");
         Assert.True(elapsed < TimeSpan.FromSeconds(1.5), $"cached load took {elapsed}");
+    }
+
+    [Fact]
+    public void Cache_of_other_code_or_stamp_is_rebuilt()
+    {
+        if (Skipped(out _))
+        {
+            return;
+        }
+
+        // Each copy of the cache gives the footman 999 hit points: a load that uses it says 999, a build says 420.
+        // Left otherwise as written, the copy is used, so the test tells using a cache from building again.
+        Assert.Equal("999", FootmanHitPoints(_ => { }));
+        Assert.Equal("420", FootmanHitPoints(cache => cache["Code"] = Guid.NewGuid().ToString("N")));
+        Assert.Equal("420", FootmanHitPoints(cache => cache["Newest"] = cache["Newest"]!.GetValue<long>() - 1));
+        Assert.Equal("420", FootmanHitPoints(cache => cache["Files"] = cache["Files"]!.GetValue<int>() + 1));
+    }
+
+    /// <summary>
+    /// The footman's hit points after a load from a copy of the fixture's cache with the footman's hit points set to
+    /// 999 and <paramref name="change"/> made to it.
+    /// </summary>
+    private string FootmanHitPoints(Action<JsonObject> change)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "ObjectEditor.GameData.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var source = Directory.GetFiles(_fixture.Cache, "*.json").Single();
+            var cache = JsonNode.Parse(File.ReadAllText(source))!.AsObject();
+            var units = cache["Kinds"]!["unit"]!["Objects"]!.AsArray();
+            var footman = units.Single(unit => (string?)unit!["Id"] == "hfoo")!;
+            footman["Values"]!["uhpm"] = "999";
+            change(cache);
+            File.WriteAllText(Path.Combine(folder, Path.GetFileName(source)), cache.ToJsonString());
+            return GameData.Load(_fixture.Folder, folder).Kind(ObjectKind.Unit).Object("hfoo")!.Values["uhpm"];
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
     }
 
     private bool Skipped(out GameData data)
