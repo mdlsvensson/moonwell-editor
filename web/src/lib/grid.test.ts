@@ -269,11 +269,42 @@ describe("bulkEdits", () => {
     ]);
   });
 
-  it("refuses an expression over a text cell, naming the cell", () => {
-    const result = bulkEdits(sel(0, 1, 0, 2), rows(), columns, fields, "+5");
-    expect(result).toHaveProperty("error");
-    expect((result as { error: string }).error).toContain("Name h000");
-    expect((result as { error: string }).error).toContain("Name");
+  it("calculates in number columns and sets the text as typed in a text column", () => {
+    expect(bulkEdits(sel(0, 1, 0, 2), rows(), columns, fields, "+5")).toEqual([
+      { id: "h000", field: "uhpm", level: 0, value: "6.5" },
+      { id: "h000", field: "unam", level: 0, value: "+5" },
+    ]);
+  });
+
+  it("does not read the text as a calculation in a column that is not a number", () => {
+    const kinds: FieldInfo[] = [
+      info("unam", "Name", "string"),
+      info("ubdg", "Is a building", "bool"),
+      info("umvt", "Movement type", "choice"),
+      info("uabi", "Abilities", "objectList"),
+      info("ucut", "Upgrades to", "objectRef"),
+    ];
+    const cols: Column[] = kinds.map((field) => ({ field: field.id, level: 0 }));
+    const input = [row("h000", ["Footman", "0", "foot", "Adef", "h001"])];
+    const all = sel(0, 0, 0, 4);
+    const set = (text: string) =>
+      (bulkEdits(all, input, cols, kinds, text) as { value: string | null }[]).map(
+        (edit) => edit.value,
+      );
+    expect(set("x001")).toEqual(["x001", "x001", "x001", "x001", "x001"]);
+    expect(set("-1")).toEqual(["-1", "-1", "-1", "-1", "-1"]);
+    expect(set("=50")).toEqual(["=50", "=50", "=50", "=50", "=50"]);
+    expect(set("*2")).toEqual(["*2", "*2", "*2", "*2", "*2"]);
+  });
+
+  it("keeps the expressions for number columns", () => {
+    const one = sel(0, 0, 0, 0);
+    expect(bulkEdits(one, rows(), columns, fields, "x2")).toEqual([
+      { id: "h000", field: "ugol", level: 0, value: "200" },
+    ]);
+    expect(bulkEdits(one, rows(), columns, fields, "=50")).toEqual([
+      { id: "h000", field: "ugol", level: 0, value: "50" },
+    ]);
   });
 
   it("refuses as a whole when a cell does not apply, naming the first by row and column", () => {

@@ -140,11 +140,15 @@ function columnName(column: Column, fields: FieldInfo[]): string {
   return column.level > 0 ? `${label} · ${column.level}` : label;
 }
 
+const numberTypes = ["int", "float"];
+
 /**
  * The edits that apply what was typed in the bar (a value or an expression) to every selected cell, one edit for each
- * cell. All or nothing: when a cell cannot be changed (read only row, cell that does not apply, a selection outside
- * the table) or the expression does not fit its field, the answer is an error that names the first such cell by its
- * row name and column.
+ * cell. A number column (`int`, `float`) reads it as an expression; any other column (`string`, `bool`, `choice`,
+ * `objectList`, `objectRef` ...) takes the text as typed, so `x001` or `-1` is a value there, not a calculation. All
+ * or nothing: when a cell cannot be changed (read only row, cell that does not apply, a selection outside the table)
+ * or the expression does not fit its field, the answer is an error that names the first such cell by its row name and
+ * column. Empty text is an error.
  */
 export function bulkEdits(
   s: Selection,
@@ -171,6 +175,10 @@ export function bulkEdits(
     const field = fields.find((candidate) => candidate.id === target.column.field);
     const where = `${target.row.name} · ${columnName(target.column, fields)}`;
     if (!field) return { error: `${where}: unknown field.` };
+    if (!numberTypes.includes(field.type)) {
+      edits.push(editOf(target, text));
+      continue;
+    }
     const value = applyExpression(parsed, target.cell.value, field.type);
     if (typeof value !== "string") return { error: `${where}: ${value.error}` };
     edits.push(editOf(target, value));
