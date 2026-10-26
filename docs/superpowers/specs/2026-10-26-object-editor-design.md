@@ -138,7 +138,8 @@ So, *(agent's calls)*:
 
 ### Map archives
 
-A `.w3x`/`.w3m` is an MPQ archive behind a 512-byte `HM3W` header. War3Net's `War3Net.IO.Mpq` reads and writes them
+A `.w3x`/`.w3m` is an MPQ archive, behind a 512-byte `HM3W` header in World Editor's saves (Blizzard's Reforged
+melee maps and Moonwell's builds start with the MPQ header itself). War3Net's `War3Net.IO.Mpq` reads and writes them
 (it decompresses every codec, compresses with zlib). A save rewrites only the object and string files in the archive,
 keeps the `HM3W` header, and writes to a temporary file that replaces the original only when the write succeeded. The
 archive milestone starts with a spike: open Blizzard's `(4)losttemple.w3m` (in the export's `maps/`), Moonwell's
@@ -146,6 +147,35 @@ archive milestone starts with a spike: open Blizzard's `(4)losttemple.w3m` (in t
 War3Net cannot read open as an error, not a crash.
 
 Folder maps need no archive code, so they come first.
+
+#### Milestone 4: archives in detail
+
+*The agent's calls* (written 2026-10-26, after milestone 3), for Sven to correct:
+
+- **Opening.** "Open map…" offers a folder or an archive (`.w3x`, `.w3m`); the command line and the recent maps take
+  either. The app reads the object files and `war3map.wts` out of the archive into memory; everything else in the
+  archive stays where it is, untouched.
+- **What a save writes.** A new archive with the same files: every file the save did not change is carried over as
+  War3Net's `MpqArchiveBuilder` carries it (from the original archive), the changed object and strings files are
+  replaced with the same compression flags they had, a missing one is added with War3Net's default. Whatever comes
+  before the MPQ header (World Editor's 512-byte `HM3W` header, when the map has one) is copied byte for byte in
+  front. War3Net writes `(listfile)` and `(attributes)` anew, so the archive's own bytes change; the files in it may
+  not.
+- **Checked before it replaces anything.** The new archive is written to a temporary file beside the map, then opened
+  again and every file compared with what it should hold: each changed file its new bytes, every other named file
+  its old bytes, and the same number of files. Only then does it replace the map (`File.Replace`). A failed check, or
+  a write error, leaves the map as it was and says why.
+- **Backup.** Before replacing, the whole previous archive is copied to `<map>.backup\<date-time>\`, keeping the
+  newest 5 (archives are larger than the object files a folder backup copies).
+- **Changed on disk.** The archive's write time and size are its stamp, as a folder's files are; World Editor saving
+  the map while the app has it open is refused at save, as for folders. A map World Editor holds open cannot be
+  replaced; the message says to close it there.
+- **Read only.** An archive War3Net cannot open (a protected map, a damaged one) opens as a problem, read only, never
+  a crash; so does one whose object files War3Net cannot write back exactly (the existing guard).
+- **The spike decides the library.** The milestone starts with a throwaway test of War3Net's MPQ code on Moonwell's
+  `Sample.w3x`, Blizzard's `(4)losttemple.w3m` and a World Editor archive save (Sven to save his test map as an
+  archive). If War3Net fails it, the fallback is StormLib (MIT, the library most Warcraft tools use) through a small
+  P/Invoke layer, decided then with Sven.
 
 ### Real maps to test with
 
