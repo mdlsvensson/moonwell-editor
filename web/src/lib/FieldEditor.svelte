@@ -4,11 +4,12 @@
  * sends the value, Esc puts the value back), a toggle, a select, the flags' checkboxes, or an object list's chips
  * and picker. A value the app refuses keeps what was typed, with the reason in `error`.
  */
-import { untrack } from "svelte";
+import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
 import { type Lookup, shownValue } from "./fields.ts";
 import IdsEditor from "./IdsEditor.svelte";
+import { typing } from "./typing.ts";
 import { checkValue, editorFor } from "./values.ts";
 
 type Props = {
@@ -40,13 +41,30 @@ let draft = $state<string | null>(null);
 let sending: string | null = null;
 let refused: string | null = null;
 
-// A value changed elsewhere (↺, undo, redo) replaces what was typed and its error.
+// A value changed elsewhere (↺, undo, redo) replaces what was typed and its error. Only this field's value counts:
+// every answer brings new field objects, and an edit of another field must not wipe what is typed or refused here.
+const value = $derived(field.value);
 $effect(() => {
-  field.value;
+  value;
   untrack(() => {
     if (sending === null) cancel();
   });
 });
+
+// While the box holds a typed value, a save (or opening another map, reloading, closing) sends it first. It is
+// registered as the user types, not in an effect, so a click right after typing already finds it.
+let stopTyping: (() => void) | null = null;
+
+function setDraft(text: string | null): void {
+  draft = text;
+  if (text !== null && !stopTyping) stopTyping = typing(() => commit());
+  if (text === null && stopTyping) {
+    stopTyping();
+    stopTyping = null;
+  }
+}
+
+onDestroy(() => stopTyping?.());
 
 const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
 const editor = $derived(editorFor(field, choices));
@@ -80,7 +98,7 @@ async function commit(): Promise<void> {
     return;
   }
   if (checked.value === field.value) {
-    draft = null;
+    setDraft(null);
     error = "";
     return;
   }
@@ -88,7 +106,7 @@ async function commit(): Promise<void> {
   const taken = await send(checked.value);
   sending = null;
   if (!taken) refused = typed;
-  else if (draft === typed) draft = null;
+  else if (draft === typed) setDraft(null);
 }
 
 // A toggle or a select the app refused shows the field's value again.
@@ -99,7 +117,7 @@ async function choose(element: HTMLInputElement | HTMLSelectElement, value: stri
 }
 
 function cancel(): void {
-  draft = null;
+  setDraft(null);
   refused = null;
   error = "";
 }
@@ -116,7 +134,7 @@ function onkeydown(event: KeyboardEvent): void {
 }
 
 function oninput(event: Event): void {
-  draft = (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
+  setDraft((event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value);
   refused = null;
 }
 </script>

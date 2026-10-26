@@ -41,14 +41,13 @@ import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./l
 import Palette from "./lib/Palette.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
+import { type Choice, settleUnsaved } from "./lib/settle.ts";
 import Tree from "./lib/Tree.svelte";
+import { sendTyped } from "./lib/typing.ts";
 import { nameField, savedText } from "./lib/values.ts";
 
 /** A place in the visited-objects history (Alt ← and Alt →). */
 type Place = { kind: Kind; id: string };
-
-/** What the user picked in the unsaved-changes dialog. */
-type Choice = "save" | "discard" | "cancel";
 
 /** The unsaved-changes dialog: its question, whether Save is offered, and how it answers. */
 type Unsaved = { question: string; canSave: boolean; answer: (choice: Choice) => void };
@@ -166,25 +165,38 @@ function say(text: string, options: { title?: string; warn?: boolean } = {}): vo
 }
 
 /**
- * Asks what to do with the unsaved edits before an action (`question` names it): true when it may go on (they were
- * saved, or the user discards them), false when the user cancels or the save failed. With nothing unsaved it does
- * not ask.
+ * Asks what to do with the unsaved edits before an action (`question` names it), once a value still being typed and
+ * every edit on its way have been answered (see `settle.ts`): true when it may go on, false when the user cancels or
+ * the save failed. With nothing unsaved it does not ask, unless `always` (the window saw the map dirty).
  */
-async function settleUnsaved(question: string, canSave = true): Promise<boolean> {
-  if (!session?.dirty) return true;
-  if (unsaved) return false; // already asking
-  const choice = await new Promise<Choice>((answer) => {
-    unsaved = { question, canSave, answer };
+function settle(question: string, canSave = true, always = false): Promise<boolean> {
+  return settleUnsaved({
+    flush: async () => {
+      sendTyped(); // puts what was typed on the queue before the queue is waited for
+      await queue;
+    },
+    dirty: () => session?.dirty === true,
+    ask: () =>
+      unsaved
+        ? Promise.resolve<Choice>("cancel") // already asking
+        : new Promise<Choice>((answer) => {
+            unsaved = {
+              question,
+              canSave,
+              answer: (choice) => {
+                unsaved = null;
+                answer(choice);
+              },
+            };
+          }),
+    save: saveMap,
+    always,
   });
-  unsaved = null;
-  if (choice === "cancel") return false;
-  if (choice === "discard") return true;
-  return saveMap();
 }
 
 /** "Open map…" in the header: asks about unsaved edits first. */
 async function openAnother(): Promise<void> {
-  if (await settleUnsaved("Save them before opening another map?")) await openMapFolder();
+  if (await settle("Save them before opening another map?")) await openMapFolder();
 }
 
 /** Opens a map folder: `path`, or the one picked in the app's dialog. */
@@ -304,8 +316,7 @@ async function undoOrRedo(again: boolean): Promise<void> {
 /** Saves the map (Ctrl S). A value still being typed is sent first. True when it saved. */
 async function saveMap(): Promise<boolean> {
   if (!map || saving) return false;
-  const typing = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  typing?.blur(); // leaving a box sends what was typed, which the queue puts before the save
+  sendTyped(); // what was typed goes on the queue before the save
   saving = true;
   try {
     const report = await queued(save);
@@ -320,7 +331,6 @@ async function saveMap(): Promise<boolean> {
     return false;
   } finally {
     saving = false;
-    if (typing?.isConnected && !unsaved) typing.focus({ preventScroll: true });
   }
 }
 
@@ -330,7 +340,7 @@ async function reloadMap(afterDiskChange = false): Promise<void> {
   const question = afterDiskChange
     ? "Reloading the map from disk drops them."
     : "Save them before reloading the map from disk?";
-  if (!(await settleUnsaved(question, !afterDiskChange))) return;
+  if (!(await settle(question, !afterDiskChange))) return;
   try {
     const info = await queued(reload);
     map = info;
@@ -588,7 +598,8 @@ onMount(() => {
         if (closing) return;
         closing = true;
         try {
-          if (await settleUnsaved("Save them before closing the window?")) await closeWindow();
+          // The window sends closeRequested only while the map is dirty, so the page asks even if it has not heard yet.
+          if (await settle("Save them before closing the window?", true, true)) await closeWindow();
         } finally {
           closing = false;
         }
@@ -904,8 +915,9 @@ onMount(() => {
   {@const count = session?.changedObjects ?? 0}
   <Dialog title="Unsaved changes" oncancel={() => asked.answer("cancel")}>
     <p class="m-0">
-      The map has unsaved changes ({count}
-      {count === 1 ? "object" : "objects"}). {asked.question}
+      The map has unsaved changes{count > 0
+        ? ` (${count} ${count === 1 ? "object" : "objects"})`
+        : ""}. {asked.question}
     </p>
     {#snippet actions()}
       {@render button("Cancel", () => asked.answer("cancel"))}
