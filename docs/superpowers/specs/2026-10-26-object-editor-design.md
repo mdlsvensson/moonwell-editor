@@ -171,7 +171,8 @@ Folder maps need no archive code, so they come first.
 Later, in the agent's suggested order: icons; "copy as Moonwell C#"; reading and writing Moonwell's C# classes;
 `.w3o` import and export.
 
-The first build plan covers milestones 1 and 2; each later milestone gets its own plan.
+The first build plan covers milestones 1 and 2; each later milestone gets its own plan. Milestone 3's design is in
+"The table (milestone 3)" below.
 
 ## How the app is put together
 
@@ -282,6 +283,42 @@ and a unit's abilities shown as components you click into. Agent's reading; Sven
 - Saving writes only the files whose bytes changed, after copying their previous versions to a backup folder next to
   the map (`<map>.backup/<date-time>/`), keeping the last 10. *(Agent's call.)*
 - If the map changed on disk since it was opened (World Editor saved it), saving stops and offers to reload.
+
+## The table (milestone 3)
+
+Goal 4, as the mockup's Table view shows it. Sven chose it as the next milestone (2026-10-26); the details below are
+*the agent's calls* (written 2026-10-26, after milestone 2), for Sven to correct:
+
+- **One kind at a time.** The kind buttons pick the table's kind, as in the details view.
+- **Rows** are that kind's objects that pass the row filter: the tree's filter text (name or id) and the group chips
+  "Custom", "Changed" and the tree's top groups (races). The default is the custom objects, or the selected object's
+  group when the map has none. Clicking a column header sorts by it (numbers as numbers); a row's name opens it in the
+  details view.
+- **Columns** are fields the user adds from a picker that searches the kind's fields by label, id and category. A
+  per-level field is one column per level (`Cooldown · 1`, `· 2`, ...); the picker adds level 1 or all levels up to the
+  most any shown row has. Units start with gold, lumber, hit points, damage base, armor and attack cooldown; items with
+  gold, lumber and level; abilities with mana cost, cooldown and range at level 1; destructables with hit points;
+  doodads, buffs and upgrades with none. The columns chosen per kind are remembered on this computer (the window's
+  own storage).
+- **A cell** shows the value as the details view does (choice labels, names of listed objects), yellow when the map
+  changes it, red with the warning text when past World Editor's limit, grey when the field does not apply to that
+  object (a hero field on a footman) or the object is read only. Enter, F2 or typing edits it with the same editors as
+  the details view.
+- **Selection** works as in a spreadsheet: click, Shift+click and Shift+arrows select a block; Ctrl A selects all
+  shown cells.
+- **Bulk changes**, each one step of undo, all or nothing (if any cell refuses, for a read-only object or a value its
+  field cannot hold, nothing changes and the message names the first cell):
+  - the bar above the table sets the selected cells to a value or an expression: `50` (or `=50`), `+5`, `-5`, `+10%`,
+    `-10%`, `*1.1` (also `x1.1`, `×1.1`), `/2`. Whole-number fields round to the nearest whole number, halves away
+    from zero; decimal fields round to 4 decimal places. Text and choice fields take a plain value only;
+  - Ctrl V pastes a block copied from a spreadsheet (tab-separated rows) starting at the selected cell, going down
+    the shown rows and right across the columns; Ctrl C copies the selected cells the same way, with the values as the
+    data spells them, so they paste back unchanged;
+  - Ctrl D fills the top cell of each selected column down the selection (in the table only; in the details view
+    Ctrl D still shows field ids);
+  - Delete resets the selected cells to their standard values (in the table only; in the details view Delete still
+    deletes the object).
+- A bulk change goes through the model as one edit, so undo and the "changed objects" count treat it as one.
 
 ## Validation
 
