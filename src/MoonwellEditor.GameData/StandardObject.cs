@@ -14,6 +14,7 @@ namespace MoonwellEditor.GameData;
 /// destructable's or a doodad's <c>category</c> (<c>D</c>), an ability's <c>sort</c> (<c>hero</c>), a buff's
 /// <c>isEffect</c> (<c>1</c>); empty for a unit, an upgrade, or no value.
 /// </param>
+/// <param name="Hidden">True for an ability World Editor does not show (its <c>useInEditor</c> is 0).</param>
 /// <param name="Code">An ability's code, the ability it behaves as; null for every other kind.</param>
 /// <param name="Values">
 /// The standard values under the base tables, as the data writes them, keyed by field id, or <c>id:level</c> for a
@@ -34,6 +35,7 @@ public sealed record StandardObject(
     bool Building,
     bool Special,
     string Category,
+    bool Hidden,
     string? Code,
     IReadOnlyDictionary<string, string> Values,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes);

@@ -20,6 +20,9 @@ internal static class Folders
 
     private static readonly string[] RaceOrder = ["Human", "Orc", "Undead", "Night Elf"];
 
+    // The abilities World Editor does not show get a folder of their own, after its folders (Sven, 2026-10-27).
+    private const string HiddenFolder = "Hidden in World Editor";
+
     private static readonly Dictionary<string, string> ItemClasses = new(StringComparer.Ordinal)
     {
         ["Permanent"] = "Permanent",
@@ -61,7 +64,7 @@ internal static class Folders
         [ObjectKind.Doodad] = [[.. DoodadCategories.Values]],
         [ObjectKind.Ability] =
         [
-            [.. RaceOrder, "Neutral Hostile", "Neutral Passive", "Special"],
+            [.. RaceOrder, "Neutral Hostile", "Neutral Passive", "Special", HiddenFolder],
             ["Units", "Heroes", "Items"],
         ],
         [ObjectKind.Buff] = [[.. RaceOrder, "Special"], ["Buffs", "Effects"]],
@@ -76,6 +79,7 @@ internal static class Folders
         ObjectKind.Destructable =>
             [DestructableCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Doodad => [DoodadCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
+        ObjectKind.Ability when standard.Hidden => [HiddenFolder],
         ObjectKind.Ability => [AbilityRace(standard.Race), AbilityUse(standard.Category)],
         ObjectKind.Buff => [RaceOrSpecial(standard.Race), standard.Category == "1" ? "Effects" : "Buffs"],
         ObjectKind.Upgrade => [RaceOrSpecial(standard.Race)],

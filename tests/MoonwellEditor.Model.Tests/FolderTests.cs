@@ -63,7 +63,10 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             ["Neutral Passive", "Units"],
             Folders.Of(ObjectKind.Ability, Standard("ANen", "naga", category: "unit")));
         Assert.Equal(["Special", "Items"], Folders.Of(ObjectKind.Ability, Standard("AIat", "other", category: "item")));
-        Assert.Equal(["Special", "Units"], Folders.Of(ObjectKind.Ability, Standard("Aatk", "other", category: "")));
+        Assert.Equal(["Special", "Units"], Folders.Of(ObjectKind.Ability, Standard("Aawa", "other", category: "")));
+        Assert.Equal(
+            ["Hidden in World Editor"],
+            Folders.Of(ObjectKind.Ability, Standard("Aloc", "undead", category: "unit", hidden: true)));
     }
 
     [Fact]
@@ -104,9 +107,15 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
 
         var abilities = session.Tree(ObjectKind.Ability);
         Assert.Equal(
-            ["Human", "Orc", "Undead", "Night Elf", "Neutral Hostile", "Neutral Passive", "Special"],
+            [
+                "Human", "Orc", "Undead", "Night Elf", "Neutral Hostile", "Neutral Passive", "Special",
+                "Hidden in World Editor",
+            ],
             Groups(abilities, []));
         Assert.Equal(11, abilities.Count(entry => entry.Path[0] == "Neutral Passive"));
+        Assert.Equal(243, abilities.Count(entry => entry.Path[0] == "Neutral Hostile"));
+        Assert.Equal(23, abilities.Count(entry => entry.Path[0] == "Hidden in World Editor"));
+        Assert.Equal(["Hidden in World Editor"], abilities.Single(entry => entry.Id == "Aloc").Path);
         Assert.Equal(["Units", "Heroes", "Items"], Groups(abilities, ["Special"]));
 
         var buffs = session.Tree(ObjectKind.Buff);
@@ -136,8 +145,9 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
         bool hero = false,
         bool building = false,
         bool special = false,
-        string category = "") =>
-        new(id, id, "", race, campaign, hero, building, special, category, null,
+        string category = "",
+        bool hidden = false) =>
+        new(id, id, "", race, campaign, hero, building, special, category, hidden, null,
             new Dictionary<string, string>(), new Dictionary<string, IReadOnlyDictionary<string, string>>());
 
     private bool Skipped(out GameData.GameData game)

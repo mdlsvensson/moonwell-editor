@@ -167,6 +167,7 @@ internal static class Builder
             _ => null,
         };
         var category = categoryColumn == null ? "" : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
+        var hidden = kind == ObjectKind.Ability && FieldReader.Clean(row.Get("useInEditor", "de")?.Value) == "0";
         var standard = new StandardObject(
             obj.Id,
             obj.Name,
@@ -177,6 +178,7 @@ internal static class Builder
             building,
             special,
             category,
+            hidden,
             obj.Code,
             obj.Values,
             new Dictionary<string, IReadOnlyDictionary<string, string>>());
