@@ -57,6 +57,12 @@ public sealed class MapArchive : IMapStore
     internal Action<string>? BeforeCheck { get; set; }
 
     /// <summary>
+    /// <see cref="File.Replace(string, string, string?)"/>, which puts the new archive in the map's place (the old one
+    /// kept under the backup name); tests make it fail half way.
+    /// </summary>
+    internal Action<string, string, string?> ReplaceFile { get; set; } = File.Replace;
+
+    /// <summary>
     /// Opens a map archive and reads what the app needs from it, then closes it. Throws
     /// <see cref="MapArchiveException"/> (naming the file and the reason) when War3Net cannot read it, or when several
     /// of its hash entries share one file's data (a protector's trick: a save would lose the extra names).
@@ -92,8 +98,10 @@ public sealed class MapArchive : IMapStore
     /// <see cref="MpqArchiveBuilder"/>: each given file replaced (with the flags its old entry had; a new file with
     /// War3Net's default), every other file carried over as it is stored, the bytes before the MPQ header written
     /// first. It is written to <c>&lt;archive&gt;.saving</c> beside the map, opened again and checked against the old
-    /// one, and only then replaces the map. Any failure deletes the new file, leaves the map as it was and throws
-    /// <see cref="MapArchiveException"/> saying why. A delete (null bytes) is refused: a save never removes a file from
+    /// one, and only then replaces the map (the old one kept as <c>&lt;archive&gt;.replacing</c> until that is done).
+    /// A failure leaves the map as it was, deletes the new file and throws <see cref="MapArchiveException"/> saying
+    /// why; when the replace fails half way, the map's path is never left empty, and the message says whether the old
+    /// map or the new one is there. A delete (null bytes) is refused: a save never removes a file from
     /// an archive. War3Net writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any
     /// bytes after the archive (a signature cannot stay valid after an edit).
     /// </summary>
@@ -112,10 +120,10 @@ public sealed class MapArchive : IMapStore
         }
 
         var saving = Path + ".saving";
+        var replacing = Path + ".replacing";
         try
         {
             Save(written, saving);
-            File.Replace(saving, Path, null);
         }
         catch (Exception e)
         {
@@ -125,13 +133,72 @@ public sealed class MapArchive : IMapStore
                 throw;
             }
 
-            if (IsLocked(e))
-            {
-                throw MapArchiveException.Locked(Path, e);
-            }
-
-            throw MapArchiveException.NotSaved(Path, e.Message, e);
+            throw IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
         }
+
+        // A backup left by an earlier save cut short is stale: the map itself was just read.
+        Delete(replacing);
+        try
+        {
+            ReplaceFile(saving, Path, replacing);
+        }
+        catch (Exception e)
+        {
+            throw AfterFailedReplace(e, saving, replacing);
+        }
+
+        Delete(replacing);
+    }
+
+    // File.Replace can fail half way (Win32 error 1177: the map moved to the backup name, the new archive not moved
+    // in; or, as without a backup, the map gone and the new archive still under its own name). The map's path is
+    // never left empty: the old map is put back from the backup, or else the new (checked) archive is moved in. Only
+    // then are the leftovers deleted. The exception says which of the two the map now is.
+    private MapArchiveException AfterFailedReplace(Exception e, string saving, string replacing)
+    {
+        bool saved;
+        if (File.Exists(Path))
+        {
+            // The new archive gone from its own name means it is the map now.
+            saved = !File.Exists(saving);
+        }
+        else
+        {
+            try
+            {
+                if (File.Exists(replacing))
+                {
+                    File.Move(replacing, Path);
+                    saved = false;
+                }
+                else if (File.Exists(saving))
+                {
+                    File.Move(saving, Path);
+                    saved = true;
+                }
+                else
+                {
+                    return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} is missing: replacing it "
+                        + $"failed ({e.Message}), and neither {replacing} nor {saving} is there.");
+                }
+            }
+            catch (Exception moving) when (moving is IOException or UnauthorizedAccessException)
+            {
+                return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} is missing: replacing it "
+                    + $"failed ({e.Message}), and putting a map back in its place failed too ({moving.Message}). "
+                    + $"Nothing was deleted: the old map is {replacing} if that is there, the new one {saving}.");
+            }
+        }
+
+        Delete(saving);
+        Delete(replacing);
+        if (saved)
+        {
+            return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} was saved (the new archive passed "
+                + $"the check and is in its place), but replacing the old one reported an error: {e.Message}");
+        }
+
+        return IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
     }
 
     /// <summary>
@@ -311,10 +378,21 @@ public sealed class MapArchive : IMapStore
                 throw CheckFailed($"{label} has other flags in it");
             }
 
-            var same = old.Flags.HasFlag(MpqFileFlags.Encrypted | MpqFileFlags.BlockOffsetAdjustedKey)
-                ? Decompressed(original, old) is { } before && Decompressed(saved, now) is { } after
-                    && before.AsSpan().SequenceEqual(after)
-                : SameStored(originalStream, old, stream, now);
+            bool same;
+            if (old.Flags.HasFlag(MpqFileFlags.Encrypted | MpqFileFlags.BlockOffsetAdjustedKey))
+            {
+                // One War3Net cannot decrypt (its key unknown) on both sides was kept where it was: compare it as
+                // stored.
+                var before = Decompressed(original, old);
+                var after = Decompressed(saved, now);
+                same = before is null && after is null
+                    ? SameStored(originalStream, old, stream, now)
+                    : before is not null && after is not null && before.AsSpan().SequenceEqual(after);
+            }
+            else
+            {
+                same = SameStored(originalStream, old, stream, now);
+            }
             if (!same)
             {
                 throw CheckFailed($"{label} is not the same in it");
@@ -401,13 +479,12 @@ public sealed class MapArchive : IMapStore
     }
 
     // Whether an exception says another program holds the file: a sharing or lock violation, a mapped view, or
-    // File.Replace unable to remove the map or put the new file in its place.
+    // File.Replace unable to remove the map (which leaves both files as they were).
     private static bool IsLocked(Exception e)
     {
-        const int SharingViolation = 32, LockViolation = 33, CannotRemoveReplaced = 1175, CannotMoveReplacement = 1176,
-            UserMappedFile = 1224;
-        return e is IOException && (e.HResult & 0xFFFF) is SharingViolation or LockViolation or CannotRemoveReplaced
-            or CannotMoveReplacement or UserMappedFile;
+        const int SharingViolation = 32, LockViolation = 33, CannotRemoveReplaced = 1175, UserMappedFile = 1224;
+        return e is IOException
+            && (e.HResult & 0xFFFF) is SharingViolation or LockViolation or CannotRemoveReplaced or UserMappedFile;
     }
 
     // War3Net memory-maps an archive it is given as a FileStream, and a view it leaves behind (after a failed open, or
@@ -554,6 +631,10 @@ public sealed class MapArchiveException : Exception
     /// <summary>A save of the archive at <paramref name="path"/> failed, for <paramref name="reason"/>.</summary>
     internal static MapArchiveException NotSaved(string path, string reason, Exception? inner = null) =>
         new(path, inner, $"The map archive {path} was not saved, and is as it was: {reason}");
+
+    /// <summary>A save that ended otherwise, with a message that says how.</summary>
+    internal static MapArchiveException WithMessage(string path, Exception inner, string message) =>
+        new(path, inner, message);
 
     /// <summary>A save failed because another program holds the archive.</summary>
     internal static MapArchiveException Locked(string path, Exception inner) =>

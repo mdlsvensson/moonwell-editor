@@ -140,6 +140,7 @@ public sealed class MapArchiveTests : IDisposable
         Assert.Equal(before.Single(entry => entry.FileName == "war3map.w3u").Flags, written.Flags);
         Assert.Equal(w3u, map.Read("war3map.w3u"));
         Assert.False(File.Exists(path + ".saving"));
+        Assert.False(File.Exists(path + ".replacing"));
 
         // The MPQ header's sizes: 32 bytes of header, and the archive is the whole file.
         var bytes = File.ReadAllBytes(path);
@@ -256,8 +257,65 @@ public sealed class MapArchiveTests : IDisposable
             Assert.Equal(bytes, File.ReadAllBytes(path));
             Assert.Equal(time, File.GetLastWriteTimeUtc(path));
             Assert.False(File.Exists(path + ".saving"));
+            Assert.False(File.Exists(path + ".replacing"));
             AssertFree(path);
         }
+    }
+
+    [Fact]
+    public void Failed_replace_never_loses_the_map()
+    {
+        // Win32's ReplaceFile can fail half way. 1177: the map was moved to the backup name and the new archive was
+        // not moved in. 1176 (as without a backup name): the map is gone and the new archive kept its own name.
+        var original = File.ReadAllBytes(Sample);
+        byte[] w3u = [1, 2, 3];
+
+        var path = Copy(Sample, "moved.w3x");
+        var map = MapArchive.Open(path);
+        map.ReplaceFile = (saving, target, backup) =>
+        {
+            File.Move(target, backup!);
+            throw new IOException("Simulated", unchecked((int)0x80070499));
+        };
+        var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", w3u)]));
+        Assert.Contains("is as it was", problem.Message);
+        Assert.Equal(original, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".saving"));
+        Assert.False(File.Exists(path + ".replacing"));
+        Assert.Equal(War3NetReads(Sample, "war3map.w3u"), MapArchive.Open(path).Read("war3map.w3u"));
+
+        path = Copy(Sample, "gone.w3x");
+        var before = Entries(path);
+        map = MapArchive.Open(path);
+        map.ReplaceFile = (saving, target, backup) =>
+        {
+            File.Delete(target);
+            throw new IOException("Simulated", unchecked((int)0x80070498));
+        };
+        problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", w3u)]));
+        Assert.Contains("was saved", problem.Message);
+        Assert.False(File.Exists(path + ".saving"));
+        Assert.False(File.Exists(path + ".replacing"));
+        AssertCarried(before, Entries(path), "war3map.w3u");
+        Assert.Equal(w3u, MapArchive.Open(path).Read("war3map.w3u"));
+    }
+
+    [Fact]
+    public void Undecryptable_file_is_checked_by_its_stored_bytes()
+    {
+        // Moonwell\hello.txt unnamed, stored whole and encrypted by its position: War3Net cannot find its key, so it
+        // keeps the file where it is, and the check compares it as stored.
+        const string unlisted = "Moonwell\\hello.txt";
+        var path = Path.Combine(_folder, "undecryptable.w3x");
+        var flags = MpqFileFlags.Exists | MpqFileFlags.Encrypted | MpqFileFlags.BlockOffsetAdjustedKey;
+        Rebuild(Sample, path, unlisted: unlisted, flags: (unlisted, flags));
+        var hash = MpqHash.GetHashedFileName(unlisted);
+        var before = Entries(path);
+        Assert.Null(before.Single(entry => entry.Name == hash).Data);
+
+        MapArchive.Open(path).Write([("war3map.w3u", [1, 2, 3])]);
+
+        AssertCarried(before, Entries(path), "war3map.w3u");
     }
 
     [Fact]
@@ -279,6 +337,7 @@ public sealed class MapArchiveTests : IDisposable
                     problem.Message);
                 Assert.Equal(path, problem.Path);
                 Assert.False(File.Exists(path + ".saving"));
+                Assert.False(File.Exists(path + ".replacing"));
             }
 
             Assert.Equal(bytes, File.ReadAllBytes(path));
@@ -301,6 +360,7 @@ public sealed class MapArchiveTests : IDisposable
         Assert.Contains("war3map.w3u", problem.Message);
         Assert.Equal(bytes, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + ".saving"));
+        Assert.False(File.Exists(path + ".replacing"));
     }
 
     [Fact]
