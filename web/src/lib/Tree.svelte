@@ -7,6 +7,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
 import { type Kind, kinds, type TreeEntry } from "./api.ts";
+import { customKey, groupKeys, groupName, nextObject, treeLines } from "./tree.ts";
 
 type Props = {
   kind: Kind;
@@ -31,27 +32,6 @@ const kindNames: Record<Kind, string> = {
   upgrade: "Upgrades",
 };
 
-// The data names races in lower case (`nightelf`); the tree shows them as World Editor does.
-const groupNames: Record<string, string> = { nightelf: "Night Elf" };
-
-function groupName(name: string): string {
-  return groupNames[name] ?? name.charAt(0).toUpperCase() + name.slice(1);
-}
-
-/** One drawn row: a heading, a group that opens and closes, or an object. */
-type Line =
-  | { type: "heading"; key: string; text: string }
-  | { type: "group"; key: string; name: string; depth: number; open: boolean; count: number }
-  | { type: "entry"; key: string; entry: TreeEntry; depth: number };
-
-type Group = {
-  name: string;
-  key: string;
-  groups: Map<string, Group>;
-  entries: TreeEntry[];
-  count: number;
-};
-
 const rowHeight = 26;
 const overscan = 12;
 
@@ -62,97 +42,11 @@ let scroller: HTMLDivElement | undefined = $state();
 let scrollTop = $state(0);
 let height = $state(0);
 
-const customKey = $derived(`${kind}:Custom`);
-
 function isOpen(key: string): boolean {
-  return toggled[key] ?? key === customKey;
+  return toggled[key] ?? key === customKey(kind);
 }
 
-function groupKey(path: string[], depth: number): string {
-  return `${kind}:${path.slice(0, depth + 1).join("/")}`;
-}
-
-function isCustom(entry: TreeEntry): boolean {
-  return entry.path.length === 1 && entry.path[0] === "Custom";
-}
-
-function matches(entry: TreeEntry, needle: string): boolean {
-  return (
-    entry.id.toLowerCase().includes(needle) ||
-    entry.name.toLowerCase().includes(needle) ||
-    entry.suffix.toLowerCase().includes(needle)
-  );
-}
-
-const lines = $derived.by((): Line[] => {
-  if (!entries) return [];
-  const needle = filter.trim().toLowerCase();
-  const shown = needle ? entries.filter((entry) => matches(entry, needle)) : entries;
-  // While filtering every group is open, so each match can be seen.
-  const open = (key: string) => needle !== "" || isOpen(key);
-  const result: Line[] = [];
-
-  const custom = shown.filter(isCustom);
-  if (custom.length > 0 || !needle) {
-    const key = customKey;
-    result.push({
-      type: "group",
-      key,
-      name: "Custom · this map",
-      depth: -1,
-      open: open(key),
-      count: custom.length,
-    });
-    if (open(key)) {
-      for (const entry of custom)
-        result.push({ type: "entry", key: `e:${entry.id}`, entry, depth: 0 });
-    }
-  }
-
-  const root: Group = { name: "", key: "", groups: new Map(), entries: [], count: 0 };
-  for (const entry of shown) {
-    if (isCustom(entry)) continue;
-    let group = root;
-    group.count++;
-    entry.path.forEach((name, depth) => {
-      let child = group.groups.get(name);
-      if (!child) {
-        child = {
-          name,
-          key: groupKey(entry.path, depth),
-          groups: new Map(),
-          entries: [],
-          count: 0,
-        };
-        group.groups.set(name, child);
-      }
-      child.count++;
-      group = child;
-    });
-    group.entries.push(entry);
-  }
-  if (root.count > 0) result.push({ type: "heading", key: "h:standard", text: "Standard" });
-
-  const walk = (group: Group, depth: number) => {
-    for (const child of group.groups.values()) {
-      const childOpen = open(child.key);
-      result.push({
-        type: "group",
-        key: child.key,
-        name: child.name,
-        depth,
-        open: childOpen,
-        count: child.count,
-      });
-      if (childOpen) walk(child, depth + 1);
-    }
-    for (const entry of group.entries) {
-      result.push({ type: "entry", key: `e:${entry.id}`, entry, depth });
-    }
-  };
-  walk(root, 0);
-  return result;
-});
+const lines = $derived(entries ? treeLines(entries, kind, filter, isOpen) : []);
 
 const first = $derived(Math.max(0, Math.floor(scrollTop / rowHeight) - overscan));
 const last = $derived(
@@ -175,13 +69,8 @@ $effect(() => {
 async function reveal(id: string | null, list: TreeEntry[] | null): Promise<void> {
   const entry = id && list ? list.find((candidate) => candidate.id === id) : undefined;
   if (!entry) return;
-  if (isCustom(entry)) {
-    if (!isOpen(customKey)) toggled[customKey] = true;
-  } else {
-    entry.path.forEach((_, depth) => {
-      const key = groupKey(entry.path, depth);
-      if (!isOpen(key)) toggled[key] = true;
-    });
+  for (const key of groupKeys(kind, entry)) {
+    if (!isOpen(key)) toggled[key] = true;
   }
   await tick();
   const index = lines.findIndex((line) => line.type === "entry" && line.entry.id === entry.id);
@@ -192,16 +81,19 @@ async function reveal(id: string | null, list: TreeEntry[] | null): Promise<void
   }
 }
 
+// The keys go to the scroller, never to a row: a row scrolled out of view is taken out of the page, and focus on it
+// would fall to the page's body, where ↑ and ↓ no longer reach the tree.
+function focusTree(): void {
+  scroller?.focus({ preventScroll: true });
+}
+
 // ↑ and ↓ move the selection to the object above or below.
 function onkeydown(event: KeyboardEvent): void {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-  const objects = lines.filter((line) => line.type === "entry");
-  const at = objects.findIndex((line) => line.entry.id === selected);
-  const next = objects[event.key === "ArrowDown" ? at + 1 : Math.max(0, at - 1)];
-  if (next) {
-    event.preventDefault();
-    onselect(next.entry.id);
-  }
+  event.preventDefault();
+  focusTree();
+  const next = nextObject(lines, selected, event.key === "ArrowDown" ? 1 : -1);
+  if (next) onselect(next);
 }
 
 function clearOnEscape(event: KeyboardEvent): void {
@@ -271,7 +163,10 @@ function clearOnEscape(event: KeyboardEvent): void {
               class="flex w-full items-end gap-1 px-2.5 pb-1 text-left text-xs tracking-[.06em] text-muted uppercase hover:text-body"
               style:height="{rowHeight}px"
               aria-expanded={line.open}
-              onclick={() => toggle(line.key)}
+              onclick={() => {
+                toggle(line.key);
+                focusTree();
+              }}
             >
               {#if line.open}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
               {line.name}
@@ -284,7 +179,10 @@ function clearOnEscape(event: KeyboardEvent): void {
               style:height="{rowHeight}px"
               style:padding-left="{10 + line.depth * 16}px"
               aria-expanded={line.open}
-              onclick={() => toggle(line.key)}
+              onclick={() => {
+                toggle(line.key);
+                focusTree();
+              }}
             >
               <span class="w-3 text-faint">
                 {#if line.open}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
@@ -297,6 +195,7 @@ function clearOnEscape(event: KeyboardEvent): void {
             <button
               type="button"
               role="treeitem"
+              tabindex="-1"
               aria-selected={entry.id === selected}
               class="flex w-full items-center gap-1.5 pr-2.5 text-left whitespace-nowrap {entry.id ===
               selected
@@ -304,7 +203,10 @@ function clearOnEscape(event: KeyboardEvent): void {
                 : 'hover:bg-hover'}"
               style:height="{rowHeight}px"
               style:padding-left="{10 + line.depth * 16}px"
-              onclick={() => onselect(entry.id)}
+              onclick={() => {
+                focusTree();
+                onselect(entry.id);
+              }}
             >
               <span class="w-3 shrink-0"></span>
               <span class="truncate {entry.baseId ? 'text-accent-hi' : ''}">
