@@ -123,7 +123,7 @@ describe("pasteEdits", () => {
       ["1", "2"],
       ["3", "4"],
     ];
-    expect(pasteEdits({ row: 1, col: 0 }, block, rows(), columns)).toEqual([
+    expect(pasteEdits({ row: 1, col: 0 }, block, rows(), columns, fields)).toEqual([
       { id: "h001", field: "ugol", level: 0, value: "1" },
       { id: "h001", field: "uhpm", level: 0, value: "2" },
       { id: "h002", field: "ugol", level: 0, value: "3" },
@@ -136,15 +136,15 @@ describe("pasteEdits", () => {
       ["a", "b"],
       ["c", "d"],
     ];
-    expect(pasteEdits({ row: 2, col: 2 }, block, rows(), columns)).toEqual([
+    expect(pasteEdits({ row: 2, col: 2 }, block, rows(), columns, fields)).toEqual([
       { id: "h002", field: "unam", level: 0, value: "a" },
     ]);
   });
 
   it("carries the column's level", () => {
-    expect(pasteEdits({ row: 0, col: 0 }, [["5"]], rows(), [{ field: "acdn", level: 2 }])).toEqual([
-      { id: "h000", field: "acdn", level: 2, value: "5" },
-    ]);
+    expect(
+      pasteEdits({ row: 0, col: 0 }, [["5"]], rows(), [{ field: "acdn", level: 2 }], []),
+    ).toEqual([{ id: "h000", field: "acdn", level: 2, value: "5" }]);
   });
 
   it("skips cells that do not apply and rows that are read only", () => {
@@ -156,15 +156,45 @@ describe("pasteEdits", () => {
       ["3", "4"],
       ["5", "6"],
     ];
-    expect(pasteEdits({ row: 0, col: 0 }, block, input, columns)).toEqual([
+    expect(pasteEdits({ row: 0, col: 0 }, block, input, columns, fields)).toEqual([
       { id: "h000", field: "ugol", level: 0, value: "1" },
       { id: "h002", field: "ugol", level: 0, value: "5" },
       { id: "h002", field: "uhpm", level: 0, value: "6" },
     ]);
   });
 
+  it("skips an empty cell for a number column and writes it for a text column", () => {
+    const block = [
+      ["", "", ""],
+      ["7", "", "x"],
+    ];
+    expect(pasteEdits({ row: 0, col: 0 }, block, rows(), columns, fields)).toEqual([
+      { id: "h000", field: "unam", level: 0, value: "" },
+      { id: "h001", field: "ugol", level: 0, value: "7" },
+      { id: "h001", field: "unam", level: 0, value: "x" },
+    ]);
+  });
+
+  it("skips an empty cell for bool, choice and unknown fields, writes it for lists", () => {
+    const more: FieldInfo[] = [
+      info("a", "A", "bool"),
+      info("b", "B", "choice"),
+      info("c", "C", "objectList"),
+      info("d", "D", "objectRef"),
+    ];
+    const cols: Column[] = [
+      ...more.map((f) => ({ field: f.id, level: 0 })),
+      { field: "zzzz", level: 0 },
+    ];
+    const input = [row("h000", ["", "", "", "", ""])];
+    expect(pasteEdits({ row: 0, col: 0 }, [["", "", "", "", ""]], input, cols, more)).toEqual([
+      { id: "h000", field: "c", level: 0, value: "" },
+      { id: "h000", field: "d", level: 0, value: "" },
+    ]);
+  });
+
   it("gives nothing for a start outside the table", () => {
-    expect(pasteEdits({ row: 5, col: 0 }, [["1"]], rows(), columns)).toEqual([]);
+    expect(pasteEdits({ row: 5, col: 0 }, [["1"]], rows(), columns, fields)).toEqual([]);
   });
 });
 

@@ -74,21 +74,34 @@ export function sortRows(rows: TableRow[], col: number, descending: boolean): Ta
   return keyed.map((item) => item.row);
 }
 
+const emptyTypes = ["string", "objectList", "objectRef"];
+
+/** True when an empty pasted cell is a value for the column's field (text and lists), not a gap. */
+function takesEmpty(column: Column, fields: FieldInfo[]): boolean {
+  const type = fields.find((field) => field.id === column.field)?.type;
+  return type !== undefined && emptyTypes.includes(type);
+}
+
 /**
  * The edits that paste a block starting at a cell: down the shown rows and right across the columns, stopping at the
- * table's edge. Cells that cannot be changed (read only row, cell that does not apply) are skipped.
+ * table's edge. Cells that cannot be changed (read only row, cell that does not apply) are skipped. An empty cell
+ * in the block is a gap: skipped for a column that is not text (`int`, `float`, `bool`, `choice`, or a field not in
+ * `fields`), and written as "" for a `string`, `objectList` or `objectRef` column.
  */
 export function pasteEdits(
   start: Cell,
   block: string[][],
   rows: TableRow[],
   columns: Column[],
+  fields: FieldInfo[],
 ): CellEdit[] {
   const edits: CellEdit[] = [];
   for (const [r, blockRow] of block.entries()) {
     for (const [c, value] of blockRow.entries()) {
       const target = editableTarget({ row: start.row + r, col: start.col + c }, rows, columns);
-      if (target) edits.push(editOf(target, value));
+      if (!target) continue;
+      if (value === "" && !takesEmpty(target.column, fields)) continue;
+      edits.push(editOf(target, value));
     }
   }
   return edits;
