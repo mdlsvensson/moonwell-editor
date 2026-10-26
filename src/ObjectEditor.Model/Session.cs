@@ -28,6 +28,7 @@ public sealed partial class Session
     private Dictionary<string, byte[]?> _baseline;
     private string _stamp;
     private bool _unreadable;
+    private bool _stringsReadOnly;
     private History _history = new();
 
     private Session(
@@ -42,13 +43,16 @@ public sealed partial class Session
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
         _unreadable = loaded.Unreadable;
+        _stringsReadOnly = loaded.StringsReadOnly;
         _search = new SearchIndex(game, _kinds, _strings);
         _savedObjects = Describe();
     }
 
     /// <summary>
-    /// The problems found when opening: one for each object file War3Net cannot read or write back exactly (its kind
-    /// is then read only), and a note when the map is a Moonwell project's build output.
+    /// The problems found when opening: one for each object file War3Net cannot read or write back exactly or the
+    /// store may not write (its kind is then read only), one when the store may not write the strings file (it is
+    /// then never changed: edited text goes into the object files), and a note when the map is a Moonwell project's
+    /// build output.
     /// </summary>
     public IReadOnlyList<string> Problems => _problems;
 
@@ -100,6 +104,14 @@ public sealed partial class Session
             var kindProblems = new List<string>();
             var main = ReadFile(kind, mainName, baseline[mainName], kindProblems, read);
             var skin = ReadFile(kind, skinName, baseline[skinName], kindProblems, read);
+            foreach (var name in new[] { mainName, skinName })
+            {
+                if (map.WriteProblem(name) is { } writeProblem)
+                {
+                    kindProblems.Add(writeProblem);
+                }
+            }
+
             problems.AddRange(kindProblems);
             unreadable |= (baseline[mainName] != null && main == null) || (baseline[skinName] != null && skin == null);
             var problem = kindProblems.Count == 0 ? null : string.Join(" ", kindProblems);
@@ -109,7 +121,13 @@ public sealed partial class Session
         var stringBytes = map.Read(StringsName);
         baseline[StringsName] = stringBytes;
         var strings = stringBytes == null ? null : WtsFile.Read(stringBytes);
-        return new Loaded(kinds, strings, problems, baseline, stamp, unreadable);
+        var stringsProblem = map.WriteProblem(StringsName);
+        if (stringsProblem != null)
+        {
+            problems.Add(stringsProblem + " Edited text goes into the object files instead.");
+        }
+
+        return new Loaded(kinds, strings, problems, baseline, stamp, unreadable, stringsProblem != null);
     }
 
     /// <summary>
@@ -234,13 +252,15 @@ public sealed partial class Session
     /// <param name="Baseline">Each file's bytes as read (null when the map has none), by name.</param>
     /// <param name="Stamp">The map's <see cref="IMapStore.Stamp"/> before reading.</param>
     /// <param name="Unreadable">True when the map has an object file War3Net cannot read.</param>
+    /// <param name="StringsReadOnly">True when the store may not write the strings file.</param>
     private sealed record Loaded(
         Dictionary<ObjectKind, MapKind> Kinds,
         WtsFile? Strings,
         List<string> Problems,
         Dictionary<string, byte[]?> Baseline,
         string Stamp,
-        bool Unreadable);
+        bool Unreadable,
+        bool StringsReadOnly);
 }
 
 /// <summary>

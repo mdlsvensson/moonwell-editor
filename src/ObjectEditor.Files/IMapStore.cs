@@ -16,6 +16,12 @@ public interface IMapStore
     byte[]? Read(string name);
 
     /// <summary>
+    /// Why the map's object or strings file <paramref name="name"/> may not be written, or null when it may (an
+    /// archive that holds it under another locale than the neutral one; a folder has no such reason).
+    /// </summary>
+    string? WriteProblem(string name);
+
+    /// <summary>
     /// Writes files; null bytes delete a file (an archive refuses a delete). With <paramref name="stamp"/>, the stamp
     /// the caller checked, an archive refuses the save (<see cref="MapArchiveException.ChangedOnDisk"/>) when the map
     /// has another one once the save holds it; a folder, whose files are written one at a time and not held, ignores

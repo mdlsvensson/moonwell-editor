@@ -106,6 +106,7 @@ public sealed partial class Session
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
         _unreadable = loaded.Unreadable;
+        _stringsReadOnly = loaded.StringsReadOnly;
         _history = new History();
         _search.Rebuild(_kinds, _strings);
         _savedObjects = Describe();
@@ -270,7 +271,11 @@ public sealed partial class Session
             AddChange(changes, map.SkinName, ObjectBytes(kind, map.SkinName, map.Skin));
         }
 
-        AddChange(changes, StringsName, _strings?.ToBytes());
+        if (!_stringsReadOnly)
+        {
+            AddChange(changes, StringsName, _strings?.ToBytes());
+        }
+
         return changes;
     }
 

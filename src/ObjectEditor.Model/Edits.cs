@@ -436,7 +436,8 @@ public sealed partial class Session
     /// <summary>
     /// When the value shown is a <c>TRIGSTR_n</c> text the strings file has, and no other modification refers to that
     /// entry (now, or in <paramref name="before"/> when given), sets the entry to the new text and returns true; the
-    /// modification keeps the reference. Returns false otherwise (the value is then written inline).
+    /// modification keeps the reference. Returns false otherwise, and always while the strings file is read only (the
+    /// value is then written inline).
     /// </summary>
     private bool SetTriggerString(
         Edit edit, FieldTarget target, FieldValue value, IReadOnlyList<(FieldMod Mod, int Number)>? before)
@@ -444,7 +445,8 @@ public sealed partial class Session
         // The value shown is the field's own file's, else the other file's.
         var (field, level, skin) = (target.Field.Id, target.Level, target.Field.Skin);
         var shown = Entry(target, skin)?.Find(field, level) ?? Entry(target, !skin)?.Find(field, level);
-        if (_strings == null || value is not FieldValue.Text text || shown?.Value is not FieldValue.Text reference)
+        if (_strings == null || _stringsReadOnly || value is not FieldValue.Text text
+            || shown?.Value is not FieldValue.Text reference)
         {
             return false;
         }

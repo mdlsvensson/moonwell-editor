@@ -1,4 +1,5 @@
 using ObjectEditor.Files;
+using War3Net.IO.Mpq;
 using Xunit.Abstractions;
 
 namespace ObjectEditor.Model.Tests;
@@ -300,6 +301,65 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Throws<ChangedOnDiskException>(() => session.Save());
     }
 
+    [Fact]
+    public void File_under_another_locale_is_read_only()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // we-3.0's files in an archive: war3map.w3a and war3map.wts under the German locale (0x407) only, every other
+        // file under the neutral one. A save would write a neutral copy beside each.
+        using var map = TempMap.Of(null);
+        var path = Path.Combine(map.Folder, "localized.w3x");
+        var german = (MpqLocale)0x407;
+        BuildArchive(path, "we-3.0", name => name is "war3map.w3a" or "war3map.wts" ? german : MpqLocale.Neutral);
+        var wts = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "we-3.0", "war3map.wts"));
+
+        var session = Session.Open(MapStore.Open(path), game);
+        Assert.Equal(2, session.Problems.Count);
+        Assert.Contains(session.Problems, problem => problem.Contains("war3map.w3a") && problem.Contains("0x0407"));
+        Assert.Contains(session.Problems, problem => problem.Contains("war3map.wts") && problem.Contains("0x0407"));
+        Assert.Equal(
+            "readOnly",
+            Assert.Throws<EditException>(() => session.Set(ObjectKind.Ability, "AHhb", "atp1", 1, "Heal")).Code);
+
+        // The strings file is never written: a name that is a TRIGSTR in it is written into the object file.
+        session.Set(ObjectKind.Unit, "h000", "unam", 0, "Knight");
+        Assert.Equal("Knight", session.Object(ObjectKind.Unit, "h000")!.Name);
+        var report = session.Save();
+        Assert.Equal(new[] { "war3mapSkin.w3u" }, report.Written);
+
+        var reopened = Session.Open(MapStore.Open(path), game);
+        Assert.Equal("Knight", reopened.Object(ObjectKind.Unit, "h000")!.Name);
+        using var archive = MpqArchive.Open(new MemoryStream(File.ReadAllBytes(path)), loadListFile: true);
+        var strings = archive.EnumerateHashes()
+            .Where(hash => hash.Name == MpqHash.GetHashedFileName("war3map.wts"))
+            .ToList();
+        Assert.Equal(german, Assert.Single(strings).Locale);
+        using var stream = archive.OpenFile(archive[(int)strings[0].BlockIndex]);
+        var bytes = new MemoryStream();
+        stream.CopyTo(bytes);
+        Assert.Equal(wts, bytes.ToArray());
+    }
+
+    // Writes a fixture folder's map files into a new archive, each under the locale given for its name.
+    private static void BuildArchive(string path, string fixture, Func<string, MpqLocale> locale)
+    {
+        var files = new List<MpqFile>();
+        var folder = Path.Combine(AppContext.BaseDirectory, "fixtures", fixture);
+        foreach (var file in Directory.GetFiles(folder, "war3map*"))
+        {
+            var name = Path.GetFileName(file);
+            files.Add(MpqFile.New(new MemoryStream(File.ReadAllBytes(file)), name, locale(name)));
+        }
+
+        using var archive = new MemoryStream();
+        MpqArchive.Create(archive, files, new MpqArchiveCreateOptions(), leaveOpen: true).Dispose();
+        File.WriteAllBytes(path, archive.ToArray());
+    }
+
     // Every named file of an archive and its bytes, but the archive's own files.
     private static Dictionary<string, byte[]> Files(string path)
     {
@@ -330,6 +390,8 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         public bool IsArchive => true;
 
         public byte[]? Read(string name) => archive.Read(name);
+
+        public string? WriteProblem(string name) => archive.WriteProblem(name);
 
         public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null)
         {

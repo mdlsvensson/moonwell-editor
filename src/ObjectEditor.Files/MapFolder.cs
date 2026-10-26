@@ -38,6 +38,9 @@ public sealed class MapFolder : IMapStore
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 
+    /// <summary>Null: a folder's files may always be written.</summary>
+    public string? WriteProblem(string name) => null;
+
     /// <summary>
     /// Writes files: each one is written to a temporary file first, which then replaces the old one. Null bytes delete
     /// the file (nothing happens when it is not there). The stamp is not checked (see <see cref="IMapStore.Write"/>).

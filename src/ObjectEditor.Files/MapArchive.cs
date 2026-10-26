@@ -94,6 +94,13 @@ public sealed class MapArchive : IMapStore
     }
 
     /// <summary>
+    /// Why the object or strings file <paramref name="name"/> may not be written, or null when it may: the archive
+    /// holds it under a locale other than the neutral one (a save, which writes the neutral one, would add a second
+    /// copy beside it). As read with the files (see <see cref="Read"/>).
+    /// </summary>
+    public string? WriteProblem(string name) => _contents.Problems.GetValueOrDefault(name);
+
+    /// <summary>
     /// Saves files into the archive. A new archive is built from the one on disk with War3Net's
     /// <see cref="MpqArchiveBuilder"/>: each given file replaced (with the flags its old entry had; a new file with
     /// War3Net's default), every other file carried over as it is stored, the bytes before the MPQ header written
@@ -613,12 +620,35 @@ public sealed class MapArchive : IMapStore
                 }
             }
 
-            return new Contents(stamp, ReadPreArchive(stream), listed, files);
+            return new Contents(stamp, ReadPreArchive(stream), listed, files, Localized(archive));
         }
         catch (Exception e) when (e is not MapArchiveException)
         {
             throw new MapArchiveException(path, e.Message, e);
         }
+    }
+
+    // The object and strings files the archive holds under a locale other than the neutral one, each with why it may
+    // not be written: a save writes a file under the neutral locale, so it would add a second copy beside that one.
+    private static Dictionary<string, string> Localized(MpqArchive archive)
+    {
+        var problems = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in MapStore.ObjectAndStringFiles)
+        {
+            var hashed = MpqHash.GetHashedFileName(name);
+            var locales = archive.EnumerateHashes()
+                .Where(hash => hash.Name == hashed && hash.Locale != MpqLocale.Neutral)
+                .Where(hash => hash.BlockIndex < archive.Count)
+                .Select(hash => $"0x{(uint)hash.Locale:X4}")
+                .ToList();
+            if (locales.Count > 0)
+            {
+                problems[name] = $"{name} is in the archive under locale {string.Join(" and ", locales)}, not only "
+                    + "the neutral one, and a save would add a neutral copy beside it: it is read only.";
+            }
+        }
+
+        return problems;
     }
 
     // A file's bytes, decompressed, or null when the archive has no file of that name. A file War3Net cannot read
@@ -677,8 +707,13 @@ public sealed class MapArchive : IMapStore
     /// <param name="Files">
     /// The files read, by name (letter case ignored); null for one the archive does not have.
     /// </param>
+    /// <param name="Problems">Why an object or strings file may not be written, by name (letter case ignored).</param>
     private sealed record Contents(
-        string Stamp, byte[] PreArchive, IReadOnlyList<string> Names, Dictionary<string, byte[]?> Files);
+        string Stamp,
+        byte[] PreArchive,
+        IReadOnlyList<string> Names,
+        Dictionary<string, byte[]?> Files,
+        Dictionary<string, string> Problems);
 }
 
 /// <summary>
