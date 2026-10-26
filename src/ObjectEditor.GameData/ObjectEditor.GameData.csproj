@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Sven's War3Net fork, at the version Moonwell's generator reads the game's tables with. -->
+    <PackageReference Include="Moonwell.War3Net.IO.Slk" Version="6.0.2-moonwell.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ObjectEditor.Files\ObjectEditor.Files.csproj" />
+  </ItemGroup>
+
+  <!--
+    Moonwell's generator code that reads the game's data, compiled into this library from the wc3-cs checkout (read
+    only: nothing is built or written there). Its hand-picked field names are embedded under the name it looks them
+    up by.
+  -->
+  <ItemGroup>
+    <Compile Include="$(Wc3Cs)\moonwell\generator\Moonwell.Generator\Objects\**\*.cs" Link="Moonwell\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(Wc3Cs)\moonwell\generator\Moonwell.Generator\Objects\field-names.txt" Link="Moonwell\field-names.txt" LogicalName="field-names.txt" />
+  </ItemGroup>
+
+  <!--
+    Moonwell's generator does not write its XML docs, and some of its enum members have none; this library does, so
+    the missing-comment warning is turned off for Moonwell's files only, by a config naming each of them (a global
+    config matches whole paths, not patterns). It is written at build time, so it is added to the configs the
+    compiler reads here rather than found on disk.
+  -->
+  <Target Name="WriteMoonwellConfig" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_MoonwellSource Include="@(Compile)" Condition="$([System.String]::Copy('%(Compile.Link)').StartsWith('Moonwell\'))" />
+      <_MoonwellConfigLine Include="is_global = true" />
+      <_MoonwellConfigLine Include="@(_MoonwellSource->'%(FullPath)'->Replace('\', '/')->'[%(Identity)]%0Adotnet_diagnostic.CS1591.severity = none')" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)moonwell.globalconfig" Lines="@(_MoonwellConfigLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <EditorConfigFiles Include="$(IntermediateOutputPath)moonwell.globalconfig" />
+    </ItemGroup>
+  </Target>
+
+</Project>
