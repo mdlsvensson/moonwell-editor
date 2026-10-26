@@ -1,3 +1,4 @@
+using System.Globalization;
 using ObjectEditor.Files;
 using Xunit.Abstractions;
 
@@ -6,6 +7,8 @@ namespace ObjectEditor.Model.Tests;
 [Collection(GameDataCollection.Name)]
 public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output)
 {
+    private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+
     [Fact]
     public void Set_cells_changes_every_cell()
     {
@@ -387,6 +390,65 @@ public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output
 #else
         Assert.True(watch.ElapsedMilliseconds < 300, $"{watch.ElapsedMilliseconds} ms");
 #endif
+    }
+
+    [Fact]
+    public void Set_cells_of_every_unit_is_fast_and_undoes_exactly()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        var ids = game.Kind(ObjectKind.Unit).Objects.Select(unit => unit.Id).ToList();
+        var columns = new[] { "ugol", "ulum", "uhpm", "umpm", "udef", "umvs", "ua1b", "ua1c" }
+            .Select(field => new Column(field, 0))
+            .ToList();
+        var fields = columns.Select(column => game.Kind(ObjectKind.Unit).Field(column.Field)!).ToList();
+        Assert.All(fields, field => Assert.Contains(field.Type, new[] { "int", "float" }));
+
+        // +10% of every cell that applies, as the bar works it out: whole numbers rounded, decimals to 4 places.
+        var edits = new List<CellEdit>();
+        foreach (var row in session.Table(ObjectKind.Unit, ids, columns))
+        {
+            for (var i = 0; i < columns.Count; i++)
+            {
+                // A cell with no number (no standard value) is one the bar would refuse; it is left out here.
+                var cell = row.Cells[i];
+                if (!cell.Applies || !double.TryParse(cell.Value, NumberStyles.Float, Invariant, out var number))
+                {
+                    continue;
+                }
+
+                var value = number * 1.1;
+                var text = fields[i].Type == "int"
+                    ? Math.Round(value, MidpointRounding.AwayFromZero).ToString(Invariant)
+                    : Math.Round(value, 4, MidpointRounding.AwayFromZero).ToString(Invariant);
+                edits.Add(new CellEdit(row.Id, columns[i].Field, 0, text));
+            }
+        }
+
+        var before = Snapshot(session);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var changed = session.SetCells(ObjectKind.Unit, edits);
+        watch.Stop();
+
+        output.WriteLine($"{edits.Count} cells ({changed} changed) of {ids.Count} units: {watch.ElapsedMilliseconds} ms");
+        Assert.True(edits.Count > ids.Count * 6, $"{edits.Count} cells");
+        Assert.True(changed > edits.Count / 2, $"{changed} changed");
+#if DEBUG
+        Assert.True(watch.ElapsedMilliseconds < 3000, $"{watch.ElapsedMilliseconds} ms");
+#else
+        Assert.True(watch.ElapsedMilliseconds < 1500, $"{watch.ElapsedMilliseconds} ms");
+#endif
+
+        Assert.NotEqual(before, Snapshot(session));
+        Assert.True(session.Undo());
+        Assert.Equal(before, Snapshot(session));
+        Assert.Equal(OnDisk(map), Snapshot(session));
+        Assert.False(session.Dirty);
     }
 
     /// <summary>Writes names into the map's war3mapSkin.w3u: each custom unit's (id, base id, name).</summary>
