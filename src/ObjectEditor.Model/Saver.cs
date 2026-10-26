@@ -57,7 +57,9 @@ public sealed partial class Session
 
         var changes = Changes();
 
-        // The previous bytes, from disk; a file whose bytes are not the ones read changed even if its time did not.
+        // The previous bytes, from disk. In a folder, a file whose bytes are not the ones read changed even if its time
+        // did not. An archive gives the bytes it read while its stamp is the same, so there only the stamp sees a
+        // change.
         var previous = new List<(string Name, byte[] Bytes)>();
         foreach (var (name, _) in changes)
         {
@@ -146,7 +148,7 @@ public sealed partial class Session
         finally
         {
             // Also after a failed write, so the files written so far are not taken for a change on disk.
-            _stamp = StampOrKept();
+            _stamp = TryStamp() ?? _stamp;
         }
 
         if (backup != "")
@@ -160,7 +162,8 @@ public sealed partial class Session
     /// <summary>
     /// Writes an archive's changed files in one save, after copying the whole archive into a backup. A save that put
     /// the new archive in place although the replace reported an error is a save, with that error as its note. Any
-    /// other failure leaves the baseline as it was; the backup is then deleted when the map on disk is as it was.
+    /// other failure leaves the baseline and the stamp as they were; the backup is then deleted only when the map's
+    /// stamp could be read again and is the one from before the save (the map is as it was).
     /// </summary>
     private (List<string> Written, string Backup, string Note) SaveArchive(List<(string Name, byte[] Bytes)> changes)
     {
@@ -182,9 +185,8 @@ public sealed partial class Session
         }
         catch (Exception e) when (e is MapArchiveException or IOException or UnauthorizedAccessException)
         {
-            var before = _stamp;
-            _stamp = StampOrKept();
-            if (_stamp == before)
+            // The stamp is kept: a map that is not as it was is then a change on disk at the next save.
+            if (TryStamp() == _stamp)
             {
                 // The map is as it was: its backup would only push out an older one.
                 DeleteFolder(backup);
@@ -198,7 +200,7 @@ public sealed partial class Session
             _baseline[name] = bytes;
         }
 
-        _stamp = StampOrKept();
+        _stamp = TryStamp() ?? _stamp;
         Prune(backup, ArchiveBackupsKept);
         return ([.. changes.Select(change => change.Name)], backup, note);
     }
@@ -217,10 +219,10 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// The map's stamp now, or the one taken before when it cannot be read: the next save then reads it again, and
-    /// takes a change for a change on disk.
+    /// The map's stamp now, or null when it cannot be read. After a save that wrote, a null keeps the stamp from
+    /// before: the next save then reads the map again, and takes a change for a change on disk.
     /// </summary>
-    private string StampOrKept()
+    private string? TryStamp()
     {
         try
         {
@@ -228,7 +230,7 @@ public sealed partial class Session
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or MapArchiveException)
         {
-            return _stamp;
+            return null;
         }
     }
 

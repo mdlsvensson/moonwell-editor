@@ -242,6 +242,40 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Equal("500", Value(archived, ObjectKind.Unit, "hfoo", "uhpm", 0));
     }
 
+    [Fact]
+    public void Failed_archive_save_keeps_its_backup_unless_the_map_is_known_to_be_as_it_was()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // The save fails, and then the map cannot be read: whether it is as it was is not known, so the backup stays.
+        using var map = TempMap.OfArchive();
+        var store = new FailingStore(MapArchive.Open(map.Map));
+        var session = Session.Open(store, game);
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        store.FailWrite = () => store.FailStamp = true;
+        Assert.Throws<MapFileException>(() => session.Save());
+        Assert.Single(Directory.GetDirectories(map.Map + ".backup"));
+        Assert.True(session.Dirty);
+
+        // Readable again and as it was: the next save goes through.
+        store.FailStamp = false;
+        store.FailWrite = null;
+        Assert.Equal(new[] { "war3map.w3u" }, session.Save().Written);
+        Assert.Equal(2, Directory.GetDirectories(map.Map + ".backup").Length);
+
+        // The save fails and the map on disk is not as it was (another program wrote it meanwhile): the backup stays,
+        // and the next save is refused as changed on disk, not taken for the map as the session last saw it.
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "600");
+        store.FailWrite = () => File.SetLastWriteTimeUtc(map.Map, DateTime.UtcNow.AddMinutes(1));
+        Assert.Throws<MapFileException>(() => session.Save());
+        Assert.Equal(3, Directory.GetDirectories(map.Map + ".backup").Length);
+        store.FailWrite = null;
+        Assert.Throws<ChangedOnDiskException>(() => session.Save());
+    }
+
     // Every named file of an archive and its bytes, but the archive's own files.
     private static Dictionary<string, byte[]> Files(string path)
     {
@@ -253,6 +287,36 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// A map archive whose write fails (after running <see cref="FailWrite"/>) while that is set, and whose stamp
+    /// cannot be read while <see cref="FailStamp"/> is true.
+    /// </summary>
+    private sealed class FailingStore(MapArchive archive) : IMapStore
+    {
+        public Action? FailWrite { get; set; }
+
+        public bool FailStamp { get; set; }
+
+        public string Path => archive.Path;
+
+        public bool IsArchive => true;
+
+        public byte[]? Read(string name) => archive.Read(name);
+
+        public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
+        {
+            if (FailWrite is { } fail)
+            {
+                fail();
+                throw new IOException("Simulated");
+            }
+
+            archive.Write(files);
+        }
+
+        public string Stamp() => FailStamp ? throw new IOException("Simulated: the map cannot be read") : archive.Stamp();
     }
 
     private static string Value(Session session, ObjectKind kind, string id, string field, int level) =>
