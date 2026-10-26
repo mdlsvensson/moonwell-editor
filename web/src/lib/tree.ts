@@ -49,7 +49,7 @@ export const kindNames: Record<Kind, string> = {
   destructable: "Destructables",
   doodad: "Doodads",
   ability: "Abilities",
-  buff: "Buffs",
+  buff: "Buffs/Effects",
   upgrade: "Upgrades",
 };
 

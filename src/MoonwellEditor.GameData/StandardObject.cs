@@ -9,6 +9,11 @@ namespace MoonwellEditor.GameData;
 /// <param name="Hero">True for a hero: a unit whose id starts with a capital letter.</param>
 /// <param name="Building">True for a building: a unit whose <c>isbldg</c> is 1.</param>
 /// <param name="Special">True for an object World Editor files under Special (its <c>special</c> is 1).</param>
+/// <param name="Category">
+/// The data column World Editor sorts the kind's tree by, as written: an item's <c>class</c> (<c>PowerUp</c>), a
+/// destructable's or a doodad's <c>category</c> (<c>D</c>), an ability's <c>sort</c> (<c>hero</c>), a buff's
+/// <c>isEffect</c> (<c>1</c>); empty for a unit, an upgrade, or no value.
+/// </param>
 /// <param name="Code">An ability's code, the ability it behaves as; null for every other kind.</param>
 /// <param name="Values">
 /// The standard values under the base tables, as the data writes them, keyed by field id, or <c>id:level</c> for a
@@ -28,6 +33,7 @@ public sealed record StandardObject(
     bool Hero,
     bool Building,
     bool Special,
+    string Category,
     string? Code,
     IReadOnlyDictionary<string, string> Values,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes);

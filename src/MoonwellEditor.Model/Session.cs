@@ -131,7 +131,8 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// The kind's tree: the map's custom objects first, in file order, then every standard object by id.
+    /// The kind's tree: the map's custom objects first, in file order, then every standard object in World Editor's
+    /// folder order (see <see cref="Folders"/>).
     /// </summary>
     public IReadOnlyList<TreeEntry> Tree(ObjectKind kind)
     {
@@ -152,7 +153,7 @@ public sealed partial class Session
         }
 
         var originals = map.Originals();
-        foreach (var standard in data.Objects)
+        foreach (var standard in Folders.Sorted(kind, data.Objects))
         {
             var changes = originals.GetValueOrDefault(standard.Id);
             tree.Add(new TreeEntry(
@@ -160,7 +161,7 @@ public sealed partial class Session
                 null,
                 resolver.Name(standard, changes, standard.Id),
                 resolver.Suffix(standard, changes),
-                PathOf(kind, standard),
+                Folders.Of(kind, standard),
                 changes?.HasMods ?? false));
         }
 
@@ -183,22 +184,6 @@ public sealed partial class Session
         }
 
         return new Resolver(kind, data, _strings).View(id, standard, found, map.ReadOnly(found));
-    }
-
-    /// <summary>Where a standard object sits in the tree; see <see cref="TreeEntry.Path"/>.</summary>
-    internal static IReadOnlyList<string> PathOf(ObjectKind kind, StandardObject standard)
-    {
-        var race = standard.Race.Length > 0 ? standard.Race : "Other";
-        if (kind != ObjectKind.Unit)
-        {
-            return [race];
-        }
-
-        var type = standard.Special ? "Special"
-            : standard.Hero ? "Heroes"
-            : standard.Building ? "Buildings"
-            : "Units";
-        return [race, standard.Campaign ? "Campaign" : "Melee", type];
     }
 
     /// <summary>

@@ -174,7 +174,7 @@ internal sealed class SearchIndex
         }
         else
         {
-            detail = string.Join(" · ", Session.PathOf(kind, standard!).Select(Capitalised));
+            detail = string.Join(" · ", Folders.Of(kind, standard!));
         }
 
         // The values the map sets, for a custom object and for a standard object it changes.
@@ -193,8 +193,6 @@ internal sealed class SearchIndex
             string.Join('\n', values),
             detail.ToLowerInvariant());
     }
-
-    private static string Capitalised(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>One object's text, lowercase, and the hit it gives.</summary>
     private sealed class ObjectEntryText(

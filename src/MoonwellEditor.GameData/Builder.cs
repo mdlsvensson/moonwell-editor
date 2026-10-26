@@ -158,6 +158,15 @@ internal static class Builder
         var building = kind == ObjectKind.Unit && FieldReader.Clean(row.Get("isbldg", "de")?.Value) == "1";
         var special = FieldReader.Clean(row.Get("special", "de")?.Value) == "1";
         var suffix = Resolved(tables, FieldReader.Clean(row.Get("EditorSuffix", "de")?.Value) ?? "");
+        var categoryColumn = kind switch
+        {
+            ObjectKind.Item => "class",
+            ObjectKind.Destructable or ObjectKind.Doodad => "category",
+            ObjectKind.Ability => "sort",
+            ObjectKind.Buff => "isEffect",
+            _ => null,
+        };
+        var category = categoryColumn == null ? "" : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
         var standard = new StandardObject(
             obj.Id,
             obj.Name,
@@ -167,6 +176,7 @@ internal static class Builder
             obj.IsHero,
             building,
             special,
+            category,
             obj.Code,
             obj.Values,
             new Dictionary<string, IReadOnlyDictionary<string, string>>());

@@ -6,9 +6,11 @@ namespace MoonwellEditor.Model;
 /// <param name="Name">The name: the map's when it changes the name, else the standard one.</param>
 /// <param name="Suffix">World Editor's suffix (<c>(Evil)</c>), resolved like the name; empty when it has none.</param>
 /// <param name="Path">
-/// Where the object sits in the tree: <c>["Custom"]</c> for a custom object; for a standard unit its race (or
-/// <c>Other</c>), <c>Melee</c> or <c>Campaign</c>, then <c>Units</c>, <c>Buildings</c>, <c>Heroes</c> or
-/// <c>Special</c>; for a standard object of another kind its race, or <c>["Other"]</c> when it has none.
+/// Where the object sits in the tree, as World Editor names its folders: <c>["Custom"]</c> for a custom object; for a
+/// standard unit its race, <c>Melee</c> or <c>Campaign</c>, then <c>Units</c>, <c>Buildings</c>, <c>Heroes</c> or
+/// <c>Special</c>; for an item its class, for a destructable or a doodad its category, for an ability its race then
+/// <c>Units</c>, <c>Heroes</c> or <c>Items</c>, for a buff its race then <c>Buffs</c> or <c>Effects</c>, for an
+/// upgrade its race (see <c>Folders</c>).
 /// </param>
 /// <param name="Changed">True when the map has a modification of the object.</param>
 public sealed record TreeEntry(
