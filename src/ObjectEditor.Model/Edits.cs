@@ -38,23 +38,10 @@ public sealed partial class Session
     /// </exception>
     public void Set(ObjectKind kind, string id, string field, int level, string value)
     {
-        var target = Target(kind, id, field, level);
-        var info = target.Field;
-        var parsed = Parse(info, value);
+        var cell = CheckCell(kind, id, field, level, value);
         var edit = new Edit();
         edit.Touch(kind, id);
-        var resolver = new Resolver(kind, target.Data, _strings);
-        var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
-        var modes = target.Standard.Modes.ContainsKey(Resolver.Key(info, target.Level));
-        if (!modes && SameValue(parsed, standardValue))
-        {
-            RemoveMods(edit, target);
-        }
-        else if (!SetTriggerString(edit, target, parsed))
-        {
-            WriteMod(edit, target, parsed);
-        }
-
+        ApplyCell(edit, cell, null);
         Commit(edit);
     }
 
@@ -65,10 +52,10 @@ public sealed partial class Session
     /// <exception cref="EditException"><c>noObject</c>, <c>noField</c> or <c>readOnly</c>.</exception>
     public void Reset(ObjectKind kind, string id, string field, int level)
     {
-        var target = Target(kind, id, field, level);
+        var cell = CheckCell(kind, id, field, level, null);
         var edit = new Edit();
         edit.Touch(kind, id);
-        RemoveMods(edit, target);
+        ApplyCell(edit, cell, null);
         Commit(edit);
     }
 
@@ -210,6 +197,48 @@ public sealed partial class Session
     }
 
     /// <summary>
+    /// The check part of <see cref="Set"/> (a value) and <see cref="Reset"/> (a null value): the object, field and
+    /// level (<see cref="Target"/>) and the value, read by the field's store. Throws the refusal; changes nothing.
+    /// </summary>
+    private CheckedCell CheckCell(ObjectKind kind, string id, string field, int level, string? value)
+    {
+        var target = Target(kind, id, field, level);
+        return new CheckedCell(target, value == null ? null : Parse(target.Field, value));
+    }
+
+    /// <summary>
+    /// The apply part of <see cref="Set"/> and <see cref="Reset"/>: makes a checked cell's change, recording its steps
+    /// in <paramref name="edit"/>. A null value removes the map's modifications; so does a value equal to the standard
+    /// one, unless the standard value differs between graphics modes; other text may change a strings file entry (see
+    /// <see cref="SetTriggerString"/>); else the value is written into the field's file. The object's records are
+    /// looked up again, as an earlier cell of the same edit may have added or removed them. <paramref name="before"/>
+    /// holds the map's <c>TRIGSTR_n</c> references from before an edit of many cells (null for one cell). Throws
+    /// <c>badText</c>, before any step of this cell, for text the strings file cannot hold.
+    /// </summary>
+    private void ApplyCell(Edit edit, CheckedCell cell, IReadOnlyList<(FieldMod Mod, int Number)>? before)
+    {
+        var target = cell.Target with { Found = cell.Target.Map.Find(cell.Target.Id) };
+        if (cell.Value is not { } value)
+        {
+            RemoveMods(edit, target);
+            return;
+        }
+
+        var info = target.Field;
+        var resolver = new Resolver(target.Kind, target.Data, _strings);
+        var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
+        var modes = target.Standard.Modes.ContainsKey(Resolver.Key(info, target.Level));
+        if (!modes && SameValue(value, standardValue))
+        {
+            RemoveMods(edit, target);
+        }
+        else if (!SetTriggerString(edit, target, value, before))
+        {
+            WriteMod(edit, target, value);
+        }
+    }
+
+    /// <summary>
     /// The object and field an edit of a field is about, checked: the object exists, the field applies to it at that
     /// level, and the object can be edited.
     /// </summary>
@@ -337,10 +366,11 @@ public sealed partial class Session
 
     /// <summary>
     /// When the value shown is a <c>TRIGSTR_n</c> text the strings file has, and no other modification refers to that
-    /// entry, sets the entry to the new text and returns true; the modification keeps the reference. Returns false
-    /// otherwise (the value is then written inline).
+    /// entry (now, or in <paramref name="before"/> when given), sets the entry to the new text and returns true; the
+    /// modification keeps the reference. Returns false otherwise (the value is then written inline).
     /// </summary>
-    private bool SetTriggerString(Edit edit, FieldTarget target, FieldValue value)
+    private bool SetTriggerString(
+        Edit edit, FieldTarget target, FieldValue value, IReadOnlyList<(FieldMod Mod, int Number)>? before)
     {
         // The value shown is the field's own file's, else the other file's.
         var (field, level, skin) = (target.Field.Id, target.Level, target.Field.Skin);
@@ -351,19 +381,19 @@ public sealed partial class Session
         }
 
         var number = WtsFile.TriggerString(reference.Value);
-        var before = number == null ? null : _strings.Get(number.Value);
-        if (before == null)
+        var old = number == null ? null : _strings.Get(number.Value);
+        if (old == null)
         {
             return false;
         }
 
-        if (before == text.Value)
+        if (old == text.Value)
         {
             return true;
         }
 
         // An entry another modification also shows is not changed under it: the new text goes inline instead.
-        if (SharedTriggerString(number!.Value, shown))
+        if (SharedTriggerString(number!.Value, shown, before))
         {
             return false;
         }
@@ -376,29 +406,48 @@ public sealed partial class Session
                 "badText", $"war3map.wts cannot hold a line that is only \"}}\" (in {reference.Value}).");
         }
 
-        edit.Done(new Step(() => strings.Set(entry, text.Value), () => strings.Set(entry, before)));
+        edit.Done(new Step(() => strings.Set(entry, text.Value), () => strings.Set(entry, old)));
         return true;
     }
 
     /// <summary>
     /// Whether a modification other than <paramref name="own"/>, in any object file of the map (any kind, main or
-    /// skin), refers to entry <paramref name="number"/> of the strings file. While the map has an object file War3Net
-    /// cannot read, what that file refers to is not known, so every entry counts as shared.
+    /// skin), refers to entry <paramref name="number"/> of the strings file: now, or in <paramref name="before"/> (the
+    /// references from before an edit of many cells) when given, so an entry two cells of one edit share is shared
+    /// for both, though the first one's text has gone inline by the time the second is written. While the map has an
+    /// object file War3Net cannot read, what that file refers to is not known, so every entry counts as shared.
     /// </summary>
-    private bool SharedTriggerString(int number, FieldMod own)
+    private bool SharedTriggerString(int number, FieldMod own, IReadOnlyList<(FieldMod Mod, int Number)>? before)
     {
         if (_unreadable)
         {
             return true;
         }
 
+        return TriggerStringMods().Concat(before ?? [])
+            .Any(reference => reference.Number == number && !ReferenceEquals(reference.Mod, own));
+    }
+
+    /// <summary>
+    /// Every modification whose text is a <c>TRIGSTR_n</c> reference, in any object file of the map (any kind, main or
+    /// skin), with the number of the entry it refers to.
+    /// </summary>
+    private List<(FieldMod Mod, int Number)> TriggerStringMods()
+    {
+        var references = new List<(FieldMod Mod, int Number)>();
         var mods = _kinds.Values
             .SelectMany(map => new[] { map.Main, map.Skin })
             .SelectMany(file => (file?.Original ?? []).Concat(file?.Custom ?? []))
             .SelectMany(entry => entry.Mods);
-        return mods.Any(mod => !ReferenceEquals(mod, own)
-            && mod.Value is FieldValue.Text text
-            && WtsFile.TriggerString(text.Value) == number);
+        foreach (var mod in mods)
+        {
+            if (mod.Value is FieldValue.Text text && WtsFile.TriggerString(text.Value) is { } number)
+            {
+                references.Add((mod, number));
+            }
+        }
+
+        return references;
     }
 
     /// <summary>
@@ -579,6 +628,11 @@ public sealed partial class Session
 
         throw new ArgumentException("The item is not in the list.", nameof(item));
     }
+
+    /// <summary>
+    /// A cell of an edit, checked: the field it is about, and its value as the file stores it (null to reset).
+    /// </summary>
+    private sealed record CheckedCell(FieldTarget Target, FieldValue? Value);
 
     /// <summary>A field of an object at a level, checked for an edit.</summary>
     private sealed record FieldTarget(

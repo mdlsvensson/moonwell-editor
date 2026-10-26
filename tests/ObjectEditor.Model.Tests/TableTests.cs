@@ -1,0 +1,334 @@
+using ObjectEditor.Files;
+using Xunit.Abstractions;
+
+namespace ObjectEditor.Model.Tests;
+
+[Collection(GameDataCollection.Name)]
+public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output)
+{
+    [Fact]
+    public void Set_cells_changes_every_cell()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        var units = session.SetCells(ObjectKind.Unit, [
+            new CellEdit("H001", "uhpm", 0, "1234"),
+            new CellEdit("u001", "uhpm", 0, "1235"),
+            new CellEdit("H002", "uhpm", 0, "1236"),
+        ]);
+        var abilities = session.SetCells(ObjectKind.Ability, [
+            new CellEdit("A001", "acdn", 1, "7.5"),
+            new CellEdit("A001", "acdn", 2, "8.5"),
+            new CellEdit("A001", "acdn", 3, "9.5"),
+        ]);
+
+        Assert.Equal(3, units);
+        Assert.Equal(3, abilities);
+        Assert.Equal("1234", Value(session, ObjectKind.Unit, "H001", "uhpm", 0));
+        Assert.Equal("1235", Value(session, ObjectKind.Unit, "u001", "uhpm", 0));
+        Assert.Equal("1236", Value(session, ObjectKind.Unit, "H002", "uhpm", 0));
+        Assert.Equal("7.5", Value(session, ObjectKind.Ability, "A001", "acdn", 1));
+        Assert.Equal("8.5", Value(session, ObjectKind.Ability, "A001", "acdn", 2));
+        Assert.Equal("9.5", Value(session, ObjectKind.Ability, "A001", "acdn", 3));
+        Assert.True(session.Dirty);
+    }
+
+    [Fact]
+    public void Set_cells_undoes_in_one_step()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        session.SetCells(ObjectKind.Unit, [
+            new CellEdit("H001", "uhpm", 0, "1234"),
+            new CellEdit("u001", "unam", 0, "Bruiser"),
+            new CellEdit("hpea", "udef", 0, null),
+            new CellEdit("hfoo", "uhpm", 0, "999"),
+        ]);
+        var after = Snapshot(session);
+
+        Assert.True(session.Undo());
+
+        Assert.False(session.Dirty);
+        Assert.Equal(OnDisk(map), Snapshot(session));
+        Assert.False(session.Undo());
+
+        Assert.True(session.Redo());
+        Assert.Equal(after, Snapshot(session));
+        Assert.Equal("1234", Value(session, ObjectKind.Unit, "H001", "uhpm", 0));
+        Assert.Equal("Bruiser", session.Object(ObjectKind.Unit, "u001")!.Name);
+        Assert.Equal("999", Value(session, ObjectKind.Unit, "hfoo", "uhpm", 0));
+        Assert.False(session.Redo());
+    }
+
+    [Fact]
+    public void Set_cells_is_all_or_nothing()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // Text in a number field, at the third cell.
+        var notNumber = Refused(() => session.SetCells(ObjectKind.Unit, [
+            new CellEdit("H001", "uhpm", 0, "1234"),
+            new CellEdit("u001", "uhpm", 0, "1235"),
+            new CellEdit("H002", "uhpm", 0, "lots"),
+        ]));
+        Assert.Equal("notNumber", notNumber.Code);
+        Named(notNumber, "H002", "uhpm");
+        Unchanged(session, map);
+
+        // A field that does not apply to the object (a hero's strength on a footman), at the second cell.
+        var noField = Refused(() => session.SetCells(ObjectKind.Unit, [
+            new CellEdit("H001", "uhpm", 0, "1234"),
+            new CellEdit("u001", "ustr", 0, "5"),
+        ]));
+        Assert.Equal("noField", noField.Code);
+        Named(noField, "u001", "ustr");
+        Unchanged(session, map);
+
+        // A level the object does not have.
+        var noLevel = Refused(() => session.SetCells(ObjectKind.Ability, [
+            new CellEdit("A001", "acdn", 1, "5"),
+            new CellEdit("A001", "acdn", 99, "5"),
+        ]));
+        Assert.Equal("noField", noLevel.Code);
+        Named(noLevel, "A001", "acdn");
+        Unchanged(session, map);
+
+        // Text a strings file entry cannot hold, found only when the cell is written: the cells before it are taken
+        // back too.
+        using var named = TempMap.Of("moonwell-mymap");
+        Name(named, ("H001", "Hpal", "TRIGSTR_003"));
+        var strings = Session.Open(MapFolder.Open(named.Folder), game);
+        var badText = Refused(() => strings.SetCells(ObjectKind.Unit, [
+            new CellEdit("u001", "uhpm", 0, "1235"),
+            new CellEdit("H001", "unam", 0, "a\n}\nb"),
+        ]));
+        Assert.Equal("badText", badText.Code);
+        Named(badText, "H001", "unam");
+        Unchanged(strings, named);
+
+        // A kind War3Net cannot write back exactly is read only (Lossy stands in such a war3map.w3a).
+        using var lossy = TempMap.Of("moonwell-mymap");
+        var readOnlyKind = Lossy.Open(lossy.Folder, game);
+        var kind = Refused(() => readOnlyKind.SetCells(ObjectKind.Ability, [
+            new CellEdit("A001", "acdn", 1, "5"),
+            new CellEdit("A003", "acdn", 1, "5"),
+        ]));
+        Assert.Equal("readOnly", kind.Code);
+        Named(kind, "A001", "acdn");
+        Unchanged(readOnlyKind, lossy);
+
+        // A read-only object at the second cell: World Editor's h000 with a set count of 2 (version 3).
+        var bytes = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fixtures", "we-3.0", "war3map.w3u"));
+        using var twoSets = TempMap.Of(null);
+        File.WriteAllBytes(
+            Path.Combine(twoSets.Folder, "war3map.w3u"),
+            [.. bytes[..20], 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .. bytes[28..]]);
+        var sets = Session.Open(MapFolder.Open(twoSets.Folder), game);
+        var readOnly = Refused(() => sets.SetCells(ObjectKind.Unit, [
+            new CellEdit("hfoo", "uhpm", 0, "500"),
+            new CellEdit("h000", "uhpm", 0, "5"),
+        ]));
+        Assert.Equal("readOnly", readOnly.Code);
+        Named(readOnly, "h000", "uhpm");
+        Unchanged(sets, twoSets);
+    }
+
+    [Fact]
+    public void Set_cells_resets_with_null()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // hpea's udef and uhpm are changed by the map; a null value resets a cell, and sets and resets mix.
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        Assert.True(Field(session, ObjectKind.Unit, "hpea", "udef", 0).Changed);
+        Assert.True(Field(session, ObjectKind.Unit, "hpea", "uhpm", 0).Changed);
+
+        var changed = session.SetCells(ObjectKind.Unit, [
+            new CellEdit("hpea", "udef", 0, null),
+            new CellEdit("hpea", "uhpm", 0, null),
+            new CellEdit("H001", "uhpm", 0, "1234"),
+            new CellEdit("hfoo", "uhpm", 0, null),   // not changed by the map: nothing to reset
+        ]);
+
+        Assert.Equal(3, changed);
+        Assert.False(Field(session, ObjectKind.Unit, "hpea", "udef", 0).Changed);
+        Assert.False(Field(session, ObjectKind.Unit, "hpea", "uhpm", 0).Changed);
+        Assert.Equal("1234", Value(session, ObjectKind.Unit, "H001", "uhpm", 0));
+
+        Assert.True(session.Undo());
+        Assert.Equal(OnDisk(map), Snapshot(session));
+        Assert.True(Field(session, ObjectKind.Unit, "hpea", "udef", 0).Changed);
+    }
+
+    [Fact]
+    public void Set_cells_keeps_the_shared_string_rule()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // H001's and u001's names refer to one strings file entry (spelled differently); H002's has an entry alone.
+        using var map = TempMap.Of("moonwell-mymap");
+        Name(map, ("H001", "Hpal", "TRIGSTR_003"), ("u001", "hfoo", "TRIGSTR_3"), ("H002", "Hamg", "TRIGSTR_004"));
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        Assert.Equal("Nondescript", session.Object(ObjectKind.Unit, "H001")!.Name);
+        Assert.Equal("Nondescript", session.Object(ObjectKind.Unit, "u001")!.Name);
+
+        var changed = session.SetCells(ObjectKind.Unit, [
+            new CellEdit("H001", "unam", 0, "Alpha"),
+            new CellEdit("u001", "unam", 0, "Beta"),
+            new CellEdit("H002", "unam", 0, "Gamma"),
+        ]);
+
+        // Both shared names go inline: the second is still shared, as the map was before this edit.
+        Assert.Equal(3, changed);
+        Assert.Equal("Alpha", session.Object(ObjectKind.Unit, "H001")!.Name);
+        Assert.Equal("Beta", session.Object(ObjectKind.Unit, "u001")!.Name);
+        Assert.Equal("Gamma", session.Object(ObjectKind.Unit, "H002")!.Name);
+        var skin = session.FileOf(ObjectKind.Unit, true)!;
+        FieldValue NameIn(string id) => skin.Custom.Single(entry => entry.Id == id).Find("unam", 0)!.Value;
+        Assert.Equal(new FieldValue.Text("Alpha"), NameIn("H001"));
+        Assert.Equal(new FieldValue.Text("Beta"), NameIn("u001"));
+        Assert.Equal(new FieldValue.Text("TRIGSTR_004"), NameIn("H002"));
+        Assert.Equal("Nondescript", session.Strings!.Get(3));
+        Assert.Equal("Gamma", session.Strings!.Get(4));
+
+        // The search index knows every touched object's new name.
+        foreach (var (id, name) in new[] { ("H001", "Alpha"), ("u001", "Beta"), ("H002", "Gamma") })
+        {
+            Assert.Contains(session.Search(name, 50), hit => hit.Id == id && hit.Field == null);
+        }
+
+        Assert.True(session.Undo());
+        Assert.Equal(OnDisk(map), Snapshot(session));
+        Assert.Equal("Nondescript", session.Object(ObjectKind.Unit, "u001")!.Name);
+    }
+
+    [Fact]
+    public void Set_cells_with_no_edits_changes_nothing()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("moonwell-mymap");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        Assert.Equal(0, session.SetCells(ObjectKind.Unit, []));
+
+        Assert.False(session.Dirty);
+        Assert.False(session.Undo());
+        Assert.Equal(OnDisk(map), Snapshot(session));
+    }
+
+    /// <summary>Writes names into the map's war3mapSkin.w3u: each custom unit's (id, base id, name).</summary>
+    private static void Name(TempMap map, params (string Id, string BaseId, string Name)[] names)
+    {
+        var path = Path.Combine(map.Folder, "war3mapSkin.w3u");
+        var skin = ObjectFile.Read(ObjectKind.Unit, File.ReadAllBytes(path));
+        foreach (var (id, baseId, name) in names)
+        {
+            var entry = skin.Custom.FirstOrDefault(candidate => candidate.Id == id) ?? skin.AddCustom(baseId, id);
+            entry.Set("unam", 0, 0, new FieldValue.Text(name));
+        }
+
+        File.WriteAllBytes(path, skin.ToBytes());
+    }
+
+    /// <summary>The refused edit's message names the cell first: its object, then its field.</summary>
+    private void Named(EditException refused, string id, string field)
+    {
+        output.WriteLine(refused.Message);
+        Assert.StartsWith(id + " ", refused.Message);
+        Assert.Contains($"({field}): ", refused.Message);
+    }
+
+    /// <summary>Nothing was changed: no edit to undo, and every file as on disk.</summary>
+    private static void Unchanged(Session session, TempMap map)
+    {
+        Assert.False(session.Dirty);
+        Assert.False(session.Undo());
+        Assert.Equal(OnDisk(map), Snapshot(session));
+    }
+
+    /// <summary>What every kind's files and the strings file hold, to compare two states.</summary>
+    private static List<string> Snapshot(Session session)
+    {
+        var lines = new List<string>();
+        foreach (var kind in Enum.GetValues<ObjectKind>())
+        {
+            foreach (var skin in new[] { false, true })
+            {
+                var bytes = session.FileOf(kind, skin)?.ToBytes();
+                lines.Add($"{kind} {skin}: {(bytes == null ? "none" : Convert.ToHexString(bytes))}");
+            }
+        }
+
+        lines.Add("wts: " + Convert.ToHexString(session.Strings?.ToBytes() ?? []));
+        return lines;
+    }
+
+    /// <summary>The same as <see cref="Snapshot"/>, read from the map folder's files.</summary>
+    private static List<string> OnDisk(TempMap map)
+    {
+        var lines = new List<string>();
+        foreach (var kind in Enum.GetValues<ObjectKind>())
+        {
+            foreach (var skin in new[] { false, true })
+            {
+                var path = Path.Combine(map.Folder, (skin ? "war3mapSkin." : "war3map.") + ObjectKinds.Extension(kind));
+                var bytes = File.Exists(path) ? Convert.ToHexString(File.ReadAllBytes(path)) : "none";
+                lines.Add($"{kind} {skin}: {bytes}");
+            }
+        }
+
+        var wts = Path.Combine(map.Folder, "war3map.wts");
+        lines.Add("wts: " + (File.Exists(wts) ? Convert.ToHexString(File.ReadAllBytes(wts)) : ""));
+        return lines;
+    }
+
+    private static EditException Refused(Func<int> edit) => Assert.Throws<EditException>(() => edit());
+
+    private static FieldView Field(Session session, ObjectKind kind, string id, string field, int level) =>
+        Assert.Single(
+            session.Object(kind, id)!.Fields, candidate => candidate.Id == field && candidate.Level == level);
+
+    private static string Value(Session session, ObjectKind kind, string id, string field, int level) =>
+        Field(session, kind, id, field, level).Value;
+
+    private bool Skipped(out GameData.GameData game)
+    {
+        if (fixture.Data == null)
+        {
+            output.WriteLine(fixture.Reason);
+            game = null!;
+            return true;
+        }
+
+        game = fixture.Data;
+        return false;
+    }
+}
