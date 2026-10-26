@@ -9,9 +9,10 @@
  * Every change of cells is one `setCells` (`onedit`), one step of undo: a cell's editor, the bar that sets the
  * selected cells to a value or an expression, and the grid's Ctrl V (paste from the clipboard at the block's upper
  * left cell), Ctrl D (fill down) and Delete (reset). A refusal changes nothing and is said in the status bar (the bar's
- * also beside it). Ctrl C copies the selected values as tab-separated text. A bulk change (and a copy) first waits for
- * the edits on their way and the rows fetched after them, so it works from the values as they are; the selection is
- * kept by objects and columns, so it stays on them when the rows are sorted or fetched again.
+ * also beside it). Ctrl C copies the selected values as tab-separated text. The bulk changes (and copies) run one at a
+ * time, in the order asked, and each first waits for the edits on their way and the rows fetched after them, so it
+ * works from the values as they are (Enter twice on `+10%` adds 10% twice; a paste then Ctrl D fills down the pasted
+ * value); the selection is kept by objects and columns, so it stays on them when the rows are sorted or fetched again.
  */
 import { untrack } from "svelte";
 import {
@@ -53,6 +54,7 @@ import {
   levelFields,
   mostLevels,
   nextSort,
+  oneAtATime,
   readColumns,
   removeColumn,
   rowIds,
@@ -386,8 +388,9 @@ function settled(): Promise<string | null> {
 }
 
 /**
- * Waits as `settled` does, and again while another bulk change woken by the same wait went first (its edit is now on
- * its way), so two quick ones each work from the values the other left. Answers null when ready, or why not.
+ * Waits as `settled` does, and again while an edit started in the meantime (a cell's editor sent one), so a bulk
+ * change works from the values that edit left. Answers null when ready, or why not. The bulk changes themselves run
+ * one at a time (`bulkQueue`), so two of them never wait here together.
  */
 async function ready(): Promise<string | null> {
   for (;;) {
@@ -479,7 +482,15 @@ async function paste(s: Selection, text: string): Promise<void> {
   await change(at.kind, edits, "Pasted");
 }
 
-async function bulk(action: BulkAction): Promise<void> {
+// The bulk changes (the grid's and the bar's), one at a time in the order asked: each works from the rows as the one
+// before left them.
+const bulkQueue = oneAtATime();
+
+function bulk(action: BulkAction): Promise<void> {
+  return bulkQueue(() => bulkNow(action));
+}
+
+async function bulkNow(action: BulkAction): Promise<void> {
   // The clipboard is read first: the edit must follow the wait for the rows at once, with nothing to wait for between.
   let text = "";
   if (action === "paste") {
@@ -525,9 +536,13 @@ async function bulk(action: BulkAction): Promise<void> {
   await change(at.kind, edits, action === "fill" ? "Filled" : "Reset");
 }
 
-/** The bar's Apply: the selected cells set to the value or expression typed. */
-async function apply(): Promise<void> {
+/** The bar's Apply: the selected cells set to the value or expression typed, after the bulk changes asked before. */
+function apply(): Promise<void> {
   const text = bulkText;
+  return bulkQueue(() => applyNow(text));
+}
+
+async function applyNow(text: string): Promise<void> {
   const problem = await ready();
   if (problem) {
     bulkError = problem;

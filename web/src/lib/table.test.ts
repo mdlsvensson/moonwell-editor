@@ -11,6 +11,7 @@ import {
   levelColumnLimit,
   mostLevels,
   nextSort,
+  oneAtATime,
   readColumns,
   removeColumn,
   rowIds,
@@ -367,5 +368,67 @@ describe("rowsReadiness", () => {
     expect(rowsReadiness({ ...ready, editsOut: 1, rowsError: "No map." })).toEqual({
       error: "No map.",
     });
+  });
+});
+
+describe("oneAtATime", () => {
+  /** A promise the test settles by hand. */
+  function later<T>() {
+    let settle!: (value: T) => void;
+    let fail!: (error: unknown) => void;
+    const promise = new Promise<T>((resolve, reject) => {
+      settle = resolve;
+      fail = reject;
+    });
+    return { promise, settle, fail };
+  }
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("starts each task once the one before has finished, in the order given", async () => {
+    const queue = oneAtATime();
+    const started: string[] = [];
+    const first = later<string>();
+    const a = queue(() => {
+      started.push("a");
+      return first.promise;
+    });
+    const b = queue(async () => {
+      started.push("b");
+      return "b";
+    });
+    await tick();
+    expect(started).toEqual(["a"]);
+    first.settle("a");
+    expect(await a).toBe("a");
+    expect(await b).toBe("b");
+    expect(started).toEqual(["a", "b"]);
+  });
+
+  it("goes on after a task that failed, which fails on its own", async () => {
+    const queue = oneAtATime();
+    const failed = queue(async () => {
+      throw new Error("refused");
+    });
+    const next = queue(async () => "next");
+    await expect(failed).rejects.toThrow("refused");
+    expect(await next).toBe("next");
+  });
+
+  it("makes two quick changes each work from the value the other left", async () => {
+    // Two +10% changes, each reading the value, waiting for the app, then writing: one at a time they make 121.
+    let value = 100;
+    const plusTenPercent = async () => {
+      const read = value;
+      await tick();
+      value = Math.round(read * 1.1);
+    };
+    const queue = oneAtATime();
+    await Promise.all([queue(plusTenPercent), queue(plusTenPercent)]);
+    expect(value).toBe(121);
+
+    // Without the queue, both read 100.
+    value = 100;
+    await Promise.all([plusTenPercent(), plusTenPercent()]);
+    expect(value).toBe(110);
   });
 });

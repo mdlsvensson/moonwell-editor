@@ -265,3 +265,20 @@ export function rowsReadiness(f: RowsFreshness): "ready" | "wait" | { error: str
   if (!f.rowsFor || f.rowsFor.session !== f.session) return "wait";
   return "ready";
 }
+
+/** Runs a task after the ones given before it; answers what it answers. */
+export type Queue = <T>(task: () => Promise<T>) => Promise<T>;
+
+/**
+ * A queue that runs tasks one at a time, in the order they were given: each starts once the one before has finished,
+ * whether it worked or failed (a failure is passed on to whoever gave that task only). The table's bulk changes go
+ * through one, so a second change (Enter twice on `+10%`, a paste then Ctrl D) works from what the first one left.
+ */
+export function oneAtATime(): Queue {
+  let last: Promise<unknown> = Promise.resolve();
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = last.then(task);
+    last = run.catch(() => undefined);
+    return run;
+  };
+}
