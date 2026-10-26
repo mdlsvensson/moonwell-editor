@@ -76,15 +76,31 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
 
     [Theory]
     [MemberData(nameof(ObjectFiles))]
-    public void Trailing_table_is_a_problem(string file)
+    public void Trailing_table_round_trips(string file)
     {
+        // Some tools write a third, empty table; War3Net 6.1.2-moonwell.4 keeps it.
         var bytes = Fixtures.Bytes(file);
         var kind = Fixtures.KindOf(file)!.Value;
         byte[] longer = [.. bytes, 0, 0, 0, 0];
 
-        var problem = Assert.Throws<ObjectFileException>(() => ObjectFile.Read(kind, longer));
+        var read = ObjectFile.Read(kind, longer);
+
+        Assert.Equal(longer, read.ToBytes());
+    }
+
+    [Theory]
+    [MemberData(nameof(ObjectFiles))]
+    public void Lossy_write_back_is_a_problem(string file)
+    {
+        // War3Net writes every known file back exactly; the guard is tested with a write-back that drops 4 bytes.
+        var bytes = Fixtures.Bytes(file);
+        var kind = Fixtures.KindOf(file)!.Value;
+
+        var problem = Assert.Throws<ObjectFileException>(
+            () => ObjectFile.Read(kind, bytes, null, read => read.ToBytes()[..^4]));
 
         Assert.Contains("exactly", problem.Message);
+        Assert.Contains("drop the last 4 bytes", problem.Message);
         Assert.Contains("war3map." + ObjectKinds.Extension(kind), problem.Message);
         output.WriteLine(problem.Message);
 
@@ -101,23 +117,45 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Non_utf8_name_is_a_problem()
+    public void Write_back_differing_inside_is_a_problem()
+    {
+        var bytes = Fixtures.Bytes("we-3.0/war3mapSkin.w3a");
+
+        var problem = Assert.Throws<ObjectFileException>(() => ObjectFile.Read(
+            ObjectKind.Ability,
+            bytes,
+            "war3mapSkin.w3a",
+            read =>
+            {
+                var written = read.ToBytes();
+                written[10] ^= 0xFF;
+                return written;
+            }));
+
+        Assert.Contains("war3mapSkin.w3a back exactly", problem.Message);
+        Assert.Contains("from offset 10", problem.Message);
+        Assert.NotNull(problem.Parsed);
+    }
+
+    [Fact]
+    public void Non_utf8_name_round_trips()
     {
         var bytes = Fixtures.Bytes("we-3.0/war3mapSkin.w3a");
         var at = IndexOf(bytes, "TRIGSTR_016"u8);
         Assert.True(at > 0);
         bytes[at] = 0xFF;
 
-        var problem = Assert.Throws<ObjectFileException>(
-            () => ObjectFile.Read(ObjectKind.Ability, bytes, "war3mapSkin.w3a"));
+        var read = ObjectFile.Read(ObjectKind.Ability, bytes, "war3mapSkin.w3a");
 
-        Assert.Contains("war3mapSkin.w3a", problem.Message);
-        output.WriteLine(problem.Message);
+        // War3Net shows the byte as a replacement character and keeps it while the value is unchanged.
+        Assert.Equal(bytes, read.ToBytes());
+        var entry = read.Custom[0];
+        Assert.Equal(new FieldValue.Text("�RIGSTR_016"), entry.Find("anam", 0)!.Value);
 
-        // War3Net reads the byte as a replacement character, so the file reads but does not write back exactly.
-        Assert.Contains("exactly", problem.Message);
-        var name = problem.Parsed!.Custom[0].Find("anam", 0)!.Value;
-        Assert.Equal(new FieldValue.Text("�RIGSTR_016"), name);
+        // Editing another field of the same object leaves the name's bytes as they were.
+        entry.Set("ahky", 0, 0, new FieldValue.Text("Q"));
+        var written = read.ToBytes();
+        Assert.True(IndexOf(written, [0xFF, .. "RIGSTR_016"u8]) > 0);
     }
 
     [Fact]

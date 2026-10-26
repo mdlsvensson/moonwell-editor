@@ -54,7 +54,15 @@ public sealed class ObjectFile
     /// to show but never to save. <paramref name="name"/> is the file's name in messages (by default <c>war3map.</c>
     /// and the kind's extension).
     /// </summary>
-    public static ObjectFile Read(ObjectKind kind, byte[] bytes, string? name = null)
+    public static ObjectFile Read(ObjectKind kind, byte[] bytes, string? name = null) =>
+        Read(kind, bytes, name, file => file.ToBytes());
+
+    /// <summary>
+    /// <see cref="Read(ObjectKind, byte[], string?)"/> with the guard's write-back given. War3Net (from 6.1.2-moonwell.4)
+    /// writes every known file back exactly, so tests pass a <paramref name="writeBack"/> that differs to stand for a
+    /// file it cannot.
+    /// </summary>
+    internal static ObjectFile Read(ObjectKind kind, byte[] bytes, string? name, Func<ObjectFile, byte[]> writeBack)
     {
         ArgumentNullException.ThrowIfNull(bytes);
         var extension = ObjectKinds.Extension(kind);
@@ -93,7 +101,7 @@ public sealed class ObjectFile
             }
         }
 
-        file.CheckWritesBack(bytes, name);
+        file.CheckWritesBack(bytes, name, writeBack);
         return file;
     }
 
@@ -254,12 +262,12 @@ public sealed class ObjectFile
     /// The round-trip guard: what War3Net read must write back to the same bytes, or the file is never saved through
     /// this read.
     /// </summary>
-    private void CheckWritesBack(byte[] bytes, string name)
+    private void CheckWritesBack(byte[] bytes, string name, Func<ObjectFile, byte[]> writeBack)
     {
         byte[] written;
         try
         {
-            written = ToBytes();
+            written = writeBack(this);
         }
         catch (Exception e)
         {

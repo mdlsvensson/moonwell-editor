@@ -5,9 +5,15 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!-- The tests stand in a War3Net that cannot write a file back exactly (see ObjectFile.Read). -->
   <ItemGroup>
-    <!-- Sven's War3Net fork, at the version Moonwell builds with. -->
-    <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.3" />
+    <InternalsVisibleTo Include="ObjectEditor.Files.Tests" />
+    <InternalsVisibleTo Include="ObjectEditor.Model.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Sven's War3Net fork; 6.1.2-moonwell.4 writes object files back byte for byte. -->
+    <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.4" />
   </ItemGroup>
 
 </Project>

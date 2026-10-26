@@ -142,10 +142,10 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
             return;
         }
 
-        // War3Net reads this war3map.w3a but would drop its last 4 bytes on writing it back: abilities are read only.
+        // War3Net cannot read this cut-short war3map.w3a: abilities are read only (their skin file still shows them).
         var map = CopyFixture("moonwell-mymap");
         var abilities = Path.Combine(map, "war3map.w3a");
-        File.WriteAllBytes(abilities, [.. File.ReadAllBytes(abilities), 0, 0, 0, 0]);
+        File.WriteAllBytes(abilities, File.ReadAllBytes(abilities)[..5]);
         var bridge = new Bridge(commands.Run);
         var opened = Result(await Ask(bridge, "openMap", new { path = map }));
         Assert.NotEqual(0, opened.GetProperty("problems").GetArrayLength());

@@ -1,6 +1,20 @@
+using ObjectEditor.Files;
 using ObjectEditor.GameData;
 
 namespace ObjectEditor.Model.Tests;
+
+/// <summary>
+/// Opens a map as if War3Net could not write one of its object files back exactly (War3Net writes every known file
+/// back exactly, so the tests stand in such a file): the write-back of <paramref name="lossyName"/> drops 4 bytes.
+/// </summary>
+public static class Lossy
+{
+    /// <summary>Opens <paramref name="folder"/> with <paramref name="lossyName"/> read as a lossy file.</summary>
+    public static Session Open(string folder, GameData.GameData game, string lossyName = "war3map.w3a") =>
+        Session.Open(MapFolder.Open(folder), game, (kind, bytes, name) => name == lossyName
+            ? ObjectFile.Read(kind, bytes, name, read => read.ToBytes()[..^4])
+            : ObjectFile.Read(kind, bytes, name));
+}
 
 /// <summary>
 /// The game data folder named by <c>OBJECT_EDITOR_GAME_DATA</c>, loaded once per test run for every test class of the

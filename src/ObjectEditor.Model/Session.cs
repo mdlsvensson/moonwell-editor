@@ -18,6 +18,7 @@ public sealed partial class Session
 
     private readonly MapFolder _folder;
     private readonly GameData.GameData _game;
+    private readonly Func<ObjectKind, byte[], string, ObjectFile> _read;
 
     // What was read from the folder at open (or reload); see Load. A save updates the baseline and the stamp.
     private Dictionary<ObjectKind, MapKind> _kinds;
@@ -28,10 +29,12 @@ public sealed partial class Session
     private bool _unreadable;
     private History _history = new();
 
-    private Session(MapFolder folder, GameData.GameData game, Loaded loaded)
+    private Session(
+        MapFolder folder, GameData.GameData game, Func<ObjectKind, byte[], string, ObjectFile> read, Loaded loaded)
     {
         _folder = folder;
         _game = game;
+        _read = read;
         _kinds = loaded.Kinds;
         _strings = loaded.Strings;
         _problems = loaded.Problems;
@@ -58,13 +61,23 @@ public sealed partial class Session
     /// Opens a map folder. Any of its files may be missing: a kind without files has only its standard objects, and
     /// a map without <c>war3map.wts</c> shows <c>TRIGSTR_n</c> values as they are.
     /// </summary>
-    public static Session Open(MapFolder map, GameData.GameData game) => new(map, game, Load(map));
+    public static Session Open(MapFolder map, GameData.GameData game) =>
+        Open(map, game, (kind, bytes, name) => ObjectFile.Read(kind, bytes, name));
 
     /// <summary>
-    /// Reads the folder's object files and strings file, keeping each one's bytes as the baseline a save compares
-    /// with. The stamp is taken first, so a change made while reading is seen at the next save.
+    /// <see cref="Open(MapFolder, GameData.GameData)"/> with the object files read by <paramref name="read"/>, which
+    /// <see cref="Reload"/> uses too: tests pass one that stands for a file War3Net cannot write back exactly.
     /// </summary>
-    private static Loaded Load(MapFolder map)
+    internal static Session Open(
+        MapFolder map, GameData.GameData game, Func<ObjectKind, byte[], string, ObjectFile> read) =>
+        new(map, game, read, Load(map, read));
+
+    /// <summary>
+    /// Reads the folder's object files (with <paramref name="read"/>) and strings file, keeping each one's bytes as
+    /// the baseline a save compares with. The stamp is taken first, so a change made while reading is seen at the
+    /// next save.
+    /// </summary>
+    private static Loaded Load(MapFolder map, Func<ObjectKind, byte[], string, ObjectFile> read)
     {
         var stamp = map.Stamp();
         var problems = new List<string>();
@@ -83,8 +96,8 @@ public sealed partial class Session
             baseline[mainName] = map.Read(mainName);
             baseline[skinName] = map.Read(skinName);
             var kindProblems = new List<string>();
-            var main = ReadFile(kind, mainName, baseline[mainName], kindProblems);
-            var skin = ReadFile(kind, skinName, baseline[skinName], kindProblems);
+            var main = ReadFile(kind, mainName, baseline[mainName], kindProblems, read);
+            var skin = ReadFile(kind, skinName, baseline[skinName], kindProblems, read);
             problems.AddRange(kindProblems);
             unreadable |= (baseline[mainName] != null && main == null) || (baseline[skinName] != null && skin == null);
             var problem = kindProblems.Count == 0 ? null : string.Join(" ", kindProblems);
@@ -173,7 +186,12 @@ public sealed partial class Session
     /// <paramref name="problems"/>: a file War3Net read but cannot write back exactly is still returned, to show (its
     /// kind is then read only, so it is never saved); a file War3Net cannot read gives null.
     /// </summary>
-    private static ObjectFile? ReadFile(ObjectKind kind, string name, byte[]? bytes, List<string> problems)
+    private static ObjectFile? ReadFile(
+        ObjectKind kind,
+        string name,
+        byte[]? bytes,
+        List<string> problems,
+        Func<ObjectKind, byte[], string, ObjectFile> read)
     {
         if (bytes == null)
         {
@@ -182,7 +200,7 @@ public sealed partial class Session
 
         try
         {
-            return ObjectFile.Read(kind, bytes, name);
+            return read(kind, bytes, name);
         }
         catch (ObjectFileException e)
         {

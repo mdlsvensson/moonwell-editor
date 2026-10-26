@@ -84,12 +84,12 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// Reads the map folder again, as <see cref="Open"/> does: the edits that were not saved are dropped, and so is
-    /// the undo history.
+    /// Reads the map folder again, as <see cref="Open(MapFolder, GameData.GameData)"/> does (with the same reader): the
+    /// edits that were not saved are dropped, and so is the undo history.
     /// </summary>
     public void Reload()
     {
-        var loaded = Load(_folder);
+        var loaded = Load(_folder, _read);
         _kinds = loaded.Kinds;
         _strings = loaded.Strings;
         _problems = loaded.Problems;
