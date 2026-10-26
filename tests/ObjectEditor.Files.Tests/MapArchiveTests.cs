@@ -229,6 +229,44 @@ public sealed class MapArchiveTests : IDisposable
     }
 
     [Fact]
+    public void Unnamed_file_stays_where_the_game_finds_it()
+    {
+        // Moonwell\hello.txt unnamed, and found by the game (from the slot its name hashes to, forward to the first
+        // empty slot) only past three entries War3Net leaves out of the table it writes: a deleted entry, a
+        // (signature) and an entry that points at no block. War3Net puts the file back at its old slot.
+        const string unlisted = "Moonwell\\hello.txt";
+        var path = Path.Combine(_folder, "chain.w3x");
+        Rebuild(Sample, path, unlisted: unlisted, signature: true);
+        var dropped = ChainPastDroppedEntries(path, unlisted);
+        var copy = Copy(path, "chain-copy.w3x");
+        Assert.True(GameFinds(path, unlisted));
+        var before = Entries(path);
+
+        // The save keeps the chain (a deleted entry where each left-out one was), so the game still finds it.
+        MapArchive.Open(path).Write([("war3map.w3u", [1, 2, 3])]);
+        Assert.True(GameFinds(path, unlisted));
+        AssertCarried(before, Entries(path), "war3map.w3u");
+        Assert.Equal(War3NetReads(Sample, unlisted), War3NetReads(path, unlisted));
+
+        // With those slots empty, as War3Net writes them, the game could not find it: the check refuses the save.
+        var bytes = File.ReadAllBytes(copy);
+        var map = MapArchive.Open(copy);
+        map.BeforeCheck = saving => ChangeHashTable(saving, table =>
+        {
+            foreach (var slot in dropped.Where(slot => !table[slot].IsLive))
+            {
+                table[slot] = StormHashTable.Slot.Empty;
+            }
+        });
+        var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])]));
+        Assert.Contains($"{MpqHash.GetHashedFileName(unlisted):X16}", problem.Message);
+        Assert.Contains("the way the game looks files up", problem.Message);
+        Assert.False(problem.Saved);
+        Assert.Equal(bytes, File.ReadAllBytes(copy));
+        Assert.False(File.Exists(copy + ".saving"));
+    }
+
+    [Fact]
     public void Failed_check_leaves_the_map()
     {
         // What the check is made to see in the new archive, and the file its message names.
@@ -238,6 +276,7 @@ public sealed class MapArchiveTests : IDisposable
             (saving => Spoil(saving, "war3map.w3u", middle: false), "war3map.w3u"),
             (saving => Spoil(saving, "Moonwell\\hello.txt", middle: false), "Moonwell\\hello.txt"),
             (saving => AddFile(saving, "extra.txt"), "files where"),
+            (saving => MoveOutOfReach(saving, "war3map.lua"), "war3map.lua"),
         };
 
         foreach (var (spoil, named) in spoilers)
@@ -540,7 +579,7 @@ public sealed class MapArchiveTests : IDisposable
         using var archive = MpqArchive.Open(new MemoryStream(bytes), loadListFile: true);
         archive.AddFileNames(MapArchive.KnownNames);
         var entries = new List<Entry>();
-        foreach (var hash in archive.EnumerateHashes())
+        foreach (var hash in archive.EnumerateHashes().Where(hash => hash.BlockIndex < archive.Count))
         {
             var block = archive[(int)hash.BlockIndex];
             var stored = bytes.AsSpan((int)block.FilePosition, (int)block.CompressedSize).ToArray();
@@ -609,13 +648,15 @@ public sealed class MapArchiveTests : IDisposable
     }
 
     // Writes source's files into a new archive at target, as the spike did: optionally one file left out of
-    // (listfile), one file stored with other flags, and another block size than War3Net's default (3).
+    // (listfile), one file stored with other flags, another block size than War3Net's default (3), and a
+    // (signature) file (72 bytes, as a weak signature is).
     private static void Rebuild(
         string source,
         string target,
         string? unlisted = null,
         (string Name, MpqFileFlags Flags)? flags = null,
-        ushort blockSize = 3)
+        ushort blockSize = 3,
+        bool signature = false)
     {
         using var original = MpqArchive.Open(new MemoryStream(File.ReadAllBytes(source)), loadListFile: true);
         List<string> listed;
@@ -646,6 +687,12 @@ public sealed class MapArchiveTests : IDisposable
         listFile.TargetFlags = MpqFileFlags.Exists | MpqFileFlags.CompressedMulti | MpqFileFlags.Encrypted
             | MpqFileFlags.BlockOffsetAdjustedKey;
         files.Add(listFile);
+        if (signature)
+        {
+            var signatureFile = MpqFile.New(new MemoryStream(new byte[72]), "(signature)");
+            signatureFile.TargetFlags = MpqFileFlags.Exists;
+            files.Add(signatureFile);
+        }
 
         var options = new MpqArchiveCreateOptions
         {
@@ -653,6 +700,7 @@ public sealed class MapArchiveTests : IDisposable
             AttributesCreateMode = MpqFileCreateMode.Overwrite,
             AttributesFlags = AttributesFlags.Crc32,
             BlockSize = blockSize,
+            SignatureCreateMode = signature ? MpqFileCreateMode.None : null,
         };
 
         using var archive = new MemoryStream();
@@ -677,91 +725,85 @@ public sealed class MapArchiveTests : IDisposable
         }
     }
 
-    // Points the second live hash entry of an archive (MPQ header at 0) at the first one's block. The hash table is
-    // encrypted, so it is decrypted, changed and encrypted again.
-    private static void ShareOneBlock(string path)
+    // Moves a file's hash entry in an archive (MPQ header at 0) to just past three entries War3Net leaves out of the
+    // table it writes: from the slot its name hashes to, the first three slots free (empty or deleted) get a deleted
+    // entry, the archive's (signature) entry and an entry that points at no block, and the fourth the file's entry.
+    // The slots the file and (signature) left get a deleted entry, so no other file's chain is cut. Returns the
+    // three slots.
+    private static int[] ChainPastDroppedEntries(string path, string name)
     {
-        var bytes = File.ReadAllBytes(path);
-        var position = BitConverter.ToInt32(bytes, 16);
-        var entries = BitConverter.ToInt32(bytes, 24);
-        var table = new uint[entries * 4];
-        for (var i = 0; i < table.Length; i++)
+        var dropped = Array.Empty<int>();
+        ChangeHashTable(path, table =>
         {
-            table[i] = BitConverter.ToUInt32(bytes, position + i * 4);
-        }
+            var file = Array.FindIndex(table, slot => slot.Name == MpqHash.GetHashedFileName(name));
+            var signature = Array.FindIndex(table, slot => slot.Name == MpqHash.GetHashedFileName("(signature)"));
+            Assert.True(file >= 0 && signature >= 0);
+            var (fileEntry, signatureEntry) = (table[file], table[signature]);
+            table[file] = StormHashTable.Slot.Deleted;
+            table[signature] = StormHashTable.Slot.Deleted;
 
-        var key = MpqCrypt.Hash("(hash table)", 0x300);
-        MpqCrypt.Decrypt(table, key);
-        var live = Enumerable.Range(0, entries).Where(entry => table[entry * 4 + 3] < 0xFFFFFFFE).ToList();
-        table[live[1] * 4 + 3] = table[live[0] * 4 + 3];
-        MpqCrypt.Encrypt(table, key);
-        for (var i = 0; i < table.Length; i++)
-        {
-            BitConverter.GetBytes(table[i]).CopyTo(bytes, position + i * 4);
-        }
+            var home = (int)(StormHashTable.Hash(name, 0) & (uint)(table.Length - 1));
+            var free = Enumerable.Range(0, table.Length)
+                .Select(step => (home + step) % table.Length)
+                .Where(slot => !table[slot].IsLive)
+                .Take(4)
+                .ToArray();
+            table[free[0]] = StormHashTable.Slot.Deleted;
+            table[free[1]] = signatureEntry;
+            table[free[2]] = new StormHashTable.Slot(
+                StormHashTable.Hash("no block", 0x100), StormHashTable.Hash("no block", 0x200), 0, 0x7FFFFFFF);
+            table[free[3]] = fileEntry;
+            dropped = free[..3];
+        });
 
-        File.WriteAllBytes(path, bytes);
+        return dropped;
     }
 
-    /// <summary>The MPQ format's hash and table encryption (War3Net has its own, but internal).</summary>
-    private static class MpqCrypt
+    // Moves a file's hash entry in an archive (MPQ header at 0) to the nearest empty slot before the one its name
+    // hashes to: War3Net still finds it (it searches the whole table), the game does not (it stops at the first empty
+    // slot after the home). The slot it left gets a deleted entry.
+    private static void MoveOutOfReach(string path, string name)
     {
-        private static readonly uint[] Table = MakeTable();
-
-        public static uint Hash(string text, uint type)
+        ChangeHashTable(path, table =>
         {
-            uint seed1 = 0x7FED7FED;
-            uint seed2 = 0xEEEEEEEE;
-            foreach (var letter in text.ToUpperInvariant())
-            {
-                seed1 = Table[type + letter] ^ (seed1 + seed2);
-                seed2 = letter + seed1 + seed2 + (seed2 << 5) + 3;
-            }
+            var file = Array.FindIndex(table, slot => slot.Name == MpqHash.GetHashedFileName(name));
+            var entry = table[file];
+            table[file] = StormHashTable.Slot.Deleted;
+            var home = (int)(StormHashTable.Hash(name, 0) & (uint)(table.Length - 1));
+            var before = Enumerable.Range(1, table.Length - 1)
+                .Select(back => (home - back + table.Length) % table.Length)
+                .First(slot => table[slot].IsEmpty);
+            table[before] = entry;
+        });
+    }
 
-            return seed1;
-        }
+    // Whether the game would find a file (neutral locale) in an archive (MPQ header at 0): from the slot its name
+    // hashes to, forward to the first empty slot.
+    private static bool GameFinds(string path, string name)
+    {
+        using var stream = File.OpenRead(path);
+        var blocks = new byte[4];
+        stream.Position = 28;
+        stream.ReadExactly(blocks);
+        return StormHashTable.Find(StormHashTable.Read(stream, 0), name, 0, BitConverter.ToInt32(blocks)) >= 0;
+    }
 
-        public static void Decrypt(uint[] data, uint key)
+    // Points the second live hash entry of an archive (MPQ header at 0) at the first one's block.
+    private static void ShareOneBlock(string path)
+    {
+        ChangeHashTable(path, table =>
         {
-            uint seed = 0xEEEEEEEE;
-            for (var i = 0; i < data.Length; i++)
-            {
-                seed += Table[0x400 + (key & 0xFF)];
-                data[i] ^= key + seed;
-                key = ((~key << 0x15) + 0x11111111) | (key >> 0x0B);
-                seed = data[i] + seed + (seed << 5) + 3;
-            }
-        }
+            var live = Enumerable.Range(0, table.Length).Where(slot => table[slot].IsLive).ToList();
+            table[live[1]] = table[live[1]] with { Block = table[live[0]].Block };
+        });
+    }
 
-        public static void Encrypt(uint[] data, uint key)
-        {
-            uint seed = 0xEEEEEEEE;
-            for (var i = 0; i < data.Length; i++)
-            {
-                seed += Table[0x400 + (key & 0xFF)];
-                var plain = data[i];
-                data[i] ^= key + seed;
-                key = ((~key << 0x15) + 0x11111111) | (key >> 0x0B);
-                seed = plain + seed + (seed << 5) + 3;
-            }
-        }
-
-        private static uint[] MakeTable()
-        {
-            var table = new uint[0x500];
-            uint seed = 0x00100001;
-            for (var first = 0; first < 0x100; first++)
-            {
-                for (var i = 0; i < 5; i++)
-                {
-                    seed = (seed * 125 + 3) % 0x2AAAAB;
-                    var high = (seed & 0xFFFF) << 0x10;
-                    seed = (seed * 125 + 3) % 0x2AAAAB;
-                    table[first + i * 0x100] = high | (seed & 0xFFFF);
-                }
-            }
-
-            return table;
-        }
+    // Changes the hash table of an archive (MPQ header at 0), decrypted, and writes it back encrypted.
+    private static void ChangeHashTable(string path, Action<StormHashTable.Slot[]> change)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
+        var table = StormHashTable.Read(stream, 0);
+        change(table);
+        StormHashTable.Write(stream, 0, table);
     }
 }

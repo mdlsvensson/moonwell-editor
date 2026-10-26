@@ -103,8 +103,10 @@ public sealed class MapArchive : IMapStore
     /// why; when the replace fails half way, the map's path is never left empty, and the message says whether the old
     /// map or the new one is there (<see cref="MapArchiveException.Saved"/> is true for the new one). A
     /// <c>&lt;archive&gt;.replacing</c> left by an earlier save cut short that cannot be deleted refuses the save before
-    /// anything is written. A delete (null bytes) is refused: a save never removes a file from an archive. War3Net writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any
-    /// bytes after the archive (a signature cannot stay valid after an edit).
+    /// anything is written. A delete (null bytes) is refused: a save never removes a file from an archive. War3Net
+    /// writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any bytes after the
+    /// archive (a signature cannot stay valid after an edit); a hash-table slot that held something in the old archive
+    /// keeps a deleted entry where War3Net left it empty, so the game finds every file as before.
     /// </summary>
     public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
     {
@@ -287,6 +289,7 @@ public sealed class MapArchive : IMapStore
                 // (32 minus the bytes before it) and the archive's size (those bytes counted in). Both are set again.
                 WriteUInt32(target, pre.Length + 4, HeaderSize);
                 WriteUInt32(target, pre.Length + 8, (uint)(target.Length - pre.Length));
+                KeepLookups(source, target, pre.Length);
             }
 
             BeforeCheck?.Invoke(saving);
@@ -302,6 +305,37 @@ public sealed class MapArchive : IMapStore
                     file.Dispose();
                 }
             }
+        }
+    }
+
+    // The game looks a file up from the hash-table slot its name hashes to, forward to the first empty slot (it steps
+    // over deleted entries). War3Net leaves the original's deleted entries, its entries that point at no block and
+    // its (signature) out of the table it writes, and puts a file with no known name back at its old slot, so a slot
+    // one of those filled on the way to such a file would now stop the game short of it. Every slot that held
+    // something in the original and is empty in the new table gets a deleted entry: the game steps over it as it did
+    // before. Tables of different sizes are left; the check refuses one when it matters.
+    private static void KeepLookups(Stream original, Stream target, long header)
+    {
+        var old = StormHashTable.Read(original, header);
+        var now = StormHashTable.Read(target, header);
+        if (old.Length != now.Length)
+        {
+            return;
+        }
+
+        var changed = false;
+        for (var slot = 0; slot < old.Length; slot++)
+        {
+            if (!old[slot].IsEmpty && now[slot].IsEmpty)
+            {
+                now[slot] = StormHashTable.Slot.Deleted;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            StormHashTable.Write(target, header, now);
         }
     }
 
@@ -321,10 +355,12 @@ public sealed class MapArchive : IMapStore
         return null;
     }
 
-    // Opens the new archive at saving and compares it with the original, entry by entry in the hash table (so files
-    // with no known name count too): every entry of the original is there with the same flags and the same stored
-    // bytes (decompressed bytes for a file encrypted by its position, which moves), each written file holds its new
-    // bytes, the bytes before the MPQ header are the same, and there are no other entries. (listfile), (attributes)
+    // Opens the new archive at saving and compares it with the original, slot by slot in the original's hash table
+    // (so files with no known name count too), read as the file holds it. Every file of the original is found in the
+    // new archive the way the game looks files up (see StormHashTable: a named file from the slot its name hashes to,
+    // one with no known name from wherever the game may have started for it) with the same flags and the same stored
+    // bytes (decompressed bytes for a file encrypted by its position, which moves); each written file holds its new
+    // bytes; the bytes before the MPQ header are the same; and there are no other entries. (listfile), (attributes)
     // and (signature) are left out: War3Net writes them anew. Throws MapArchiveException on the first difference.
     private void Check(
         MpqArchive original,
@@ -350,17 +386,11 @@ public sealed class MapArchive : IMapStore
             throw CheckFailed("the bytes before the MPQ header are not the same");
         }
 
+        var oldTable = StormHashTable.Read(originalStream, pre.Length);
+        var newTable = StormHashTable.Read(stream, pre.Length);
         var specials = new[] { "(listfile)", "(attributes)", "(signature)" }
             .Select(MpqHash.GetHashedFileName)
             .ToHashSet();
-        var savedEntries = new Dictionary<(ulong, MpqLocale), MpqEntry>();
-        var savedCount = 0;
-        foreach (var hash in saved.EnumerateHashes().Where(hash => !specials.Contains(hash.Name)))
-        {
-            savedCount++;
-            savedEntries.TryAdd((hash.Name, hash.Locale), saved[(int)hash.BlockIndex]);
-        }
-
         var writtenBytes = new Dictionary<ulong, (string Name, byte[] Bytes)>();
         foreach (var file in written)
         {
@@ -368,27 +398,44 @@ public sealed class MapArchive : IMapStore
         }
 
         var expectedCount = 0;
-        foreach (var hash in original.EnumerateHashes())
+        for (var slot = 0; slot < oldTable.Length; slot++)
         {
             // A hash entry that points at no block is no file; War3Net leaves it out.
-            if (specials.Contains(hash.Name) || hash.BlockIndex >= original.Count)
+            var entry = oldTable[slot];
+            if (!entry.IsLive || entry.Block >= original.Count || specials.Contains(entry.Name))
             {
                 continue;
             }
 
             expectedCount++;
-            if (hash.Locale == MpqLocale.Neutral && writtenBytes.ContainsKey(hash.Name))
+            if (entry.Locale == 0 && writtenBytes.ContainsKey(entry.Name))
             {
                 continue;   // checked below, with the written files
             }
 
-            var old = original[(int)hash.BlockIndex];
-            var label = old.FileName ?? $"a file with no known name (hash {hash.Name:X16})";
-            if (!savedEntries.TryGetValue((hash.Name, hash.Locale), out var now))
+            var old = original[(int)entry.Block];
+            var label = old.FileName ?? $"a file with no known name (hash {entry.Name:X16})";
+            int found;
+            if (old.FileName is { } name)
             {
-                throw CheckFailed($"{label} is missing from it");
+                found = StormHashTable.Find(newTable, name, entry.Locale, saved.Count);
+            }
+            else if (newTable.Length != oldTable.Length)
+            {
+                throw CheckFailed($"its hash table has {newTable.Length} slots where the old one had "
+                    + $"{oldTable.Length}, so {label} cannot be found the way the game looks files up");
+            }
+            else
+            {
+                found = StormHashTable.FindUnnamed(oldTable, newTable, slot, saved.Count);
             }
 
+            if (found < 0)
+            {
+                throw CheckFailed($"{label} could not be found in it the way the game looks files up");
+            }
+
+            var now = saved[(int)newTable[found].Block];
             if ((old.Flags & ~MpqFileFlags.Garbage) != (now.Flags & ~MpqFileFlags.Garbage))
             {
                 throw CheckFailed($"{label} has other flags in it");
@@ -409,30 +456,34 @@ public sealed class MapArchive : IMapStore
             {
                 same = SameStored(originalStream, old, stream, now);
             }
+
             if (!same)
             {
                 throw CheckFailed($"{label} is not the same in it");
             }
         }
 
-        foreach (var (hashed, (name, bytes)) in writtenBytes)
+        foreach (var (name, bytes) in writtenBytes.Values)
         {
             if (!OldFlags(original, name).HasValue)
             {
                 expectedCount++;
             }
 
-            if (!savedEntries.TryGetValue((hashed, MpqLocale.Neutral), out var now))
+            var found = StormHashTable.Find(newTable, name, 0, saved.Count);
+            if (found < 0)
             {
-                throw CheckFailed($"{name} is missing from it");
+                throw CheckFailed($"{name} could not be found in it the way the game looks files up");
             }
 
-            if (Decompressed(saved, now) is not { } after || !after.AsSpan().SequenceEqual(bytes))
+            if (Decompressed(saved, saved[(int)newTable[found].Block]) is not { } after
+                || !after.AsSpan().SequenceEqual(bytes))
             {
                 throw CheckFailed($"{name} does not hold the bytes written");
             }
         }
 
+        var savedCount = newTable.Count(entry => entry.IsLive && !specials.Contains(entry.Name));
         if (savedCount != expectedCount)
         {
             throw CheckFailed($"it has {savedCount} files where {expectedCount} were expected");
