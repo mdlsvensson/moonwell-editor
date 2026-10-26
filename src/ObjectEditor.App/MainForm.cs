@@ -221,6 +221,15 @@ public sealed class MainForm : Form
         };
         core.NavigationCompleted += (_, e) => _pageLoaded = e.IsSuccess;
 
+        // The page names the window: the open map's path, then the app's name.
+        core.DocumentTitleChanged += (_, _) =>
+        {
+            if (core.DocumentTitle.Length > 0)
+            {
+                Text = core.DocumentTitle;
+            }
+        };
+
         // The table's Ctrl V reads the clipboard: the app's own pages may, without a prompt. Any other permission or
         // page is left to WebView2's default.
         core.PermissionRequested += (_, e) =>

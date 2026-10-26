@@ -22,7 +22,6 @@ import {
   type FieldInfo,
   fields,
   type Kind,
-  kinds,
   type SessionState,
   type TableRow,
   type TreeEntry,
@@ -65,7 +64,6 @@ import {
   toggleGroup,
   writeColumns,
 } from "./table.ts";
-import { kindNames } from "./tree.ts";
 import { formatTsv, parseTsv } from "./tsv.ts";
 
 /** What a change of cells answers: how many changed, or why it was refused (nothing changed). */
@@ -87,7 +85,6 @@ type Props = {
   session: SessionState | null;
   choices: Record<string, ChoiceList> | null;
   lookup: Lookup;
-  onkind: (kind: Kind) => void;
   /** Asks for a kind's tree, for the names of the objects a list column holds. */
   onneed: (kind: Kind) => void;
   /** Opens an object of the kind in the details view. */
@@ -108,7 +105,6 @@ let {
   session,
   choices,
   lookup,
-  onkind,
   onneed,
   onopen,
   onedit,
@@ -579,20 +575,6 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
 <div class="flex h-full min-h-0 flex-col">
   <div class="flex flex-col gap-2 border-b border-line px-[18px] pt-3 pb-2.5">
     <div class="flex flex-wrap items-center gap-2">
-      <div class="flex flex-wrap gap-1" role="group" aria-label="Kinds">
-        {#each kinds as each (each)}
-          <button
-            type="button"
-            class="rounded-[5px] border bg-raised px-2 py-0.5 text-[12.5px] {each === kind
-              ? 'border-accent text-fg'
-              : 'border-line text-muted hover:text-body'}"
-            aria-pressed={each === kind}
-            onclick={() => onkind(each)}
-          >
-            {kindNames[each]}
-          </button>
-        {/each}
-      </div>
       <input
         class="w-60 rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
         placeholder="Filter the rows (name or id; Ctrl F)…"

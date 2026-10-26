@@ -6,7 +6,7 @@
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
-import { type Kind, kinds, type TreeEntry } from "./api.ts";
+import type { Kind, TreeEntry } from "./api.ts";
 import { customKey, groupKeys, groupName, kindNames, nextObject, treeLines } from "./tree.ts";
 
 type Props = {
@@ -16,13 +16,12 @@ type Props = {
   /** Why the tree could not be loaded; "" when it could. */
   error: string;
   selected: string | null;
-  onkind: (kind: Kind) => void;
   onselect: (id: string) => void;
   /** The filter text (name or id); the Table view filters its rows by it too. */
   filter?: string;
 };
 
-let { kind, entries, error, selected, onkind, onselect, filter = $bindable("") }: Props = $props();
+let { kind, entries, error, selected, onselect, filter = $bindable("") }: Props = $props();
 
 const rowHeight = 26;
 const overscan = 12;
@@ -102,21 +101,7 @@ function clearOnEscape(event: KeyboardEvent): void {
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-  <div class="flex flex-wrap gap-1 border-b border-line p-2.5" role="group" aria-label="Kinds">
-    {#each kinds as each (each)}
-      <button
-        type="button"
-        class="rounded-[5px] border bg-raised px-2 py-0.5 text-[12.5px] {each === kind
-          ? 'border-accent text-fg'
-          : 'border-line text-muted hover:text-body'}"
-        aria-pressed={each === kind}
-        onclick={() => onkind(each)}
-      >
-        {kindNames[each]}
-      </button>
-    {/each}
-  </div>
-  <div class="px-2.5 py-2">
+  <div class="border-b border-line px-2.5 py-2">
     <input
       class="w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
       placeholder="Filter the tree (name or id)…"

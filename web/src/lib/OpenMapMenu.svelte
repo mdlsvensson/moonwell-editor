@@ -1,6 +1,6 @@
 <script lang="ts">
 /**
- * The "Open map…" button: it opens a small menu of the two ways a map is stored, a folder or an archive (see
+ * The "Open map…" button (with a label, or just its icon): it opens a small menu of the two ways a map is stored, a folder or an archive (see
  * `openMenu.ts`). Picking one closes the menu and hands the entry on.
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -9,8 +9,8 @@ import { type OpenEntry, openEntries } from "./openMenu.ts";
 import Popover from "./Popover.svelte";
 
 type Props = {
-  /** The button's text. */
-  label: string;
+  /** The button's text; without one the button is just the folder icon, with "Open map…" as its tooltip. */
+  label?: string;
   disabled: boolean;
   /** The button's classes (the header's and the empty page's differ). */
   buttonClass: string;
@@ -38,14 +38,18 @@ function pick(entry: OpenEntry): void {
   type="button"
   class={buttonClass}
   {disabled}
+  title={label ? undefined : "Open map…"}
+  aria-label={label ? undefined : "Open map…"}
   aria-haspopup="menu"
   aria-expanded={open}
   bind:this={button}
   onclick={() => (open = !open)}
 >
-  <FolderOpen size={16} />
-  {label}
-  <ChevronDown size={14} class="text-muted" />
+  <FolderOpen size={label ? 16 : 17} />
+  {#if label}
+    {label}
+    <ChevronDown size={14} class="text-muted" />
+  {/if}
 </button>
 {#if open && button}
   <Popover anchor={button} onclose={() => (open = false)}>
