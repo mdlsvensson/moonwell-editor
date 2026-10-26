@@ -103,6 +103,24 @@ public sealed partial class Session
     }
 
     /// <summary>
+    /// The id <see cref="Create"/> would give a new object based on <paramref name="baseId"/> when given none: World
+    /// Editor's next free id. Nothing is made.
+    /// </summary>
+    /// <exception cref="EditException">
+    /// <c>noObject</c> (no standard object <paramref name="baseId"/>) or <c>idTaken</c> (every id is taken).
+    /// </exception>
+    public string NextId(ObjectKind kind, string baseId)
+    {
+        var data = _game.Kind(kind);
+        if (data.Object(baseId) == null)
+        {
+            throw new EditException("noObject", $"There is no standard {ObjectKinds.Key(kind)} {baseId}.");
+        }
+
+        return NewId(kind, _kinds[kind], data, baseId, null);
+    }
+
+    /// <summary>
     /// Makes a new custom object as a copy of another: of a custom object's modifications, or of the map's changes to
     /// a standard object, in both files. A <c>TRIGSTR_n</c> text is copied as the text it stands for, so the copy has
     /// its own. Its id is <paramref name="id"/>, or World Editor's next free id when that is null.

@@ -97,6 +97,21 @@ public sealed class Commands
     /// </summary>
     public event Action<SessionState>? SessionChanged;
 
+    /// <summary>
+    /// Raised, on the thread the command runs on, when the page says it is asking the user what to do with the
+    /// unsaved edits before the window closes (the <c>closeAsking</c> command, its answer to <c>closeRequested</c>).
+    /// </summary>
+    public event Action? CloseAsking;
+
+    /// <summary>
+    /// Raised, on the thread the command runs on, when the page says the window may close: the edits were saved, or
+    /// the user chose to discard them (the <c>closeWindow</c> command).
+    /// </summary>
+    public event Action? CloseApproved;
+
+    /// <summary>True when a map is open with edits that are not saved.</summary>
+    public bool Dirty => _session?.Dirty ?? false;
+
     /// <summary>The background load that is running or ran last. Awaiting it never throws.</summary>
     public Task Loading { get; private set; } = Task.CompletedTask;
 
@@ -175,6 +190,7 @@ public sealed class Commands
             "resetField" => ResetField(args),
             "createObject" => Changed(Map().Create(Kind(args), Text(args, "baseId"), OptionalText(args, "id"))),
             "copyObject" => Changed(Map().Copy(Kind(args), Text(args, "fromId"), OptionalText(args, "id"))),
+            "nextId" => Map().NextId(Kind(args), Text(args, "baseId")),
             "deleteObject" => DeleteObject(args),
             "undo" => Changed(Map().Undo()),
             "redo" => Changed(Map().Redo()),
@@ -182,6 +198,8 @@ public sealed class Commands
             "reload" => Reload(),
             "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
             "choices" => NeedGameData().Choices,
+            "closeAsking" => Raise(CloseAsking),
+            "closeWindow" => Raise(CloseApproved),
             _ => throw new UnknownCommandException(command),
         };
 
@@ -266,6 +284,12 @@ public sealed class Commands
     {
         Map().Delete(Kind(args), Text(args, "id"));
         return Changed<object?>(null);
+    }
+
+    private static object? Raise(Action? handler)
+    {
+        handler?.Invoke();
+        return null;
     }
 
     private Session Map() => _session ?? throw new CommandException("noMap", "No map is open.");

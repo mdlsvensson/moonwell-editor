@@ -19,6 +19,10 @@ public sealed class MainForm : Form
     // and be navigated to; set when the page starts.
     private readonly HashSet<string> _origins = new(StringComparer.OrdinalIgnoreCase);
 
+    // Closing with unsaved edits asks the page first; a page that does not answer within the timer's wait is skipped.
+    private readonly CloseGuard _closeGuard = new();
+    private readonly System.Windows.Forms.Timer _pageWait = new() { Interval = 3000 };
+
     /// <summary>Makes the window. The page loads once the window is shown.</summary>
     /// <param name="startupMap">A map folder for the page to open once the game data is ready; null for none.</param>
     public MainForm(string? startupMap = null)
@@ -40,6 +44,14 @@ public sealed class MainForm : Form
         _bridge = new Bridge(_commands.Run);
         _commands.GameDataChanged += state => Notify("gameData", state);
         _commands.SessionChanged += state => Notify("sessionChanged", state);
+        _commands.CloseAsking += () => OnWindowThread(_closeGuard.PageAsking);
+        _commands.CloseApproved += () => OnWindowThread(() =>
+        {
+            _closeGuard.Approve();
+            Close();
+        });
+        _pageWait.Tick += (_, _) => AskIfPageSilent();
+        FormClosing += OnClosing;
 
         Load += async (_, _) =>
         {
@@ -63,6 +75,68 @@ public sealed class MainForm : Form
             };
             return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedPath : null;
         });
+
+    // With unsaved edits, the window stays open and asks the page, which asks the user to save, discard or cancel;
+    // the page closes the window with the closeWindow command. A shutdown of Windows is held up the same way (Windows
+    // then shows that the app is keeping it from shutting down); the Task Manager always closes.
+    private void OnClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (e.CloseReason is not (CloseReason.UserClosing or CloseReason.WindowsShutDown))
+        {
+            return;
+        }
+
+        if (_closeGuard.Closing(_commands.Dirty) == CloseStep.Close)
+        {
+            _pageWait.Stop();
+            return;
+        }
+
+        e.Cancel = true;
+        if (_web.CoreWebView2 == null)
+        {
+            AskIfPageSilent();
+            return;
+        }
+
+        Post(Bridge.Event("closeRequested", new { }));
+        _pageWait.Stop();
+        _pageWait.Start();
+    }
+
+    // The page did not say it is asking the user (it failed to load, or is broken): the window asks instead.
+    private void AskIfPageSilent()
+    {
+        _pageWait.Stop();
+        if (!_closeGuard.PageSilent())
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            "The map has unsaved changes, and the page did not answer. Close the window and lose them?",
+            "Object Editor",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (answer == DialogResult.Yes)
+        {
+            _closeGuard.Approve();
+            Close();
+        }
+    }
+
+    // Runs an action on the window's thread, from a command's background thread.
+    private void OnWindowThread(Action action)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        BeginInvoke(action);
+    }
 
     // Tells the page about something that happened on a background thread.
     private void Notify(string name, object payload)
@@ -131,10 +205,14 @@ public sealed class MainForm : Form
         try
         {
             var reply = await Task.Run(() => _bridge.Handle(request));
-            if (!IsDisposed)
+            OnWindowThread(() =>
             {
-                BeginInvoke(() => Post(reply));
-            }
+                // The closeWindow command's reply comes after the window started closing.
+                if (!IsDisposed && _web.CoreWebView2 != null)
+                {
+                    Post(reply);
+                }
+            });
         }
         finally
         {

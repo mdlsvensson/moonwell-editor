@@ -102,9 +102,14 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.StartsWith(map + ".backup", report.GetProperty("backup").GetString());
         Assert.Equal(new SessionState(false, 0), _events[^1]);
 
-        // A new object, a copy of it, and the copy deleted.
+        // A new object (at the next free id, which nextId gives without making anything), a copy, the copy deleted.
+        var nextId = Result(await Ask(bridge, "nextId", new { kind = "unit", baseId = "hfoo" })).GetString();
+        Assert.Equal("h001", nextId);
+        Assert.False(commands.Dirty);
         var created = Result(await Ask(bridge, "createObject", new { kind = "unit", baseId = "hfoo" })).GetString();
-        Assert.Equal("h001", created);
+        Assert.Equal(nextId, created);
+        Assert.True(commands.Dirty);
+        Assert.Equal("h002", Result(await Ask(bridge, "nextId", new { kind = "unit", baseId = "hfoo" })).GetString());
         var copy = new { kind = "unit", fromId = created, id = "h00X" };
         var copied = Result(await Ask(bridge, "copyObject", copy)).GetString();
         Assert.Equal("h00X", copied);
@@ -154,6 +159,8 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Equal("noObject", ErrorCode(await Ask(bridge, "deleteObject", new { kind = "unit", id = "hfoo" })));
         var badId = new { kind = "unit", baseId = "hfoo", id = "bad id" };
         Assert.Equal("idInvalid", ErrorCode(await Ask(bridge, "createObject", badId)));
+        Assert.Equal("noObject", ErrorCode(await Ask(bridge, "nextId", new { kind = "unit", baseId = "zzzz" })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "nextId", new { kind = "unit" })));
         var takenId = new { kind = "unit", baseId = "hfoo", id = "hfoo" };
         Assert.Equal("idTaken", ErrorCode(await Ask(bridge, "createObject", takenId)));
 

@@ -294,6 +294,29 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Next_id_is_the_one_create_would_give()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("we-3.0");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // The map has h000 and A000; asking makes nothing.
+        Assert.Equal("h001", session.NextId(ObjectKind.Unit, "hfoo"));
+        Assert.Equal("h001", session.NextId(ObjectKind.Unit, "hfoo"));
+        Assert.Equal("H000", session.NextId(ObjectKind.Unit, "Hpal"));
+        Assert.Equal("A001", session.NextId(ObjectKind.Ability, "AHhb"));
+        Assert.False(session.Dirty);
+
+        Assert.Equal(session.NextId(ObjectKind.Unit, "hfoo"), session.Create(ObjectKind.Unit, "hfoo", null));
+        Assert.Equal("h002", session.NextId(ObjectKind.Unit, "hfoo"));
+        Assert.Equal("noObject", Refused(() => session.NextId(ObjectKind.Unit, "zzzz")));
+    }
+
+    [Fact]
     public void Pointer_comes_from_metadata_unless_the_record_has_one()
     {
         if (Skipped(out var game))

@@ -202,4 +202,28 @@ public sealed class CommandsTests : IDisposable
 
         Assert.Equal("pong", reply.GetProperty("result").GetString());
     }
+
+    [Fact]
+    public async Task The_page_answers_a_close_through_two_commands()
+    {
+        var commands = Make(_ => throw new InvalidOperationException());
+        var heard = new List<string>();
+        commands.CloseAsking += () => heard.Add("asking");
+        commands.CloseApproved += () => heard.Add("approved");
+
+        var asking = await Ask(commands, "closeAsking");
+        var approved = await Ask(commands, "closeWindow");
+
+        Assert.True(asking.GetProperty("ok").GetBoolean());
+        Assert.True(approved.GetProperty("ok").GetBoolean());
+        Assert.Equal(["asking", "approved"], heard);
+    }
+
+    [Fact]
+    public void With_no_map_nothing_is_unsaved()
+    {
+        var commands = Make(_ => throw new InvalidOperationException());
+
+        Assert.False(commands.Dirty);
+    }
 }
