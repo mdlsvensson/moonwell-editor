@@ -396,30 +396,38 @@ public sealed partial class Session
 
     /// <summary>
     /// Writes the value into the field's file (skin or main), making the file and the object's entry when they are
-    /// missing. A modification already there keeps its data pointer; a new one takes the field's.
+    /// missing. A modification already there is changed in place and keeps its data pointer; a new one is added at the
+    /// end and takes the field's. The steps work on that modification itself, so undo and redo keep the record's order.
     /// </summary>
     private static void WriteMod(Edit edit, FieldTarget target, FieldValue value)
     {
         var skin = target.Field.Skin;
         var existing = Entry(target, skin)?.Find(target.Field.Id, target.Level);
-        if (existing != null && existing.Value == value)
+        if (existing != null)
         {
+            var before = existing.Value;
+            if (before == value)
+            {
+                return;
+            }
+
+            existing.Value = value;
+            edit.Done(new Step(() => existing.Value = value, () => existing.Value = before));
             return;
         }
 
         var file = FileFor(edit, target.Map, target.Kind, skin);
         var entry = EntryFor(edit, file, target);
-        var before = existing == null ? null : new ModState(existing.Pointer, existing.Value);
-        var pointer = existing?.Pointer ?? (ObjectKinds.HasLevels(target.Kind) ? target.Field.Pointer : 0);
-        var after = new ModState(pointer, value);
-        var (field, level) = (target.Field.Id, target.Level);
-        Apply(entry, field, level, after);
-        edit.Done(new Step(() => Apply(entry, field, level, after), () => Apply(entry, field, level, before)));
+        var pointer = ObjectKinds.HasLevels(target.Kind) ? target.Field.Pointer : 0;
+        var mod = entry.Set(target.Field.Id, target.Level, pointer, value);
+        var index = IndexOf(entry.Mods, mod);
+        edit.Done(new Step(() => entry.Insert(index, mod), () => entry.Remove(mod)));
     }
 
     /// <summary>
-    /// Removes the map's modifications of the field at the level from both files. A change to a standard object that is
-    /// left with no modifications goes too.
+    /// Removes the map's modification of the field at the level from both files (the first one, should a file hold
+    /// two). A change to a standard object that is left with no modifications goes too. The undo puts that very
+    /// modification back where it was, so the record keeps its order and a second one of the field is left as it is.
     /// </summary>
     private static void RemoveMods(Edit edit, FieldTarget target)
     {
@@ -433,9 +441,9 @@ public sealed partial class Session
                 continue;
             }
 
-            var before = new ModState(mod.Pointer, mod.Value);
+            var modIndex = IndexOf(entry.Mods, mod);
             entry.Remove(mod);
-            edit.Done(new Step(() => Apply(entry, field, level, null), () => Apply(entry, field, level, before)));
+            edit.Done(new Step(() => entry.Remove(mod), () => entry.Insert(modIndex, mod)));
 
             var file = (skin ? target.Map.Skin : target.Map.Main)!;
             if (entry.Id == "" && entry.Mods.Count == 0)
@@ -445,23 +453,6 @@ public sealed partial class Session
                 edit.Done(new Step(() => file.Remove(entry), () => file.Insert(index, entry)));
             }
         }
-    }
-
-    /// <summary>Sets a modification to a state, or removes it when the state is null.</summary>
-    private static void Apply(ObjectEntry entry, string field, int level, ModState? state)
-    {
-        if (state == null)
-        {
-            var mod = entry.Find(field, level);
-            if (mod != null)
-            {
-                entry.Remove(mod);
-            }
-
-            return;
-        }
-
-        entry.Set(field, level, state.Pointer, state.Value);
     }
 
     /// <summary>The object's entry in the main or the skin file, or null.</summary>
@@ -567,17 +558,19 @@ public sealed partial class Session
         return resolved == null ? value : new FieldValue.Text(resolved);
     }
 
-    private static int IndexOf(IReadOnlyList<ObjectEntry> entries, ObjectEntry entry)
+    /// <summary>Where an entry or a modification is in its list (by reference); throws when it is not there.</summary>
+    private static int IndexOf<T>(IReadOnlyList<T> items, T item)
+        where T : class
     {
-        for (var i = 0; i < entries.Count; i++)
+        for (var i = 0; i < items.Count; i++)
         {
-            if (ReferenceEquals(entries[i], entry))
+            if (ReferenceEquals(items[i], item))
             {
                 return i;
             }
         }
 
-        throw new ArgumentException("The entry is not in the list.", nameof(entry));
+        throw new ArgumentException("The item is not in the list.", nameof(item));
     }
 
     /// <summary>A field of an object at a level, checked for an edit.</summary>
@@ -590,9 +583,6 @@ public sealed partial class Session
         string Id,
         StandardObject Standard,
         MapObject? Found);
-
-    /// <summary>A modification as it was or will be: its data pointer and value.</summary>
-    private sealed record ModState(int Pointer, FieldValue Value);
 }
 
 /// <summary>

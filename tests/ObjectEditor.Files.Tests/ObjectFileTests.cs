@@ -189,6 +189,29 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Removed_mod_goes_back_in_place()
+    {
+        var bytes = Fixtures.Bytes("moonwell-mymap/war3map.w3u");
+        var units = ObjectFile.Read(ObjectKind.Unit, bytes);
+        var peasant = units.Original.Single(entry => entry.BaseId == "hpea");
+        var first = peasant.Mods[0];
+        peasant.Remove(first);
+
+        peasant.Insert(0, first);
+
+        Assert.Same(first, peasant.Mods[0]);
+        Assert.Equal(bytes, units.ToBytes());
+        Assert.Throws<ArgumentException>(() => peasant.Insert(0, first));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => peasant.Insert(peasant.Mods.Count + 2, ObjectFile.Empty(ObjectKind.Unit).AddOriginal("hfoo")
+                .Set("uhpm", 0, 0, new FieldValue.Int(1))));
+        var ability = ObjectFile.Empty(ObjectKind.Ability).AddOriginal("AHhb");
+        var levelMod = ability.Set("acdn", 1, 0, new FieldValue.Real(1));
+        ability.Remove(levelMod);
+        Assert.Throws<ArgumentException>(() => peasant.Insert(0, levelMod));
+    }
+
+    [Fact]
     public void New_entries_write_as_world_editor_does()
     {
         var abilities = ObjectFile.Empty(ObjectKind.Ability);

@@ -131,6 +131,51 @@ public sealed class ObjectEntry
         return mod;
     }
 
+    /// <summary>
+    /// Puts a modification that was removed from this entry back at <paramref name="index"/> of <see cref="Mods"/>. An
+    /// undo uses it, so the record is as it was before; another modification of the same field and level is left as
+    /// it is.
+    /// </summary>
+    public void Insert(int index, FieldMod mod)
+    {
+        ArgumentNullException.ThrowIfNull(mod);
+        if (mods.Contains(mod))
+        {
+            throw new ArgumentException("The modification is already in this entry.", nameof(mod));
+        }
+
+        var fits = mod.Record switch
+        {
+            SimpleObjectDataModification => simple is not null,
+            LevelObjectDataModification => levels is not null,
+            VariationObjectDataModification => variations is not null,
+            _ => false,
+        };
+        if (!fits)
+        {
+            throw new ArgumentException("The modification is not of this entry's layout.", nameof(mod));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, mods.Count);
+
+        // War3Net's list holds the same modifications in the same order, so the index is the same in both.
+        switch (mod.Record)
+        {
+            case SimpleObjectDataModification simpleMod:
+                simple!.Modifications.Insert(index, simpleMod);
+                break;
+            case LevelObjectDataModification levelMod:
+                levels!.Modifications.Insert(index, levelMod);
+                break;
+            case VariationObjectDataModification variationMod:
+                variations!.Modifications.Insert(index, variationMod);
+                break;
+        }
+
+        mods.Insert(index, mod);
+    }
+
     /// <summary>Removes a modification of this entry.</summary>
     public void Remove(FieldMod mod)
     {

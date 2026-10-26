@@ -429,6 +429,71 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Undo_of_a_reset_puts_the_modification_back_in_place()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // hpea's udef comes before its uhpm in the file; an undo must not move it to the end.
+        using var map = TempMap.Of("moonwell-mymap");
+        var bytes = File.ReadAllBytes(Path.Combine(map.Folder, "war3map.w3u"));
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        var peasant = session.FileOf(ObjectKind.Unit, false)!.Original.Single(entry => entry.BaseId == "hpea");
+        Assert.NotEqual(peasant.Mods.Count - 1, peasant.Mods.ToList().FindIndex(mod => mod.Field == "udef"));
+
+        session.Reset(ObjectKind.Unit, "hpea", "udef", 0);
+        Assert.NotEqual(bytes, session.FileOf(ObjectKind.Unit, false)!.ToBytes());
+        Assert.True(session.Undo());
+
+        Assert.False(session.Dirty);
+        Assert.Equal(bytes, session.FileOf(ObjectKind.Unit, false)!.ToBytes());
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True(session.Redo());
+            Assert.Null(peasant.Find("udef", 0));
+            Assert.True(session.Undo());
+            Assert.Equal(bytes, session.FileOf(ObjectKind.Unit, false)!.ToBytes());
+        }
+
+        Assert.Empty(session.Save().Written);
+    }
+
+    [Fact]
+    public void Undo_of_a_reset_keeps_a_duplicate_modification()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // A file may hold two modifications of one field and level: the reset removes the first, and the undo puts
+        // that one back, leaving the other as it is.
+        using var map = TempMap.Of(null);
+        var units = ObjectFile.Empty(ObjectKind.Unit);
+        var footman = units.AddOriginal("hfoo");
+        footman.Set("uhpm", 0, 0, new FieldValue.Int(500));
+        footman.Set("udef", 0, 0, new FieldValue.Int(3));
+        var spare = ObjectFile.Empty(ObjectKind.Unit).AddOriginal("hfoo");
+        var duplicate = spare.Set("uhpm", 0, 0, new FieldValue.Int(600));
+        spare.Remove(duplicate);
+        footman.Insert(2, duplicate);
+        var bytes = units.ToBytes();
+        File.WriteAllBytes(Path.Combine(map.Folder, "war3map.w3u"), bytes);
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        session.Reset(ObjectKind.Unit, "hfoo", "uhpm", 0);
+        Assert.True(session.Undo());
+
+        Assert.Equal(bytes, session.FileOf(ObjectKind.Unit, false)!.ToBytes());
+        Assert.True(session.Redo());
+        Assert.True(session.Undo());
+        Assert.Equal(bytes, session.FileOf(ObjectKind.Unit, false)!.ToBytes());
+        Assert.False(session.Dirty);
+    }
+
+    [Fact]
     public void Past_limit_warns_not_fails()
     {
         if (Skipped(out var game))
