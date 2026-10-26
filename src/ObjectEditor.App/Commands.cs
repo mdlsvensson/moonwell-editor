@@ -24,19 +24,21 @@ public sealed record SessionState(bool Dirty, int ChangedObjects);
 
 /// <summary>What the app was started with, for the page to act on once it is ready.</summary>
 /// <param name="Map">
-/// The map folder given as the app's first command-line argument, which the page opens once the game data is ready;
-/// null when there was none, or once the page has asked.
+/// The map (a folder or an archive file) given as the app's first command-line argument, which the page opens once the
+/// game data is ready; null when there was none, or once the page has asked.
 /// </param>
 public sealed record Startup(string? Map);
 
 /// <summary>The map that was opened or reloaded.</summary>
-/// <param name="Name">The map folder's name.</param>
-/// <param name="Path">The map folder's full path.</param>
+/// <param name="Name">The map folder's name, or the archive's file name (<c>Arena.w3x</c>).</param>
+/// <param name="Path">The map folder's or the archive file's full path.</param>
+/// <param name="Archive">True for an archive (<c>.w3x</c>, <c>.w3m</c>), false for a folder.</param>
 /// <param name="Problems">What was wrong with its files (see <see cref="Session.Problems"/>).</param>
 /// <param name="Counts">How many custom objects it has, by kind key (<c>unit</c>).</param>
 public sealed record MapInfo(
     string Name,
     string Path,
+    bool Archive,
     IReadOnlyList<string> Problems,
     IReadOnlyDictionary<string, int> Counts);
 
@@ -70,17 +72,19 @@ public sealed record CellsChanged(int Changed);
 
 /// <summary>
 /// The commands the page can call, the game data they work on and the open map. The window gives it what it cannot
-/// do itself (a way to ask the user for a folder, a way to load the game data), so it can be tested without a window.
+/// do itself (a way to ask the user for a folder or an archive, a way to load the game data), so it can be tested
+/// without a window.
 /// The window runs one command at a time; the map's commands rely on that.
 /// </summary>
 public sealed class Commands
 {
     private readonly Settings _settings;
     private readonly Func<string, string?> _askFolder;
+    private readonly Func<string, string?> _askArchive;
     private readonly Func<string, Data> _load;
     private readonly object _lock = new();
 
-    // The map folder from the command line, until the page asks for it.
+    // The map from the command line, until the page asks for it.
     private string? _startupMap;
 
     private string? _source;
@@ -90,7 +94,7 @@ public sealed class Commands
     private int _version;
 
     // The open map; null until one is opened.
-    private MapFolder? _folder;
+    private IMapStore? _store;
     private Session? _session;
 
     /// <summary>Makes the commands.</summary>
@@ -101,17 +105,24 @@ public sealed class Commands
     /// </param>
     /// <param name="load">Loads the game data from a folder; the app uses <c>GameData.Load</c> with its cache folder.</param>
     /// <param name="startupMap">
-    /// The map folder the app was started with (its first command-line argument), which the <c>startup</c> command
-    /// gives once; null for none.
+    /// The map (a folder or an archive file) the app was started with (its first command-line argument), which the
+    /// <c>startup</c> command gives once; null for none.
+    /// </param>
+    /// <param name="askArchive">
+    /// Asks the user for a map archive (a <c>.w3x</c> or <c>.w3m</c> file), with the text given for the dialog; gives
+    /// null when they cancel. It may be called on any thread. Null for none: <c>openMap</c> with <c>archive</c> then
+    /// opens nothing, as if the user cancelled.
     /// </param>
     public Commands(
         Settings settings,
         Func<string, string?> askFolder,
         Func<string, Data> load,
-        string? startupMap = null)
+        string? startupMap = null,
+        Func<string, string?>? askArchive = null)
     {
         _settings = settings;
         _askFolder = askFolder;
+        _askArchive = askArchive ?? (_ => null);
         _load = load;
         _startupMap = string.IsNullOrEmpty(startupMap) ? null : startupMap;
     }
@@ -185,7 +196,8 @@ public sealed class Commands
     /// <exception cref="UnknownCommandException">There is no command of that name.</exception>
     /// <exception cref="CommandException">
     /// The command failed for a reason the page can act on: an <see cref="EditException"/>'s code,
-    /// <c>changedOnDisk</c>, <c>noMap</c>, <c>unsaved</c> (<c>openMap</c> or <c>reload</c> would drop unsaved edits
+    /// <c>changedOnDisk</c>, <c>mapFile</c> (a save or reload could not read or write the map; see
+    /// <see cref="MapFileException"/>), <c>noMap</c>, <c>unsaved</c> (<c>openMap</c> or <c>reload</c> would drop unsaved edits
     /// and the page did not say to discard them), <c>badRequest</c> for a missing or wrong argument, or a game data
     /// code (see <see cref="NeedGameData"/>).
     /// </exception>
@@ -203,6 +215,10 @@ public sealed class Commands
         {
             throw new CommandException("changedOnDisk", exception.Message);
         }
+        catch (MapFileException exception)
+        {
+            throw new CommandException("mapFile", exception.Message);
+        }
     }
 
     private object? RunNow(string command, JsonElement args) =>
@@ -212,7 +228,7 @@ public sealed class Commands
             "gameData" => State(),
             "startup" => TakeStartup(),
             "chooseGameData" => ChooseGameData(),
-            "openMap" => OpenMap(OptionalText(args, "path"), Flag(args, "discard")),
+            "openMap" => OpenMap(OptionalText(args, "path"), Flag(args, "archive"), Flag(args, "discard")),
             "currentMap" => Current(),
             "tree" => Map().Tree(Kind(args)),
             "object" => ObjectOf(Kind(args), Text(args, "id")),
@@ -244,32 +260,36 @@ public sealed class Commands
         return new Startup(map);
     }
 
-    // Opens a map folder, asking for one when the page gives no path. Null when the user cancels the dialog. The game
-    // data and the unsaved edits are checked first, so the user is not asked for a folder that cannot be opened yet.
-    private MapInfo? OpenMap(string? path, bool discard)
+    // Opens a map, a folder or an archive file. With no path given it asks for one: an archive in the Open File dialog
+    // when the page says archive, else a folder. Null when the user cancels the dialog. The game data and the unsaved
+    // edits are checked first, so the user is not asked for a map that cannot be opened yet. A map that cannot be
+    // opened (none there, an archive War3Net cannot read) throws, and the page gets "failed" with the reason.
+    private MapInfo? OpenMap(string? path, bool archive, bool discard)
     {
         var data = NeedGameData();
         RefuseUnsaved(discard, "open another map");
-        path ??= _askFolder("Choose a map folder (a World Editor folder map, or a Moonwell project's map folder)");
+        path ??= archive
+            ? _askArchive("Choose a map archive (.w3x, .w3m)")
+            : _askFolder("Choose a map folder (a World Editor folder map, or a Moonwell project's map folder)");
         if (string.IsNullOrEmpty(path))
         {
             return null;
         }
 
-        var folder = MapFolder.Open(path);
-        var session = Session.Open(folder, data);
-        _folder = folder;
+        var store = MapStore.Open(path);
+        var session = Session.Open(store, data);
+        _store = store;
         _session = session;
         try
         {
-            _settings.RememberMap(folder.Path);
+            _settings.RememberMap(store.Path);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // A settings file that cannot be written only means the map is not in the recent list next time.
         }
 
-        return Changed(Info(folder, session));
+        return Changed(Info(store, session));
     }
 
     private MapInfo Reload(bool discard)
@@ -277,7 +297,7 @@ public sealed class Commands
         var session = Map();
         RefuseUnsaved(discard, "reload the map");
         session.Reload();
-        return Changed(Info(_folder!, session));
+        return Changed(Info(_store!, session));
     }
 
     // Unsaved edits are dropped only when the page says so: its dialog asked the user, who chose Discard (or saved). A
@@ -297,10 +317,10 @@ public sealed class Commands
         var session = _session;
         return session == null
             ? null
-            : new CurrentMap(Info(_folder!, session), new SessionState(session.Dirty, session.ChangedObjects()));
+            : new CurrentMap(Info(_store!, session), new SessionState(session.Dirty, session.ChangedObjects()));
     }
 
-    private static MapInfo Info(MapFolder folder, Session session)
+    private static MapInfo Info(IMapStore store, Session session)
     {
         var counts = new Dictionary<string, int>();
         foreach (var kind in Enum.GetValues<ObjectKind>())
@@ -308,8 +328,8 @@ public sealed class Commands
             counts[ObjectKinds.Key(kind)] = session.Tree(kind).Count(entry => entry.BaseId != null);
         }
 
-        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(folder.Path));
-        return new MapInfo(name, folder.Path, session.Problems, counts);
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(store.Path));
+        return new MapInfo(name, store.Path, store.IsArchive, session.Problems, counts);
     }
 
     // An object of a read-only kind is shown too: its view says why it cannot be edited.

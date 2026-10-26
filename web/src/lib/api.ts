@@ -29,6 +29,7 @@ export type ErrorCode =
   | "readOnly"
   | "badText"
   | "changedOnDisk"
+  | "mapFile"
   | "noMap"
   | "unsaved"
   | "unknownCommand"
@@ -40,10 +41,12 @@ export type ErrorCode =
 
 /** The map that was opened or reloaded. */
 export type MapInfo = {
-  /** The map folder's name. */
+  /** The map folder's name, or the archive's file name (`Arena.w3x`). */
   name: string;
-  /** The map folder's full path. */
+  /** The map folder's or the archive file's full path. */
   path: string;
+  /** True for an archive (`.w3x`, `.w3m`), false for a folder. */
+  archive: boolean;
   /** What is wrong with its files: a kind whose file is a problem is read only. */
   problems: string[];
   /** How many custom objects it has, by kind. */
@@ -111,8 +114,12 @@ export type ObjectView = {
   fields: FieldView[];
 };
 
-/** What a save did: the files written, and the backup folder of their previous bytes ("" when none). */
-export type SaveReport = { written: string[]; backup: string };
+/**
+ * What a save did: the files written, the backup folder ("" when none: a folder map's previous bytes of the files, an
+ * archive's whole previous archive), and a note ("" for none): for an archive saved although replacing the old one
+ * reported an error, that error.
+ */
+export type SaveReport = { written: string[]; backup: string; note: string };
 
 /** One search result: an object, or (with `field` set) a field of a kind. */
 export type Hit = { kind: Kind; id: string; name: string; detail: string; field: string | null };
@@ -190,7 +197,7 @@ export type CellEdit = { id: string; field: string; level: number; value: string
 /** The open map and where it stands, for a page that was loaded again. */
 export type CurrentMap = { map: MapInfo; session: SessionState };
 
-/** What the app was started with: `map` is the folder from its command line, given once (null after). */
+/** What the app was started with: `map` is the folder or archive from its command line, given once (null after). */
 export type Startup = { map: string | null };
 
 /** Asks what the app was started with; the page opens `map` once the game data is ready. */
@@ -198,14 +205,26 @@ export function startup(): Promise<Startup> {
   return call<Startup>("startup");
 }
 
+/** What `openMap` opens: a path, or what the user picks in a dialog. */
+export type OpenMapOptions = {
+  /** A map folder or an archive file (`.w3x`, `.w3m`); left out, the user picks one. */
+  path?: string;
+  /** With no path: true asks for an archive in the Open File dialog, false (the default) for a folder. */
+  archive?: boolean;
+  /** Lets the app drop unsaved edits: pass it only once the user chose Discard (or saved). */
+  discard?: boolean;
+};
+
 /**
- * Opens a map folder: `path`, or the one the user picks in the app's dialog (null when they cancel). While the open
- * map has unsaved edits it fails with `unsaved`, unless `discard` is true: pass it only once the user chose Discard
- * (or saved).
+ * Opens a map, a folder or an archive: `path`, or the one the user picks in the app's dialog (null when they cancel).
+ * A map that cannot be opened (none there, an archive War3Net cannot read) fails with `failed` and the reason. While
+ * the open map has unsaved edits it fails with `unsaved`, unless `discard` is true.
  */
-export function openMap(path?: string, discard = false): Promise<MapInfo | null> {
+export function openMap(options: OpenMapOptions = {}): Promise<MapInfo | null> {
+  const { path, archive = false, discard = false } = options;
   return call<MapInfo | null>("openMap", {
     ...(path === undefined ? {} : { path }),
+    ...(archive ? { archive } : {}),
     ...(discard ? { discard } : {}),
   });
 }
@@ -267,14 +286,17 @@ export function redo(): Promise<boolean> {
   return call<boolean>("redo");
 }
 
-/** Saves the edits. Fails with `changedOnDisk` when the map changed on disk since it was read. */
+/**
+ * Saves the edits. Fails with `changedOnDisk` when the map changed on disk since it was read, and with `mapFile` when
+ * it could not be read or written (the message says why; the edits stay unsaved).
+ */
 export function save(): Promise<SaveReport> {
   return call<SaveReport>("save");
 }
 
 /**
  * Reads the map again from disk, dropping the edits that were not saved. With unsaved edits it fails with `unsaved`,
- * unless `discard` is true: pass it only once the user chose Discard.
+ * unless `discard` is true: pass it only once the user chose Discard. A map that cannot be read fails with `mapFile`.
  */
 export function reload(discard = false): Promise<MapInfo> {
   return call<MapInfo>("reload", discard ? { discard } : {});

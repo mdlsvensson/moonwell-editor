@@ -28,7 +28,9 @@ public sealed class MainForm : Form
     private bool _pageLoaded;
 
     /// <summary>Makes the window. The page loads once the window is shown.</summary>
-    /// <param name="startupMap">A map folder for the page to open once the game data is ready; null for none.</param>
+    /// <param name="startupMap">
+    /// A map (a folder or an archive file) for the page to open once the game data is ready; null for none.
+    /// </param>
     public MainForm(string? startupMap = null)
     {
         Text = "Object Editor";
@@ -44,7 +46,8 @@ public sealed class MainForm : Form
             new Settings(appData),
             AskForFolder,
             folder => GameData.GameData.Load(folder, cache),
-            startupMap);
+            startupMap,
+            AskForArchive);
         _bridge = new Bridge(_commands.Run);
         _commands.GameDataChanged += state => Notify("gameData", state);
         _commands.SessionChanged += state => Notify("sessionChanged", state);
@@ -78,6 +81,20 @@ public sealed class MainForm : Form
                 UseDescriptionForTitle = true,
             };
             return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedPath : null;
+        });
+
+    // The Open File dialog for a map archive, on the window's own thread too.
+    private string? AskForArchive(string title) =>
+        Invoke(() =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = title,
+                Filter = "Map archives (*.w3x, *.w3m)|*.w3x;*.w3m",
+                CheckFileExists = true,
+                RestoreDirectory = true,
+            };
+            return dialog.ShowDialog(this) == DialogResult.OK ? dialog.FileName : null;
         });
 
     // While a page is loaded, the window stays open and asks it: the page sends what is still typed, closes the window

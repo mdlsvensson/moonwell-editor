@@ -67,6 +67,7 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         var opened = Result(await Ask(bridge, "openMap", new { }));
         Assert.Equal("map", opened.GetProperty("name").GetString());
         Assert.Equal(map, opened.GetProperty("path").GetString());
+        Assert.False(opened.GetProperty("archive").GetBoolean());
         Assert.Equal(0, opened.GetProperty("problems").GetArrayLength());
         Assert.Equal(1, opened.GetProperty("counts").GetProperty("unit").GetInt32());
         Assert.Equal(1, opened.GetProperty("counts").GetProperty("upgrade").GetInt32());
@@ -435,7 +436,93 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Empty(_events);
     }
 
-    private bool Skipped(out Commands commands, Func<string?>? ask = null)
+    [Fact]
+    public async Task Open_edit_and_save_an_archive()
+    {
+        var archive = Path.Combine(_root, "maps", "Sample.w3x");
+        string? asked = null;
+        if (Skipped(out var commands, askArchive: text =>
+            {
+                asked = text;
+                return archive;
+            }))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "fixtures", "moonwell-sample", "Sample.w3x"), archive);
+        var bridge = new Bridge(commands.Run);
+
+        // A path to a file opens it as an archive; the header shows its file name.
+        var opened = Result(await Ask(bridge, "openMap", new { path = archive }));
+        Assert.Equal("Sample.w3x", opened.GetProperty("name").GetString());
+        Assert.Equal(archive, opened.GetProperty("path").GetString());
+        Assert.True(opened.GetProperty("archive").GetBoolean());
+        Assert.Equal(0, opened.GetProperty("problems").GetArrayLength());
+        Assert.Equal(archive, new Settings(Path.Combine(_root, "settings")).RecentMaps[0]);
+        Assert.Null(asked);
+
+        Assert.True(Ok(await SetLife(bridge, "500")));
+        var report = Result(await Ask(bridge, "save", new { }));
+        Assert.Equal("war3map.w3u", Assert.Single(report.GetProperty("written").EnumerateArray()).GetString());
+        Assert.StartsWith(archive + ".backup", report.GetProperty("backup").GetString());
+        Assert.Equal("", report.GetProperty("note").GetString());
+        var current = Result(await Ask(bridge, "currentMap", new { }));
+        Assert.True(current.GetProperty("map").GetProperty("archive").GetBoolean());
+
+        // A save that fails says why, and the edits stay unsaved.
+        Assert.True(Ok(await SetLife(bridge, "600")));
+        using (new FileStream(archive, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var refused = await Ask(bridge, "save", new { });
+            Assert.Equal("mapFile", ErrorCode(refused));
+            Assert.Contains("World Editor", refused.GetProperty("error").GetProperty("message").GetString());
+        }
+
+        Assert.True(commands.Dirty);
+        Assert.True(Ok(await Ask(bridge, "save", new { })));
+
+        // With no path, archive asks for a file in the Open File dialog, else for a folder.
+        var picked = Result(await Ask(bridge, "openMap", new { archive = true }));
+        Assert.NotNull(asked);
+        Assert.Equal(archive, picked.GetProperty("path").GetString());
+        var folder = CopyFixture("we-3.0");
+        var fromFolderDialog = Result(await Ask(bridge, "openMap", new { archive = false }));
+        Assert.Equal(folder, fromFolderDialog.GetProperty("path").GetString());
+        Assert.False(fromFolderDialog.GetProperty("archive").GetBoolean());
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "openMap", new { archive = "yes" })));
+    }
+
+    [Fact]
+    public async Task Unreadable_archive_fails_with_the_reason()
+    {
+        if (Skipped(out var commands))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(_root);
+        var noise = Path.Combine(_root, "noise.w3x");
+        var random = new byte[1000];
+        new Random(1).NextBytes(random);
+        File.WriteAllBytes(noise, random);
+        var bridge = new Bridge(commands.Run);
+
+        var reply = await Ask(bridge, "openMap", new { path = noise });
+
+        Assert.Equal("failed", ErrorCode(reply));
+        var message = reply.GetProperty("error").GetProperty("message").GetString();
+        Assert.Contains(noise, message);
+        Assert.Contains("cannot be opened", message);
+        Assert.Equal("noMap", ErrorCode(await Ask(bridge, "tree", new { kind = "unit" })));
+
+        var missing = await Ask(bridge, "openMap", new { path = Path.Combine(_root, "missing.w3x") });
+        Assert.Equal("failed", ErrorCode(missing));
+        Assert.Contains("missing.w3x", missing.GetProperty("error").GetProperty("message").GetString());
+    }
+
+    private bool Skipped(out Commands commands, Func<string?>? ask = null, Func<string, string?>? askArchive = null)
     {
         if (fixture.Data == null)
         {
@@ -446,7 +533,11 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
 
         var settings = new Settings(Path.Combine(_root, "settings")) { GameDataFolder = fixture.Folder };
         var data = fixture.Data;
-        commands = new Commands(settings, _ => ask == null ? Path.Combine(_root, "map") : ask(), _ => data);
+        commands = new Commands(
+            settings,
+            _ => ask == null ? Path.Combine(_root, "map") : ask(),
+            _ => data,
+            askArchive: askArchive);
         commands.SessionChanged += state => _events.Add(state);
         commands.StartLoading().Wait();
         return false;

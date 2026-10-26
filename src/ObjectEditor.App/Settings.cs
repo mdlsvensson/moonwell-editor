@@ -33,10 +33,10 @@ public sealed class Settings
     public List<string> RecentMaps { get; }
 
     /// <summary>
-    /// Puts a map first in <see cref="RecentMaps"/> and saves the settings. The same folder spelled with other
-    /// letter case is taken out first, and only the newest <see cref="RecentMapsKept"/> are kept.
+    /// Puts a map (a folder or an archive file) first in <see cref="RecentMaps"/> and saves the settings. The same map
+    /// spelled with other letter case is taken out first, and only the newest <see cref="RecentMapsKept"/> are kept.
     /// </summary>
-    /// <param name="map">The map folder's path.</param>
+    /// <param name="map">The map folder's or archive file's path.</param>
     public void RememberMap(string map)
     {
         RecentMaps.RemoveAll(known => string.Equals(known, map, StringComparison.OrdinalIgnoreCase));

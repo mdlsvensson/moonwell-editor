@@ -41,6 +41,8 @@ import Details from "./lib/Details.svelte";
 import Dialog from "./lib/Dialog.svelte";
 import { type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
+import OpenMapMenu from "./lib/OpenMapMenu.svelte";
+import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
 import Palette from "./lib/Palette.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
@@ -241,11 +243,11 @@ function dropping(
   });
 }
 
-/** "Open map…": asks about unsaved edits first. */
-async function openAnother(): Promise<void> {
+/** "Open map…" › Folder… or Archive…: asks about unsaved edits first, then the entry's dialog picks the map. */
+async function openAnother(entry: OpenEntry): Promise<void> {
   try {
     await dropping("Save them before opening another map?", true, (discard) =>
-      openMapFolder(undefined, discard),
+      openMapWith(() => openFrom(entry, discard)),
     );
   } catch (error) {
     mapProblem = message(error);
@@ -253,15 +255,15 @@ async function openAnother(): Promise<void> {
 }
 
 /**
- * Opens a map folder: `path`, or the one picked in the app's dialog. `discard` lets the app drop unsaved edits; without
- * it, it refuses with `unsaved`, which is passed on (every other failure is shown).
+ * Opens a map (a folder or an archive) with `open`, which asks the app (null when the user cancelled its dialog). An
+ * `unsaved` refusal is passed on (the open did not say to discard); every other failure is shown.
  */
-async function openMapFolder(path?: string, discard = false): Promise<void> {
+async function openMapWith(open: () => Promise<MapInfo | null>): Promise<void> {
   mapProblem = "";
   opening = true;
   try {
     const started = performance.now();
-    const info = await openMap(path, discard);
+    const info = await open();
     if (!info) return;
     console.info(`[timing] openMap ${info.name}: ${Math.round(performance.now() - started)} ms`);
     await showMap(info);
@@ -404,6 +406,7 @@ async function saveMap(): Promise<boolean> {
     const files = report.written.join(", ");
     say(savedText(report), {
       title: report.backup ? `${files}\nBackup: ${report.backup}` : files || undefined,
+      warn: report.note !== "",
     });
     return true;
   } catch (error) {
@@ -710,7 +713,8 @@ $effect(() => {
     try {
       choiceLists = await choices();
       const started = await startup();
-      if (started.map) await openMapFolder(started.map);
+      const path = started.map;
+      if (path) await openMapWith(() => openMap({ path }));
     } catch (error) {
       mapProblem = message(error);
     }
@@ -783,15 +787,12 @@ onMount(() => {
 
 <div class="grid h-full grid-cols-1 grid-rows-[44px_1fr_26px]">
   <header class="flex items-center gap-2.5 border-b border-line bg-surface px-3">
-    <button
-      type="button"
-      class="flex shrink-0 items-center gap-2 rounded-md border border-line bg-raised px-3 py-1 text-fg hover:border-accent disabled:opacity-50"
+    <OpenMapMenu
+      label="Open map…"
+      buttonClass="flex shrink-0 items-center gap-2 rounded-md border border-line bg-raised px-3 py-1 text-fg hover:border-accent disabled:opacity-50"
       disabled={view !== "ready" || opening}
-      onclick={openAnother}
-    >
-      <FolderOpen size={16} />
-      Open map…
-    </button>
+      onpick={openAnother}
+    />
     {#if map}
       <span
         class="max-w-[35%] min-w-0 truncate font-bold text-fg"
@@ -892,8 +893,8 @@ onMount(() => {
         <h1 class="font-heading text-2xl font-bold text-fg">No map is open</h1>
         {#if view === "ready"}
           <p>
-            Open a map folder (a World Editor folder map, or a Moonwell project's map folder) to browse
-            its objects.
+            Open a map folder (a World Editor folder map, or a Moonwell project's map folder) or a map
+            archive (.w3x, .w3m) to browse its objects.
           </p>
         {:else}
           <p>Loading the game data… A map can be opened once it is ready.</p>
@@ -901,15 +902,12 @@ onMount(() => {
         {#if mapProblem}
           <p class="text-warn" data-testid="map-error">{mapProblem}</p>
         {/if}
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-md border border-accent bg-raised px-3 py-1.5 text-fg hover:bg-hover disabled:opacity-50"
+        <OpenMapMenu
+          label={opening ? "Opening…" : "Open map…"}
+          buttonClass="inline-flex items-center gap-2 rounded-md border border-accent bg-raised px-3 py-1.5 text-fg hover:bg-hover disabled:opacity-50"
           disabled={view !== "ready" || opening}
-          onclick={openAnother}
-        >
-          <FolderOpen size={16} />
-          {opening ? "Opening…" : "Open map…"}
-        </button>
+          onpick={openAnother}
+        />
       </div>
     </main>
   {:else}

@@ -132,12 +132,18 @@ export function nameField(view: ObjectView): FieldView | undefined {
   return undefined;
 }
 
-/** What the status bar says after a save: the files written and where the backup went (its last two parts). */
+/**
+ * What the status bar says after a save: the files written, where the backup went (its last two parts), and the
+ * save's note when it has one.
+ */
 export function savedText(report: SaveReport): string {
   const count = report.written.length;
   if (count === 0) return "Nothing to save";
-  const files = `Saved ${count} ${count === 1 ? "file" : "files"}`;
-  if (report.backup === "") return files;
-  const parts = report.backup.split(/[\\/]/).filter(Boolean);
-  return `${files} · backup in ${parts.slice(-2).join("\\")}`;
+  const parts = [`Saved ${count} ${count === 1 ? "file" : "files"}`];
+  if (report.backup !== "") {
+    const folders = report.backup.split(/[\\/]/).filter(Boolean);
+    parts.push(`backup in ${folders.slice(-2).join("\\")}`);
+  }
+  if (report.note !== "") parts.push(report.note);
+  return parts.join(" · ");
 }

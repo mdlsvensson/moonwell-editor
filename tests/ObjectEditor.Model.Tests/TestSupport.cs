@@ -61,20 +61,25 @@ public sealed class GameDataCollection : ICollectionFixture<GameDataFixture>
 }
 
 /// <summary>
-/// A temporary copy of a fixture folder (or an empty folder), deleted when disposed, so a test can change the files.
+/// A temporary copy of a fixture folder (or an empty folder), or of a fixture archive, deleted when disposed, so a test
+/// can change the files.
 /// </summary>
 public sealed class TempMap : IDisposable
 {
     private readonly string _root;
 
-    private TempMap(string root, string folder)
+    private TempMap(string root, string folder, string map)
     {
         _root = root;
         Folder = folder;
+        Map = map;
     }
 
-    /// <summary>The map folder.</summary>
+    /// <summary>The map folder; for an archive, the folder that holds it.</summary>
     public string Folder { get; }
+
+    /// <summary>The map: the folder, or the archive file's path.</summary>
+    public string Map { get; }
 
     /// <summary>
     /// Copies the fixture <paramref name="fixture"/> (<c>we-3.0</c>, <c>moonwell-mymap</c>; null for an empty folder)
@@ -93,7 +98,22 @@ public sealed class TempMap : IDisposable
             }
         }
 
-        return new TempMap(root, folder);
+        return new TempMap(root, folder, folder);
+    }
+
+    /// <summary>
+    /// Copies the fixture archive <paramref name="fixture"/> (<c>moonwell-sample/Sample.w3x</c>) into a new temporary
+    /// folder, at <paramref name="inside"/> below it when given (such as <c>MyMap/build</c>), keeping its file name.
+    /// </summary>
+    public static TempMap OfArchive(string fixture = "moonwell-sample/Sample.w3x", string? inside = null)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ObjectEditor.Model.Tests", "maps", Guid.NewGuid().ToString("N"));
+        var folder = inside == null ? root : Path.Combine(root, inside);
+        Directory.CreateDirectory(folder);
+        var source = Path.Combine(AppContext.BaseDirectory, "fixtures", fixture);
+        var map = Path.Combine(folder, Path.GetFileName(source));
+        File.Copy(source, map);
+        return new TempMap(root, folder, map);
     }
 
     /// <summary>The temporary folder that holds the map folder.</summary>

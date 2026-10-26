@@ -35,15 +35,17 @@ Without `OBJECT_EDITOR_DEV_URL` the window shows the built page instead: run `np
 
 ## Open a map at start
 
-The app takes a map folder as its first command-line argument and opens it once the game data is ready, as if it had
-been picked with "Open map…" (handy for checking the window without the folder dialog, and for "open with"):
+The app takes a map, a folder or an archive (`.w3x`, `.w3m`), as its first command-line argument and opens it once the
+game data is ready, as if it had been picked with "Open map…" (handy for checking the window without the dialogs, and
+for "open with"):
 
 ```
 dotnet run --project src/ObjectEditor.App -- "C:\Maps\Arena"
+dotnet run --project src/ObjectEditor.App -- "C:\Maps\Arena.w3x"
 src/ObjectEditor.App/bin/Debug/net10.0-windows/ObjectEditor.App.exe "C:\Maps\Arena"
 ```
 
-The page asks for it with the `startup` command, which gives the folder once; a page loaded again (live reload) does
+The page asks for it with the `startup` command, which gives the map once; a page loaded again (live reload) does
 not open it again.
 
 The page logs how long opening a map, a kind's tree and an object take to the console, as `[timing] …` lines.

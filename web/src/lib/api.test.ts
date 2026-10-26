@@ -21,14 +21,26 @@ describe("each wrapper calls its command with the app's argument names", () => {
   const cases: [string, () => Promise<unknown>, string, object][] = [
     [
       "openMap with a path",
-      () => api.openMap("C:\\maps\\arena"),
+      () => api.openMap({ path: "C:\\maps\\arena" }),
       "openMap",
       { path: "C:\\maps\\arena" },
     ],
-    ["openMap with the dialog", () => api.openMap(), "openMap", {}],
+    [
+      "openMap with an archive's path",
+      () => api.openMap({ path: "C:\\maps\\Arena.w3x" }),
+      "openMap",
+      { path: "C:\\maps\\Arena.w3x" },
+    ],
+    ["openMap with the folder dialog", () => api.openMap(), "openMap", {}],
+    [
+      "openMap with the archive dialog",
+      () => api.openMap({ archive: true }),
+      "openMap",
+      { archive: true },
+    ],
     [
       "openMap dropping unsaved edits",
-      () => api.openMap(undefined, true),
+      () => api.openMap({ discard: true }),
       "openMap",
       { discard: true },
     ],
