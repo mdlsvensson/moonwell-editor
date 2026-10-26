@@ -685,6 +685,58 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Standard_choice_in_the_lists_spelling_changes_nothing()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // The game's data spells some standard choice values unlike World Editor's list ("no occlusion" against
+        // "No occlusion"): setting the list's spelling of the standard value is no change.
+        var found = new List<(ObjectKind Kind, string Id, string Field, int Level, string Spelling)>();
+        foreach (var kind in Enum.GetValues<ObjectKind>())
+        {
+            var data = game.Kind(kind);
+            foreach (var standard in data.Objects)
+            {
+                foreach (var (key, value) in standard.Values)
+                {
+                    var parts = key.Split(':');
+                    var field = data.Field(parts[0]);
+                    if (field?.Choice is not { } choice || !game.Choices.TryGetValue(choice, out var list) || list.Flags
+                        || standard.Modes.ContainsKey(key))
+                    {
+                        continue;
+                    }
+
+                    var entry = list.Entries.FirstOrDefault(entry =>
+                        entry.Value != value && string.Equals(entry.Value, value, StringComparison.OrdinalIgnoreCase));
+                    if (entry != null && found.Count < 5)
+                    {
+                        found.Add((kind, standard.Id, field.Id, parts.Length > 1 ? int.Parse(parts[1]) : 0, entry.Value));
+                    }
+                }
+            }
+        }
+
+        Assert.NotEmpty(found);
+        using var map = TempMap.Of(null);
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        foreach (var (kind, id, field, level, spelling) in found)
+        {
+            output.WriteLine($"{ObjectKinds.Key(kind)} {id} {field}:{level} = \"{spelling}\"");
+            session.Set(kind, id, field, level, spelling);
+            Assert.False(session.Dirty);
+            Assert.Equal(0, session.SetCells(kind, [new CellEdit(id, field, level, spelling)]));
+            Assert.False(session.Dirty);
+            Assert.DoesNotContain(
+                session.Object(kind, id)!.Fields,
+                view => view.Id == field && view.Level == level && view.Changed);
+        }
+    }
+
+    [Fact]
     public void Read_only_kind_refuses()
     {
         if (Skipped(out var game))

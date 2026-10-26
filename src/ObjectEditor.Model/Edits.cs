@@ -229,7 +229,7 @@ public sealed partial class Session
         var resolver = new Resolver(target.Kind, target.Data, _strings);
         var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
         var modes = target.Standard.Modes.ContainsKey(Resolver.Key(info, target.Level));
-        if (!modes && SameValue(value, standardValue))
+        if (!modes && SameValue(value, standardValue, IsSingleChoice(info)))
         {
             RemoveMods(edit, target);
         }
@@ -403,18 +403,29 @@ public sealed partial class Session
         }
     }
 
-    /// <summary>Whether a value is the standard one (shown as text): numbers are compared as numbers.</summary>
-    private static bool SameValue(FieldValue value, string standard)
+    /// <summary>
+    /// Whether a value is the standard one (shown as text): numbers are compared as numbers, and a single choice
+    /// ignoring letter case (the game's data spells some standard values unlike World Editor's list: a doodad's
+    /// occlusion is "no occlusion" there and "No occlusion" in the list), so setting the standard value in the list's
+    /// spelling removes the modification instead of writing one.
+    /// </summary>
+    private static bool SameValue(FieldValue value, string standard, bool singleChoice)
     {
         return value switch
         {
             FieldValue.Int number => SameWhole(number.Value, standard),
             FieldValue.Real real => SameReal(real.Value, standard),
             FieldValue.Unreal unreal => SameReal(unreal.Value, standard),
-            FieldValue.Text text => text.Value == standard,
+            FieldValue.Text text => singleChoice
+                ? string.Equals(text.Value, standard, StringComparison.OrdinalIgnoreCase)
+                : text.Value == standard,
             _ => false,
         };
     }
+
+    /// <summary>Whether a field holds one value of a choice list (not a list of flags).</summary>
+    private bool IsSingleChoice(FieldInfo field) =>
+        field.Choice != null && _game.Choices.TryGetValue(field.Choice, out var list) && !list.Flags;
 
     private static bool SameWhole(int value, string standard) =>
         double.TryParse(standard, NumberStyles.Float, CultureInfo.InvariantCulture, out var other) && other == value;
