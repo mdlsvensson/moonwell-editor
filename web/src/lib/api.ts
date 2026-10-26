@@ -173,6 +173,11 @@ export function createObject(kind: Kind, baseId: string, id?: string): Promise<s
   return call<string>("createObject", { kind, baseId, id });
 }
 
+/** The id `createObject` would give a new object based on `baseId` when given none (nothing is made). */
+export function nextId(kind: Kind, baseId: string): Promise<string> {
+  return call<string>("nextId", { kind, baseId });
+}
+
 /** Makes a custom object as a copy of another; answers with its id (the next free one when `id` is left out). */
 export function copyObject(kind: Kind, fromId: string, id?: string): Promise<string> {
   return call<string>("copyObject", { kind, fromId, id });
@@ -219,4 +224,23 @@ export function choices(): Promise<Record<string, ChoiceList>> {
  */
 export function onSessionChanged(handler: (state: SessionState) => void): () => void {
   return on("sessionChanged", (payload) => handler(payload as SessionState));
+}
+
+/**
+ * Listens to `closeRequested`, which the app sends when the user closes the window while the map has unsaved
+ * edits. The window stays open; the page answers with `closeAsking` at once, then `closeWindow` once the user has
+ * saved or chosen to discard the edits. Returns a function that stops listening.
+ */
+export function onCloseRequested(handler: () => void): () => void {
+  return on("closeRequested", () => handler());
+}
+
+/** Tells the app the page is asking the user about the unsaved edits (so the window does not ask on its own). */
+export async function closeAsking(): Promise<void> {
+  await call<null>("closeAsking");
+}
+
+/** Closes the window, unsaved edits or not. */
+export async function closeWindow(): Promise<void> {
+  await call<null>("closeWindow");
 }

@@ -1,12 +1,17 @@
 <script lang="ts">
 /**
- * The middle panel: the object's name, id and chain, the field filter and chips, then its fields by category (which
- * open and close), per-level fields as grids.
+ * The middle panel: the object's name, id and chain, New / Copy / Delete, the field filter and chips, then its fields
+ * by category (which open and close), per-level fields as grids. The fields are editors unless the object is read
+ * only.
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import Copy from "@lucide/svelte/icons/copy";
 import Lock from "@lucide/svelte/icons/lock";
-import type { ChoiceList, Kind, ObjectView } from "./api.ts";
+import Plus from "@lucide/svelte/icons/plus";
+import Trash from "@lucide/svelte/icons/trash-2";
+import { tick } from "svelte";
+import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import FieldRow from "./FieldRow.svelte";
 import { groupFields, isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
 import LevelGrid from "./LevelGrid.svelte";
@@ -19,6 +24,14 @@ type Props = {
   changedOnly: boolean;
   showIds: boolean;
   onopen: (kind: Kind, id: string) => void;
+  onset: (field: FieldView, value: string) => Promise<string | null>;
+  onreset: (field: FieldView) => Promise<string | null>;
+  /** New object based on this one (or on its base); Ctrl Shift N. */
+  onnew: () => void;
+  /** Copies this custom object. */
+  oncopy: () => void;
+  /** Deletes this custom object (asks first). */
+  ondelete: () => void;
 };
 
 let {
@@ -29,6 +42,11 @@ let {
   changedOnly = $bindable(),
   showIds = $bindable(),
   onopen,
+  onset,
+  onreset,
+  onnew,
+  oncopy,
+  ondelete,
 }: Props = $props();
 
 let filterInput: HTMLInputElement | undefined = $state();
@@ -42,6 +60,30 @@ const categories = $derived(
 const changedCount = $derived(
   groupFields(view.fields, "", true).reduce((sum, category) => sum + category.rows.length, 0),
 );
+
+const editable = $derived(view.readOnly === null);
+const custom = $derived(view.baseId !== null);
+
+/**
+ * Puts the cursor in a field's editor (F2 for the name), showing it first when the filter, "Changed only" or a closed
+ * category hides it. False when the field has no editor.
+ */
+export async function focusField(field: FieldView): Promise<boolean> {
+  const selector = `[data-field="${field.id}:${field.level}"]`;
+  let element = document.querySelector<HTMLElement>(selector);
+  if (!element) {
+    filter = "";
+    changedOnly = false;
+    closed[field.category] = false;
+    await tick();
+    element = document.querySelector<HTMLElement>(selector);
+  }
+  if (!element) return false;
+  element.focus();
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)
+    element.select();
+  return true;
+}
 
 /** Puts the cursor in the field filter (Ctrl F). */
 export function focusFilter(): void {
@@ -71,10 +113,45 @@ function clearOnEscape(event: KeyboardEvent): void {
 
 <div class="pb-10">
   <div class="sticky top-0 z-[2] border-b border-line bg-bg px-[18px] pt-3.5 pb-2.5">
-    <h1 class="m-0 flex items-baseline gap-2.5 font-heading text-xl font-bold text-fg">
-      {view.name}
-      <span class="font-mono text-[12.5px] font-normal text-muted">{view.id}</span>
-    </h1>
+    <div class="flex items-start gap-2">
+      <h1 class="m-0 flex min-w-0 flex-1 items-baseline gap-2.5 font-heading text-xl font-bold text-fg">
+        <span class="truncate">{view.name}</span>
+        <span class="font-mono text-[12.5px] font-normal text-muted">{view.id}</span>
+      </h1>
+      {#if editable}
+        <div class="flex shrink-0 gap-1" role="group" aria-label="Object">
+          <button
+            type="button"
+            class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
+            title="A new object based on {custom ? 'its base' : 'this object'} (Ctrl Shift N)"
+            onclick={onnew}
+          >
+            <Plus size={13} />
+            New
+          </button>
+          {#if custom}
+            <button
+              type="button"
+              class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
+              title="A copy of this object, with the next free id"
+              onclick={oncopy}
+            >
+              <Copy size={13} />
+              Copy
+            </button>
+            <button
+              type="button"
+              class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-warn hover:text-warn"
+              title="Delete this object (asks first; Ctrl Z brings it back)"
+              onclick={ondelete}
+            >
+              <Trash size={13} />
+              Delete
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
     <div class="mt-1 text-[13px] text-muted">
       {#each view.chain as link, index (index)}
         {#if index > 0}<span class="mx-0.5">›</span>{/if}
@@ -142,34 +219,55 @@ function clearOnEscape(event: KeyboardEvent): void {
     </p>
   {/if}
 
-  {#each categories as category (category.key)}
-    {@const open = !closed[category.key]}
-    <div class="mx-[18px] mt-3.5 overflow-hidden rounded-[7px] border border-line">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 bg-surface px-2.5 py-1.5 text-left font-bold text-fg"
-        aria-expanded={open}
-        onclick={() => (closed[category.key] = open)}
-      >
-        {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-        {category.name}
-        <span class="ml-auto text-xs font-normal text-faint">
-          {category.rows.length}
-          {category.rows.length === 1 ? "field" : "fields"}
-          {#if category.rows.some(isChanged)}· <span class="text-changed">changed</span>{/if}
-        </span>
-      </button>
-      {#if open}
-        {#each runs(category.rows) as run, index (index)}
-          {#if run.grid}
-            <LevelGrid rows={run.rows} {showIds} {choices} {lookup} />
-          {:else}
-            {#each run.rows as row (row.id)}
-              <FieldRow field={row.field} {showIds} {choices} {lookup} {onopen} />
-            {/each}
-          {/if}
-        {/each}
-      {/if}
-    </div>
-  {/each}
+  <!-- The editors are made again for another object, so what was typed for one never shows on the next. -->
+  {#key `${view.kind}:${view.id}`}
+    {#each categories as category (category.key)}
+      {@const open = !closed[category.key]}
+      <div class="mx-[18px] mt-3.5 overflow-hidden rounded-[7px] border border-line">
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 bg-surface px-2.5 py-1.5 text-left font-bold text-fg"
+          aria-expanded={open}
+          onclick={() => (closed[category.key] = open)}
+        >
+          {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+          {category.name}
+          <span class="ml-auto text-xs font-normal text-faint">
+            {category.rows.length}
+            {category.rows.length === 1 ? "field" : "fields"}
+            {#if category.rows.some(isChanged)}· <span class="text-changed">changed</span>{/if}
+          </span>
+        </button>
+        {#if open}
+          {#each runs(category.rows) as run, index (index)}
+            {#if run.grid}
+              <LevelGrid
+                rows={run.rows}
+                {showIds}
+                {choices}
+                {lookup}
+                {editable}
+                {onset}
+                {onreset}
+                {onopen}
+              />
+            {:else}
+              {#each run.rows as row (row.id)}
+                <FieldRow
+                  field={row.field}
+                  {showIds}
+                  {choices}
+                  {lookup}
+                  {editable}
+                  {onset}
+                  {onreset}
+                  {onopen}
+                />
+              {/each}
+            {/if}
+          {/each}
+        {/if}
+      </div>
+    {/each}
+  {/key}
 </div>

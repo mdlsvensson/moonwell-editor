@@ -71,6 +71,9 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["search", () => api.search("foot", 20), "search", { query: "foot", limit: 20 }],
     ["choices", () => api.choices(), "choices", {}],
     ["startup", () => api.startup(), "startup", {}],
+    ["nextId", () => api.nextId("unit", "hfoo"), "nextId", { kind: "unit", baseId: "hfoo" }],
+    ["closeAsking", () => api.closeAsking(), "closeAsking", {}],
+    ["closeWindow", () => api.closeWindow(), "closeWindow", {}],
   ];
 
   it.each(cases)("%s", async (_name, run, command, args) => {
@@ -96,6 +99,19 @@ describe("onSessionChanged", () => {
 
     expect(seen).toEqual([{ dirty: true, changedObjects: 2 }]);
     expect(typeof stop).toBe("function");
+  });
+});
+
+describe("onCloseRequested", () => {
+  it("listens to the closeRequested event", () => {
+    let heard = 0;
+    api.onCloseRequested(() => heard++);
+
+    const [event, handler] = listened.mock.calls[0] ?? [];
+    expect(event).toBe("closeRequested");
+    handler?.({});
+
+    expect(heard).toBe(1);
   });
 });
 

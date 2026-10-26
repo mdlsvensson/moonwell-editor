@@ -58,8 +58,13 @@ function toggle(key: string): void {
   toggled[key] = !isOpen(key);
 }
 
+// The selection last scrolled into view, as `kind:id`.
+let revealed = "";
+
 // Opens the groups an object is in and scrolls it into view, when it was picked elsewhere (the palette, history, a
-// component). Only a change of the selection or of the tree runs this, so closing a group does not open it again.
+// component). Only a change of the selection or of the tree runs this, so closing a group does not open it again. A
+// tree fetched again after an edit leaves the scroll alone while the selection was already shown; a new object is
+// shown once its tree has it.
 $effect(() => {
   const id = selected;
   const list = entries;
@@ -68,7 +73,8 @@ $effect(() => {
 
 async function reveal(id: string | null, list: TreeEntry[] | null): Promise<void> {
   const entry = id && list ? list.find((candidate) => candidate.id === id) : undefined;
-  if (!entry) return;
+  if (!entry || revealed === `${kind}:${entry.id}`) return;
+  revealed = `${kind}:${entry.id}`;
   for (const key of groupKeys(kind, entry)) {
     if (!isOpen(key)) toggled[key] = true;
   }

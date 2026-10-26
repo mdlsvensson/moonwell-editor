@@ -1,12 +1,15 @@
 <script lang="ts">
 /**
- * The status bar: whether the map has unsaved edits, its problems (a count; a click lists them), and the game data
- * in use.
+ * The status bar: whether the map has unsaved edits, a short notice (what a save wrote, what went wrong), the map's
+ * problems (a count; a click lists them), and the game data in use.
  */
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { SessionState } from "./api.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
+
+/** A short message in the status bar, such as what a save wrote; `title` is its tooltip. */
+export type Notice = { text: string; title?: string; warn?: boolean };
 
 type Props = {
   /** Where the open map stands; null with no map open. */
@@ -18,9 +21,18 @@ type Props = {
   dataView: GameDataView | null;
   /** Why the page cannot talk to the app; "" when it can. */
   connection: string;
+  notice: Notice | null;
 };
 
-let { session, problems, showProblems = $bindable(), data, dataView, connection }: Props = $props();
+let {
+  session,
+  problems,
+  showProblems = $bindable(),
+  data,
+  dataView,
+  connection,
+  notice,
+}: Props = $props();
 
 const folderName = $derived(
   data?.source ? (data.source.split(/[\\/]/).filter(Boolean).pop() ?? "") : "",
@@ -40,6 +52,18 @@ const folderName = $derived(
     {:else}
       <span data-testid="dirty">No unsaved changes</span>
     {/if}
+  {/if}
+  {#if notice}
+    <span
+      class="min-w-0 truncate {notice.warn ? 'text-warn' : 'text-accent-hi'}"
+      data-testid="notice"
+      title={notice.title ?? notice.text}
+      role="status"
+    >
+      {notice.text}
+    </span>
+  {:else if session}
+    <span class="whitespace-nowrap">Undo Ctrl Z · Redo Ctrl Y</span>
   {/if}
   {#if problems.length > 0}
     <button

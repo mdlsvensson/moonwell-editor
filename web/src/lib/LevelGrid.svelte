@@ -1,6 +1,10 @@
 <script lang="ts">
-/** Per-level fields as a grid: one row per field, its levels (a doodad's variations) across. */
-import type { ChoiceList, FieldView } from "./api.ts";
+/**
+ * Per-level fields as a grid: one row per field, its levels (a doodad's variations) across. When the object can be
+ * edited, each cell is the level's editor, with ↺ when the level is changed.
+ */
+import type { ChoiceList, FieldView, Kind } from "./api.ts";
+import FieldEditor from "./FieldEditor.svelte";
 import { isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
 
 type Props = {
@@ -8,9 +12,17 @@ type Props = {
   showIds: boolean;
   choices: Record<string, ChoiceList> | null;
   lookup: Lookup;
+  /** False for an object that cannot be edited: the values are only shown. */
+  editable: boolean;
+  onset: (field: FieldView, value: string) => Promise<string | null>;
+  onreset: (field: FieldView) => Promise<string | null>;
+  onopen: (kind: Kind, id: string) => void;
 };
 
-let { rows, showIds, choices, lookup }: Props = $props();
+let { rows, showIds, choices, lookup, editable, onset, onreset, onopen }: Props = $props();
+
+// Why a cell's last value was refused, by `field:level`.
+let errors = $state<Record<string, string>>({});
 
 const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
 const columns = $derived(
@@ -22,10 +34,17 @@ const columns = $derived(
 
 function cellTitle(field: FieldView, shown: string): string {
   const lines = [`Level ${field.level}: ${shown}`];
-  if (field.changed)
-    lines.push(`Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`);
+  if (field.changed) lines.push(`Standard: ${standardOf(field)}`);
   if (field.warning) lines.push(field.warning);
   return lines.join("\n");
+}
+
+function standardOf(field: FieldView): string {
+  return shownValue({ ...field, value: field.base }, choices, nameOf);
+}
+
+async function reset(field: FieldView): Promise<void> {
+  errors[`${field.id}:${field.level}`] = (await onreset(field)) ?? "";
 }
 </script>
 
@@ -55,17 +74,58 @@ function cellTitle(field: FieldView, shown: string): string {
             </th>
             {#each row.levels ?? [] as field (field.level)}
               {@const shown = shownValue(field, choices, nameOf)}
-              <td
-                class="max-w-56 truncate border px-2 py-0.5 font-mono text-[12.5px] {field.type ===
-                  'int' || field.type === 'float'
-                  ? 'text-right'
-                  : 'text-left'} {field.changed ? 'text-changed' : 'text-fg'} {field.warning
-                  ? 'border-warn bg-warn-lo'
-                  : 'border-line'}"
-                title={cellTitle(field, shown)}
-              >
-                {shown}
-              </td>
+              {@const key = `${field.id}:${field.level}`}
+              {#if editable}
+                <td
+                  class="group border p-0 align-top {field.warning || errors[key]
+                    ? 'border-warn'
+                    : 'border-line'}"
+                  title={field.warning ?? undefined}
+                >
+                  <span class="flex items-center">
+                    <span class="min-w-0 flex-1">
+                      <FieldEditor
+                        {field}
+                        {choices}
+                        {lookup}
+                        compact
+                        {onset}
+                        {onopen}
+                        bind:error={errors[key]}
+                      />
+                    </span>
+                    {#if field.changed}
+                      <button
+                        type="button"
+                        class="px-1 text-xs text-changed opacity-40 group-hover:opacity-100 hover:text-fg focus:opacity-100"
+                        title="Level {field.level} back to the standard value: {standardOf(field) ||
+                          '(empty)'}"
+                        aria-label="Reset {row.label} level {field.level}"
+                        onclick={() => reset(field)}
+                      >
+                        ↺
+                      </button>
+                    {/if}
+                  </span>
+                  {#if errors[key]}
+                    <span class="block max-w-56 px-1.5 pb-0.5 text-[11px] whitespace-normal text-warn" role="alert">
+                      {errors[key]}
+                    </span>
+                  {/if}
+                </td>
+              {:else}
+                <td
+                  class="max-w-56 truncate border px-2 py-0.5 font-mono text-[12.5px] {field.type ===
+                    'int' || field.type === 'float'
+                    ? 'text-right'
+                    : 'text-left'} {field.changed ? 'text-changed' : 'text-fg'} {field.warning
+                    ? 'border-warn bg-warn-lo'
+                    : 'border-line'}"
+                  title={cellTitle(field, shown)}
+                >
+                  {shown}
+                </td>
+              {/if}
             {/each}
           </tr>
         {/each}

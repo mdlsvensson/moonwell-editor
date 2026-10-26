@@ -1,0 +1,185 @@
+<script lang="ts">
+/**
+ * The editor of one field at one level, by its type (see `editorFor`): a number or text box (Enter or leaving it
+ * sends the value, Esc puts the value back), a toggle, a select, the flags' checkboxes, or an object list's chips
+ * and picker. A value the app refuses keeps what was typed, with the reason in `error`.
+ */
+import { untrack } from "svelte";
+import type { ChoiceList, FieldView, Kind } from "./api.ts";
+import FlagsEditor from "./FlagsEditor.svelte";
+import { type Lookup, shownValue } from "./fields.ts";
+import IdsEditor from "./IdsEditor.svelte";
+import { checkValue, editorFor } from "./values.ts";
+
+type Props = {
+  field: FieldView;
+  choices: Record<string, ChoiceList> | null;
+  lookup: Lookup;
+  /** True in a level grid's cell: a narrower box. */
+  compact?: boolean;
+  /** Sends a value; answers with why it was refused, or null when it was taken. */
+  onset: (field: FieldView, value: string) => Promise<string | null>;
+  onopen: (kind: Kind, id: string) => void;
+  /** Why the last value sent or typed was refused; "" (or undefined) when it was not. */
+  error?: string;
+};
+
+let {
+  field,
+  choices,
+  lookup,
+  compact = false,
+  onset,
+  onopen,
+  error = $bindable(),
+}: Props = $props();
+
+// What the user typed and has not sent yet (or that was refused); null shows the field's value.
+let draft = $state<string | null>(null);
+// The typed value on its way, and the last one the app refused: neither is sent again when the box is left.
+let sending: string | null = null;
+let refused: string | null = null;
+
+// A value changed elsewhere (↺, undo, redo) replaces what was typed and its error.
+$effect(() => {
+  field.value;
+  untrack(() => {
+    if (sending === null) cancel();
+  });
+});
+
+const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const editor = $derived(editorFor(field, choices));
+const list = $derived(field.choice ? choices?.[field.choice] : undefined);
+const shown = $derived(shownValue(field, choices, nameOf));
+const multiline = $derived(field.value.includes("\n"));
+const title = $derived(
+  field.changed
+    ? `Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`
+    : undefined,
+);
+const boxClass = $derived(
+  `w-full min-w-0 rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none hover:border-line focus:border-accent ${
+    error || field.warning ? "border-warn bg-warn-lo" : "border-transparent bg-bg"
+  } ${field.changed ? "text-changed" : "text-fg"} ${editor === "number" ? "text-right" : ""}`,
+);
+
+async function send(value: string): Promise<boolean> {
+  const problem = await onset(field, value);
+  error = problem ?? "";
+  return problem === null;
+}
+
+// Sends what was typed, when it differs from the value; a value refused (here or by the app) stays in the box.
+async function commit(): Promise<void> {
+  if (draft === null || draft === sending || draft === refused) return;
+  const typed = draft;
+  const checked = checkValue(field, typed);
+  if (!checked.ok) {
+    error = checked.problem;
+    return;
+  }
+  if (checked.value === field.value) {
+    draft = null;
+    error = "";
+    return;
+  }
+  sending = typed;
+  const taken = await send(checked.value);
+  sending = null;
+  if (!taken) refused = typed;
+  else if (draft === typed) draft = null;
+}
+
+// A toggle or a select the app refused shows the field's value again.
+async function choose(element: HTMLInputElement | HTMLSelectElement, value: string): Promise<void> {
+  if (await send(value)) return;
+  if (element instanceof HTMLInputElement) element.checked = field.value === "1";
+  else element.value = field.value;
+}
+
+function cancel(): void {
+  draft = null;
+  refused = null;
+  error = "";
+}
+
+function onkeydown(event: KeyboardEvent): void {
+  if (event.key === "Enter" && !(multiline && event.shiftKey)) {
+    event.preventDefault();
+    commit();
+  } else if (event.key === "Escape" && (draft !== null || error)) {
+    event.preventDefault();
+    event.stopPropagation();
+    cancel();
+  }
+}
+
+function oninput(event: Event): void {
+  draft = (event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value;
+  refused = null;
+}
+</script>
+
+<span class="block min-w-0" {title}>
+  {#if editor === "toggle"}
+    <label class="inline-flex cursor-pointer items-center gap-2 px-1.5 py-[3px] font-mono text-[12.5px] {field.changed
+        ? 'text-changed'
+        : 'text-fg'}">
+      <input
+        type="checkbox"
+        class="accent-accent"
+        checked={field.value === "1"}
+        data-field="{field.id}:{field.level}"
+        onchange={(event) => choose(event.currentTarget, event.currentTarget.checked ? "1" : "0")}
+      />
+      {shown}
+    </label>
+  {:else if editor === "select" && list}
+    <select
+      class="{boxClass} cursor-pointer"
+      value={list.entries.find((entry) => entry.value.toLowerCase() === field.value.toLowerCase())
+        ?.value ?? field.value}
+      data-field="{field.id}:{field.level}"
+      aria-label={field.label}
+      onchange={(event) => choose(event.currentTarget, event.currentTarget.value)}
+    >
+      {#if !list.entries.some((entry) => entry.value.toLowerCase() === field.value.toLowerCase())}
+        <option value={field.value}>{field.value === "" ? "(none)" : field.value}</option>
+      {/if}
+      {#each list.entries as entry (entry.value)}
+        <option value={entry.value}>{entry.label}</option>
+      {/each}
+    </select>
+  {:else if editor === "flags" && list}
+    <FlagsEditor {field} {list} {shown} {compact} onset={send} />
+  {:else if editor === "ids"}
+    <IdsEditor {field} {lookup} {compact} onset={send} {onopen} />
+  {:else if multiline}
+    <textarea
+      class="{boxClass} block resize-y"
+      rows="3"
+      value={draft ?? field.value}
+      data-field="{field.id}:{field.level}"
+      aria-label={field.label}
+      title="Enter sends it; Shift Enter starts a new line"
+      {oninput}
+      {onkeydown}
+      onblur={commit}
+    ></textarea>
+  {:else}
+    <input
+      class={boxClass}
+      value={draft ?? field.value}
+      size={compact ? Math.max(4, Math.min(24, (draft ?? field.value).length + 1)) : undefined}
+      spellcheck={editor === "text"}
+      inputmode={editor === "number" ? "decimal" : undefined}
+      data-field="{field.id}:{field.level}"
+      aria-label={field.label}
+      aria-invalid={!!error}
+      {oninput}
+      {onkeydown}
+      onblur={commit}
+    />
+  {/if}
+</span>
