@@ -50,6 +50,23 @@ not open it again.
 
 The page logs how long opening a map, a kind's tree and an object take to the console, as `[timing] …` lines.
 
+## Build the exe
+
+Build the page first, then publish a Release build:
+
+```
+cd web && npm run build
+dotnet publish src/ObjectEditor.App -c Release -r win-x64 --self-contained false
+```
+
+The app is then `src/ObjectEditor.App/bin/Release/net10.0-windows/win-x64/publish/ObjectEditor.App.exe`, about 6 MB
+with the DLLs and the page (`wwwroot`) next to it: copy the whole `publish` folder to move it. It needs the .NET 10
+Desktop Runtime (the SDK includes it); `--self-contained true` bundles .NET instead, for a PC without it, at about
+70 MB more.
+
+A single-file exe (`-p:PublishSingleFile=true`) does not build yet: Moonwell's generator code, linked in from wc3-cs,
+reads `Assembly.Location`, which is always empty in a single-file app, and warnings are errors.
+
 ## Tests and checks
 
 ```
