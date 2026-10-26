@@ -45,6 +45,29 @@ public sealed record MapInfo(
 /// <param name="Session">Where it stands: whether it has unsaved edits.</param>
 public sealed record CurrentMap(MapInfo Map, SessionState Session);
 
+/// <summary>One field of a kind, for the table's column chooser (the <c>fields</c> command).</summary>
+/// <param name="Id">The field id (<c>uhpm</c>).</param>
+/// <param name="Label">World Editor's label for the field.</param>
+/// <param name="Category">The metadata's category (<c>stats</c>); empty for none.</param>
+/// <param name="Sort">The metadata's sort key, World Editor's order within the category; empty for none.</param>
+/// <param name="Type">The kind of value: <c>int</c>, <c>float</c>, <c>bool</c>, <c>string</c>, <c>choice</c> ...</param>
+/// <param name="PerLevel">True when the field has a value for each level.</param>
+/// <param name="Choice">For a <c>choice</c> field, the key of its list in <c>choices</c>; null for other types.</param>
+/// <param name="ListOf">For an object list or reference, what it holds; null for other types.</param>
+public sealed record FieldDescription(
+    string Id,
+    string Label,
+    string Category,
+    string Sort,
+    string Type,
+    bool PerLevel,
+    string? Choice,
+    string? ListOf);
+
+/// <summary>What <c>setCells</c> answers with.</summary>
+/// <param name="Changed">How many cells changed (a cell that already had its value changes nothing).</param>
+public sealed record CellsChanged(int Changed);
+
 /// <summary>
 /// The commands the page can call, the game data they work on and the open map. The window gives it what it cannot
 /// do itself (a way to ask the user for a folder, a way to load the game data), so it can be tested without a window.
@@ -205,6 +228,9 @@ public sealed class Commands
             "reload" => Reload(Flag(args, "discard")),
             "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
             "choices" => NeedGameData().Choices,
+            "fields" => Fields(Kind(args)),
+            "table" => TableOf(args),
+            "setCells" => SetCells(args),
             "closeAsking" => Raise(CloseAsking),
             "closeWindow" => Raise(CloseApproved),
             _ => throw new UnknownCommandException(command),
@@ -309,6 +335,72 @@ public sealed class Commands
         return Changed(ObjectOf(kind, id));
     }
 
+    // The kind's fields in World Editor's order: by category, then by sort key, then by id.
+    private List<FieldDescription> Fields(ObjectKind kind)
+    {
+        var fields = new List<FieldDescription>();
+        foreach (var field in NeedGameData().Kind(kind).Fields)
+        {
+            fields.Add(new FieldDescription(
+                field.Id, field.Label, field.Category, field.Sort, field.Type, field.PerLevel, field.Choice, field.ListOf));
+        }
+
+        fields.Sort((a, b) =>
+        {
+            var byCategory = string.CompareOrdinal(a.Category, b.Category);
+            if (byCategory != 0)
+            {
+                return byCategory;
+            }
+
+            var bySort = string.CompareOrdinal(a.Sort, b.Sort);
+            return bySort != 0 ? bySort : string.CompareOrdinal(a.Id, b.Id);
+        });
+        return fields;
+    }
+
+    private IReadOnlyList<TableRow> TableOf(JsonElement args)
+    {
+        var session = Map();
+        var kind = Kind(args);
+        var ids = new List<string>();
+        foreach (var item in ArrayOf(args, "ids"))
+        {
+            ids.Add(item.ValueKind == JsonValueKind.String
+                ? item.GetString()!
+                : throw BadRequest("The argument ids must be a list of text."));
+        }
+
+        var columns = new List<Column>();
+        foreach (var item in ArrayOf(args, "columns"))
+        {
+            columns.Add(new Column(Text(item, "field"), Number(item, "level")));
+        }
+
+        return session.Table(kind, ids, columns);
+    }
+
+    private CellsChanged SetCells(JsonElement args)
+    {
+        var session = Map();
+        var kind = Kind(args);
+        var edits = new List<CellEdit>();
+        foreach (var item in ArrayOf(args, "edits"))
+        {
+            // The value must be there, as text or null: a missing one is not taken for a reset.
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("value", out _))
+            {
+                throw BadRequest("Each edit needs an id, a field, a level and a value (text, or null to reset).");
+            }
+
+            edits.Add(new CellEdit(
+                Text(item, "id"), Text(item, "field"), Number(item, "level"), OptionalText(item, "value")));
+        }
+
+        var changed = session.SetCells(kind, edits);
+        return changed == 0 ? new CellsChanged(0) : Changed(new CellsChanged(changed));
+    }
+
     private object? DeleteObject(JsonElement args)
     {
         Map().Delete(Kind(args), Text(args, "id"));
@@ -353,6 +445,19 @@ public sealed class Commands
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : throw BadRequest($"The argument {name} must be text.");
+    }
+
+    // The items of a list argument.
+    private static JsonElement.ArrayEnumerator ArrayOf(JsonElement args, string name)
+    {
+        if (args.ValueKind == JsonValueKind.Object
+            && args.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.Array)
+        {
+            return value.EnumerateArray();
+        }
+
+        throw BadRequest($"The argument {name} must be a list.");
     }
 
     // A yes/no argument; false when it is missing or null.

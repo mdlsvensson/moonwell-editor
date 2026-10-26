@@ -194,6 +194,143 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
     }
 
     [Fact]
+    public async Task Table_flow()
+    {
+        if (Skipped(out var commands))
+        {
+            return;
+        }
+
+        var map = CopyFixture("we-3.0");
+        var bridge = new Bridge(commands.Run);
+        Assert.True(Ok(await Ask(bridge, "openMap", new { path = map })));
+
+        var fields = Result(await Ask(bridge, "fields", new { kind = "unit" }));
+        var life = fields.EnumerateArray().Single(field => field.GetProperty("id").GetString() == "uhpm");
+        Assert.False(string.IsNullOrEmpty(life.GetProperty("label").GetString()));
+        Assert.Equal("int", life.GetProperty("type").GetString());
+        Assert.False(life.GetProperty("perLevel").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, life.GetProperty("choice").ValueKind);
+        Assert.Equal(JsonValueKind.Null, life.GetProperty("listOf").ValueKind);
+        var order = fields.EnumerateArray()
+            .Select(field => (field.GetProperty("category").GetString(), field.GetProperty("sort").GetString()))
+            .ToList();
+        var sorted = order
+            .OrderBy(pair => pair.Item1, StringComparer.Ordinal)
+            .ThenBy(pair => pair.Item2, StringComparer.Ordinal)
+            .ToList();
+        Assert.Equal(sorted, order);
+
+        var columns = new[] { new { field = "uhpm", level = 0 }, new { field = "umvs", level = 0 } };
+        var ids = new[] { "hfoo", "h000", "zzzz" };
+        var rows = Result(await Ask(bridge, "table", new { kind = "unit", ids, columns }));
+        Assert.Equal(2, rows.GetArrayLength());   // an unknown id is left out
+        Assert.Equal("hfoo", rows[0].GetProperty("id").GetString());
+        Assert.Equal("h000", rows[1].GetProperty("id").GetString());
+        Assert.Equal("hpea", rows[1].GetProperty("baseId").GetString());
+        Assert.Equal(2, rows[0].GetProperty("cells").GetArrayLength());
+        var footmanLife = rows[0].GetProperty("cells")[0];
+        Assert.True(footmanLife.GetProperty("applies").GetBoolean());
+        Assert.False(footmanLife.GetProperty("changed").GetBoolean());
+        var lifeBefore = footmanLife.GetProperty("value").GetString();
+        var speedBefore = rows[0].GetProperty("cells")[1].GetProperty("value").GetString();
+        var eventsBefore = _events.Count;
+
+        var edits = new[]
+        {
+            new { id = "hfoo", field = "uhpm", level = 0, value = (string?)"500" },
+            new { id = "h000", field = "umvs", level = 0, value = (string?)"250" },
+        };
+        var done = Result(await Ask(bridge, "setCells", new { kind = "unit", edits }));
+        Assert.Equal(2, done.GetProperty("changed").GetInt32());
+        Assert.False(done.TryGetProperty("view", out _));
+        Assert.Equal(eventsBefore + 1, _events.Count);
+        Assert.Equal(new SessionState(true, 2), _events[^1]);
+
+        var after = Result(await Ask(bridge, "table", new { kind = "unit", ids, columns }));
+        Assert.Equal("500", after[0].GetProperty("cells")[0].GetProperty("value").GetString());
+        Assert.True(after[0].GetProperty("cells")[0].GetProperty("changed").GetBoolean());
+        Assert.Equal("250", after[1].GetProperty("cells")[1].GetProperty("value").GetString());
+
+        // The same values again change nothing, so nothing is sent.
+        var again = Result(await Ask(bridge, "setCells", new { kind = "unit", edits }));
+        Assert.Equal(0, again.GetProperty("changed").GetInt32());
+        Assert.Equal(eventsBefore + 1, _events.Count);
+
+        // One undo takes both cells back.
+        Assert.True(Result(await Ask(bridge, "undo", new { })).GetBoolean());
+        Assert.Equal(new SessionState(false, 0), _events[^1]);
+        var undone = Result(await Ask(bridge, "table", new { kind = "unit", ids, columns }));
+        Assert.Equal(lifeBefore, undone[0].GetProperty("cells")[0].GetProperty("value").GetString());
+        Assert.Equal(speedBefore, undone[0].GetProperty("cells")[1].GetProperty("value").GetString());
+        Assert.False(undone[1].GetProperty("cells")[1].GetProperty("changed").GetBoolean());
+
+        // A null value resets the cell.
+        var set = new[] { new { id = "hfoo", field = "uhpm", level = 0, value = (string?)"500" } };
+        var reset = new[] { new { id = "hfoo", field = "uhpm", level = 0, value = (string?)null } };
+        var setDone = Result(await Ask(bridge, "setCells", new { kind = "unit", edits = set }));
+        Assert.Equal(1, setDone.GetProperty("changed").GetInt32());
+        var resetDone = Result(await Ask(bridge, "setCells", new { kind = "unit", edits = reset }));
+        Assert.Equal(1, resetDone.GetProperty("changed").GetInt32());
+        Assert.Equal(new SessionState(true, 0), _events[^1]);
+    }
+
+    [Fact]
+    public async Task A_bad_cell_gives_its_code_and_changes_nothing()
+    {
+        if (Skipped(out var commands))
+        {
+            return;
+        }
+
+        var map = CopyFixture("we-3.0");
+        var bridge = new Bridge(commands.Run);
+        var columns = new[] { new { field = "uhpm", level = 0 } };
+        var hfoo = new[] { "hfoo" };
+        var noEdits = Array.Empty<object>();
+        Assert.Equal("noMap", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = hfoo, columns })));
+        Assert.Equal("noMap", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = noEdits })));
+        Assert.True(Ok(await Ask(bridge, "openMap", new { path = map })));
+        var eventsBefore = _events.Count;
+
+        var edits = new[]
+        {
+            new { id = "hfoo", field = "uhpm", level = 0, value = (string?)"500" },
+            new { id = "h000", field = "uhpm", level = 0, value = (string?)"lots" },
+        };
+        var refused = await Ask(bridge, "setCells", new { kind = "unit", edits });
+        Assert.Equal("notNumber", ErrorCode(refused));
+        Assert.Contains("h000", refused.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(eventsBefore, _events.Count);
+        Assert.False(commands.Dirty);
+        var rows = Result(await Ask(bridge, "table", new { kind = "unit", ids = hfoo, columns }));
+        Assert.False(rows[0].GetProperty("cells")[0].GetProperty("changed").GetBoolean());
+
+        var noField = new[] { new { id = "hfoo", field = "zzzz", level = 0, value = (string?)"1" } };
+        Assert.Equal("noField", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = noField })));
+        var noObject = new[] { new { id = "zzzz", field = "uhpm", level = 0, value = (string?)"1" } };
+        Assert.Equal("noObject", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = noObject })));
+        var noColumn = new[] { new { field = "zzzz", level = 0 } };
+        Assert.Equal("noField", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = hfoo, columns = noColumn })));
+
+        // Wrong shapes are the page's mistake.
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit" })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = "all" })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = hfoo })));
+        var textLevel = new[] { new { id = "hfoo", field = "uhpm", level = "one", value = (string?)"1" } };
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = textLevel })));
+        var numberValue = new[] { new { id = "hfoo", field = "uhpm", level = 0, value = 5 } };
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = numberValue })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "table", new { kind = "unit", columns })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = new[] { 1 }, columns })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = hfoo })));
+        var noLevel = new[] { new { field = "uhpm" } };
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = hfoo, columns = noLevel })));
+        Assert.Equal("badRequest", ErrorCode(await Ask(bridge, "fields", new { kind = "dragon" })));
+        Assert.Equal(eventsBefore, _events.Count);
+    }
+
+    [Fact]
     public async Task A_map_with_unsaved_edits_is_dropped_only_with_discard()
     {
         var asked = 0;

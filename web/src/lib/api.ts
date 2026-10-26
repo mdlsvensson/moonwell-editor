@@ -134,6 +134,53 @@ export type SessionState = { dirty: boolean; changedObjects: number };
 /** One field of one object at one level, for an edit. */
 export type FieldRef = { kind: Kind; id: string; field: string; level: number };
 
+/** One field of a kind, for choosing the table's columns (the kind's fields come in World Editor's order). */
+export type FieldInfo = {
+  id: string;
+  label: string;
+  category: string;
+  sort: string;
+  /** The kind of value, as the model names it: `int`, `bool`, `string`, `choice` ... */
+  type: string;
+  /** True when the field has a value for each level (each variation for a doodad). */
+  perLevel: boolean;
+  /** For a choice field, the key of its list in `choices()`; null for other types. */
+  choice: string | null;
+  /** For an `objectList` or `objectRef` field, what it holds; null for other types. */
+  listOf: string | null;
+};
+
+/** One column of the table: a field, at a level (from 1) for a per-level field, else 0. */
+export type Column = { field: string; level: number };
+
+/** One cell of the table: what an object shows for the column's field at its level. */
+export type TableCell = {
+  /** The value shown; "" when the cell does not apply. */
+  value: string;
+  /** The standard value; "" when there is none or the cell does not apply. */
+  base: string;
+  /** True when the map has a modification of the field at this level. */
+  changed: boolean;
+  /** False when the field does not belong to the object, or the level is past its level count. */
+  applies: boolean;
+  /** What is wrong with the map's value by World Editor's limits; null when nothing is. */
+  warning: string | null;
+};
+
+/** One object's row of the table: one cell for each column, in the order of the columns. */
+export type TableRow = {
+  id: string;
+  name: string;
+  /** For a custom object, the standard object it is based on; null for a standard object. */
+  baseId: string | null;
+  /** Why the object cannot be edited; null when it can. */
+  readOnly: string | null;
+  cells: TableCell[];
+};
+
+/** One cell to set: a field of an object at a level; a null `value` resets it to its standard value. */
+export type CellEdit = { id: string; field: string; level: number; value: string | null };
+
 /** The open map and where it stands, for a page that was loaded again. */
 export type CurrentMap = { map: MapInfo; session: SessionState };
 
@@ -235,6 +282,28 @@ export function search(query: string, limit: number): Promise<Hit[]> {
 /** Every choice list, by the key a `FieldView`'s `choice` names. */
 export function choices(): Promise<Record<string, ChoiceList>> {
   return call<Record<string, ChoiceList>>("choices");
+}
+
+/** A kind's fields, by category and then World Editor's sort order. */
+export function fields(kind: Kind): Promise<FieldInfo[]> {
+  return call<FieldInfo[]>("fields", { kind });
+}
+
+/**
+ * The table's rows: one for each object of `ids` that the kind has (an unknown id is left out), in the order of
+ * `ids`, with one cell for each column.
+ */
+export function table(kind: Kind, ids: string[], columns: Column[]): Promise<TableRow[]> {
+  return call<TableRow[]>("table", { kind, ids, columns });
+}
+
+/**
+ * Sets (or, with a null `value`, resets) many cells as one edit: all or nothing, and one undo takes them all back.
+ * Answers with `{ changed }`, how many cells changed; the page fetches its rows again with `table`. When a cell is refused the
+ * error's message starts with the cell, and nothing changes.
+ */
+export function setCells(kind: Kind, edits: CellEdit[]): Promise<{ changed: number }> {
+  return call<{ changed: number }>("setCells", { kind, edits });
 }
 
 /**

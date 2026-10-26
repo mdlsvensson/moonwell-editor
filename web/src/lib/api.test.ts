@@ -80,6 +80,29 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["choices", () => api.choices(), "choices", {}],
     ["startup", () => api.startup(), "startup", {}],
     ["nextId", () => api.nextId("unit", "hfoo"), "nextId", { kind: "unit", baseId: "hfoo" }],
+    ["fields", () => api.fields("unit"), "fields", { kind: "unit" }],
+    [
+      "table",
+      () => api.table("unit", ["hfoo", "hpea"], [{ field: "uhpm", level: 0 }]),
+      "table",
+      { kind: "unit", ids: ["hfoo", "hpea"], columns: [{ field: "uhpm", level: 0 }] },
+    ],
+    [
+      "setCells",
+      () =>
+        api.setCells("unit", [
+          { id: "hfoo", field: "uhpm", level: 0, value: "500" },
+          { id: "hpea", field: "uhpm", level: 0, value: null },
+        ]),
+      "setCells",
+      {
+        kind: "unit",
+        edits: [
+          { id: "hfoo", field: "uhpm", level: 0, value: "500" },
+          { id: "hpea", field: "uhpm", level: 0, value: null },
+        ],
+      },
+    ],
     ["closeAsking", () => api.closeAsking(), "closeAsking", {}],
     ["closeWindow", () => api.closeWindow(), "closeWindow", {}],
   ];
