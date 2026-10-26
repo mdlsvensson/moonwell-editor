@@ -4,10 +4,10 @@ using ObjectEditor.GameData;
 namespace ObjectEditor.Model;
 
 /// <summary>
-/// An open map folder with the game's standard data. It keeps the map's object files and strings file as read and
-/// resolves an object's values on demand, each time it is asked.
+/// An open map folder with the game's standard data. It keeps the map's object files and strings file as read, edits
+/// them in place (see <c>Edits.cs</c>) and resolves an object's values on demand, each time it is asked.
 /// </summary>
-public sealed class Session
+public sealed partial class Session
 {
     /// <summary>The problem a Moonwell project's built map gets.</summary>
     internal const string BuildOutputNote =
@@ -17,6 +17,7 @@ public sealed class Session
     private readonly Dictionary<ObjectKind, MapKind> _kinds;
     private readonly WtsFile? _strings;
     private readonly List<string> _problems;
+    private readonly History _history = new();
 
     private Session(
         GameData.GameData game,
@@ -35,6 +36,12 @@ public sealed class Session
     /// is then read only), and a note when the folder is a Moonwell project's build output.
     /// </summary>
     public IReadOnlyList<string> Problems => _problems;
+
+    /// <summary>The strings file as edited, or null when the map has none.</summary>
+    internal WtsFile? Strings => _strings;
+
+    /// <summary>A kind's main or skin file as edited, or null when there is none.</summary>
+    internal ObjectFile? FileOf(ObjectKind kind, bool skin) => skin ? _kinds[kind].Skin : _kinds[kind].Main;
 
     /// <summary>
     /// Opens a map folder. Any of its files may be missing: a kind without files has only its standard objects, and
@@ -188,14 +195,20 @@ internal sealed class MapKind(string mainName, ObjectFile? main, string skinName
     /// <summary>The main file's name (<c>war3map.w3u</c>).</summary>
     public string MainName { get; } = mainName;
 
-    /// <summary>The main file, or null when the folder has none or War3Net cannot read it.</summary>
-    public ObjectFile? Main { get; } = main;
+    /// <summary>
+    /// The main file, or null when the folder has none or War3Net cannot read it. An edit sets it when the folder has
+    /// none.
+    /// </summary>
+    public ObjectFile? Main { get; set; } = main;
 
     /// <summary>The skin file's name (<c>war3mapSkin.w3u</c>).</summary>
     public string SkinName { get; } = skinName;
 
-    /// <summary>The skin file, or null when the folder has none or War3Net cannot read it.</summary>
-    public ObjectFile? Skin { get; } = skin;
+    /// <summary>
+    /// The skin file, or null when the folder has none or War3Net cannot read it. An edit sets it when the folder has
+    /// none.
+    /// </summary>
+    public ObjectFile? Skin { get; set; } = skin;
 
     /// <summary>Why the kind is read only (its files' problems), or null.</summary>
     public string? Problem { get; } = problem;

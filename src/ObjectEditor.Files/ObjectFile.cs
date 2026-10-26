@@ -152,6 +152,36 @@ public sealed class ObjectFile
         }
     }
 
+    /// <summary>
+    /// Puts an entry that was removed from this file back at <paramref name="index"/> of its table: the custom objects
+    /// when it has an id, else the changes to standard objects. An undo uses it, so the file is as it was before.
+    /// </summary>
+    public void Insert(int index, ObjectEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (original.Contains(entry) || custom.Contains(entry))
+        {
+            throw new ArgumentException("The entry is already in this file.", nameof(entry));
+        }
+
+        var fits = Kind switch
+        {
+            ObjectKind.Doodad => entry.Record is VariationObjectModification,
+            ObjectKind.Ability or ObjectKind.Upgrade => entry.Record is LevelObjectModification,
+            _ => entry.Record is SimpleObjectModification,
+        };
+        if (!fits)
+        {
+            throw new ArgumentException($"The entry is not of a {ObjectKinds.Key(Kind)} file.", nameof(entry));
+        }
+
+        var (entries, records) = entry.Id == "" ? (original, originalRecords) : (custom, customRecords);
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, entries.Count);
+        records.Insert(index, entry.Record);
+        entries.Insert(index, entry);
+    }
+
     /// <summary>The file's bytes, as War3Net writes them.</summary>
     public byte[] ToBytes()
     {

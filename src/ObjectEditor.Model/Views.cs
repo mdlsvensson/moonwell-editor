@@ -72,7 +72,10 @@ public sealed record ChainLink(string Name, string Id);
 /// </param>
 /// <param name="Changed">True when the map has a modification of the field at this level.</param>
 /// <param name="Skin">True when the field is kept in the skin file.</param>
-/// <param name="Warning">What is wrong with the value, such as a limit it passes; null when nothing is.</param>
+/// <param name="Warning">
+/// What is wrong with the map's value by World Editor's limits (<c>Above World Editor's limit of 500000.</c>), several
+/// joined by a space; null when nothing is or the map does not change the field.
+/// </param>
 /// <param name="Modes">
 /// The standard values per graphics mode (<c>sd</c>, <c>hd</c>, <c>de</c>) when they differ; null when they do not.
 /// </param>

@@ -151,7 +151,7 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     /// <summary>
     /// The number of levels: the map's level count when it sets one, else the standard object's; else 0.
     /// </summary>
-    private int Levels(StandardObject? standard, MapObject? map)
+    internal int Levels(StandardObject? standard, MapObject? map)
     {
         var id = LevelField;
         var field = id == null ? null : data.Field(id);
@@ -183,9 +183,53 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
             standardValue,
             mapValue != null,
             field.Skin,
-            null,
+            mapValue == null ? null : Warning(field, mapValue),
             modes);
     }
+
+    /// <summary>
+    /// What is wrong with a value the map sets, by the field's rules (World Editor's limits); null when nothing is. A
+    /// value past a limit is kept: World Editor allows it too (Shift+Enter). A number below 0 in a field that never
+    /// allows one is below a limit of 0.
+    /// </summary>
+    internal static string? Warning(FieldInfo field, string value)
+    {
+        var warnings = new List<string>();
+        if (field.Type is "int" or "float"
+            && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+        {
+            var min = field.Min ?? (field.NoNegative ? 0 : null);
+            if (field.Max is { } max && number > max)
+            {
+                warnings.Add($"Above World Editor's limit of {Number(max)}.");
+            }
+
+            if (min is { } low && number < low)
+            {
+                warnings.Add($"Below World Editor's limit of {Number(low)}.");
+            }
+        }
+
+        if (field.MaxLength is { } length && value.Length > length)
+        {
+            warnings.Add($"Longer than World Editor's limit of {Number(length)} characters.");
+        }
+
+        // A list's entries are separated by commas.
+        if (field.MaxEntries is { } entries && value.Length > 0 && value.Split(',').Length > entries)
+        {
+            warnings.Add($"More than World Editor's limit of {Number(entries)} entries.");
+        }
+
+        if (field.Required && value.Length == 0)
+        {
+            warnings.Add("May not be empty.");
+        }
+
+        return warnings.Count == 0 ? null : string.Join(" ", warnings);
+    }
+
+    private static string Number(double number) => number.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The map's value of a field at a level, shown as text; null when the map has no modification of it. The file the
@@ -209,7 +253,7 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     /// The standard value of a field at a level, shown as text; empty when the object has none. A real number is
     /// written as a map's is, and a name the data leaves as a <c>WESTRING_</c> key shows the object's name.
     /// </summary>
-    private string StandardValue(FieldInfo field, int level, StandardObject standard)
+    internal string StandardValue(FieldInfo field, int level, StandardObject standard)
     {
         var text = standard.Values.GetValueOrDefault(Key(field, level), "");
         if (field.Store is "real" or "unreal"
@@ -247,6 +291,6 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     private static string Real(float number) => number.ToString("R", CultureInfo.InvariantCulture);
 
     /// <summary>The key of a field's standard value: its id, or <c>id:level</c> for a level.</summary>
-    private static string Key(FieldInfo field, int level) =>
+    internal static string Key(FieldInfo field, int level) =>
         level == 0 ? field.Id : field.Id + ":" + level.ToString(CultureInfo.InvariantCulture);
 }

@@ -168,6 +168,27 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Removed_entry_goes_back_in_place()
+    {
+        var bytes = Fixtures.Bytes("moonwell-mymap/war3map.w3u");
+        var units = ObjectFile.Read(ObjectKind.Unit, bytes);
+        var first = units.Custom[0];
+        var original = units.AddOriginal("hfoo");
+        units.Remove(first);
+        units.Remove(original);
+
+        units.Insert(0, first);
+
+        Assert.Same(first, units.Custom[0]);
+        Assert.Equal(bytes, units.ToBytes());
+        units.Insert(units.Original.Count, original);
+        Assert.Same(original, units.Original[^1]);
+        Assert.Throws<ArgumentException>(() => units.Insert(0, first));
+        Assert.Throws<ArgumentException>(
+            () => units.Insert(0, ObjectFile.Empty(ObjectKind.Ability).AddCustom("ANab", "A000")));
+    }
+
+    [Fact]
     public void New_entries_write_as_world_editor_does()
     {
         var abilities = ObjectFile.Empty(ObjectKind.Ability);
