@@ -23,6 +23,7 @@ export type ErrorCode =
   | "noObject"
   | "noField"
   | "notNumber"
+  | "badValue"
   | "idTaken"
   | "idInvalid"
   | "readOnly"
@@ -117,7 +118,12 @@ export type SaveReport = { written: string[]; backup: string };
 export type Hit = { kind: Kind; id: string; name: string; detail: string; field: string | null };
 
 /** One value of a choice list. */
-export type ChoiceEntry = { value: string; label: string };
+export type ChoiceEntry = {
+  value: string;
+  label: string;
+  /** The other spellings the game's data uses for the value (`aliv` for `alive`); left out or empty when none. */
+  alternates?: string[];
+};
 
 /** The values World Editor offers for one type of field. */
 export type ChoiceList = {

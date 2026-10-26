@@ -585,6 +585,106 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Bool_and_choice_values_are_checked()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("we-3.0");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // A yes/no field takes 1 or 0 only.
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "ubdg", 0, "7")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "ubdg", 0, "-1")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "ubdg", 0, "Yes")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "ubdg", 0, "")));
+
+        // A choice of one value takes one of its list's values, not anything else and not a label that differs.
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "udty", 0, "Bogus")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "udty", 0, "Fortified")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "udty", 0, "")));
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "udea", 0, "7")));   // stored as int
+        Assert.Equal("badValue", Refused(() => session.Set(ObjectKind.Unit, "hfoo", "udea", 0, "fast")));
+        var message = Assert.Throws<EditException>(() => session.Set(ObjectKind.Unit, "hfoo", "udty", 0, "Bogus"))
+            .Message;
+        output.WriteLine(message);
+        Assert.Contains("\"Bogus\"", message);
+        Assert.Contains("fort", message);
+        Assert.False(session.Dirty);
+
+        session.Set(ObjectKind.Unit, "hfoo", "ubdg", 0, "1");
+        Assert.Equal("1", Single(session.Object(ObjectKind.Unit, "hfoo")!, "ubdg", 0).Value);
+
+        // Case does not matter; the value is stored as the list spells it.
+        session.Set(ObjectKind.Unit, "hfoo", "udty", 0, "FORT");
+        Assert.Equal("fort", Single(session.Object(ObjectKind.Unit, "hfoo")!, "udty", 0).Value);
+        session.Set(ObjectKind.Unit, "hfoo", "ua1t", 0, "Pierce");
+        Assert.Equal("pierce", Single(session.Object(ObjectKind.Unit, "hfoo")!, "ua1t", 0).Value);
+        var main = session.FileOf(ObjectKind.Unit, false)!.Original.Single(entry => entry.BaseId == "hfoo");
+        Assert.Equal(new FieldValue.Text("fort"), main.Find("udty", 0)!.Value);
+        session.Set(ObjectKind.Unit, "hfoo", "udea", 0, "2");
+        Assert.Equal(new FieldValue.Int(2), main.Find("udea", 0)!.Value);
+
+        // Resetting takes no value.
+        session.Reset(ObjectKind.Unit, "hfoo", "udty", 0);
+        Assert.False(Single(session.Object(ObjectKind.Unit, "hfoo")!, "udty", 0).Changed);
+    }
+
+    [Fact]
+    public void Every_standard_bool_and_choice_value_is_taken()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of(null);
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        var refused = new List<string>();
+        var tried = 0;
+        foreach (var kind in Enum.GetValues<ObjectKind>())
+        {
+            var data = game.Kind(kind);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var standard in data.Objects)
+            {
+                foreach (var (key, value) in standard.Values)
+                {
+                    var parts = key.Split(':');
+                    var field = data.Field(parts[0]);
+                    var single = field?.Choice is { } choice && game.Choices.TryGetValue(choice, out var list)
+                        && !list.Flags;
+                    if (field == null || (field.Type != "bool" && !single) || !seen.Add(field.Id + "=" + value))
+                    {
+                        continue;
+                    }
+
+                    var level = parts.Length > 1 ? int.Parse(parts[1]) : 0;
+                    tried++;
+                    try
+                    {
+                        session.Set(kind, standard.Id, field.Id, level, value);
+                    }
+                    catch (EditException exception) when (exception.Code is "badValue" or "notNumber")
+                    {
+                        refused.Add($"{standard.Id} {key} = \"{value}\": {exception.Message}");
+                    }
+                    catch (EditException)
+                    {
+                        // A field that does not apply to the object (or a level past its count) is no value check.
+                    }
+                }
+            }
+        }
+
+        output.WriteLine($"{tried} values tried");
+        Assert.True(tried > 100, $"{tried} values tried");
+        Assert.Empty(refused);
+    }
+
+    [Fact]
     public void Read_only_kind_refuses()
     {
         if (Skipped(out var game))

@@ -310,6 +310,10 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Equal("noField", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = noField })));
         var noObject = new[] { new { id = "zzzz", field = "uhpm", level = 0, value = (string?)"1" } };
         Assert.Equal("noObject", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = noObject })));
+        var badBool = new[] { new { id = "hfoo", field = "ubdg", level = 0, value = (string?)"7" } };
+        Assert.Equal("badValue", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = badBool })));
+        var badChoice = new[] { new { id = "hfoo", field = "udty", level = 0, value = (string?)"Bogus" } };
+        Assert.Equal("badValue", ErrorCode(await Ask(bridge, "setCells", new { kind = "unit", edits = badChoice })));
         var noColumn = new[] { new { field = "zzzz", level = 0 } };
         Assert.Equal("noField", ErrorCode(await Ask(bridge, "table", new { kind = "unit", ids = hfoo, columns = noColumn })));
 

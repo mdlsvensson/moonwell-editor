@@ -25,7 +25,7 @@ public sealed partial class Session
     /// <summary>
     /// Sets a field of an object at a level (0 for a field without levels; a doodad's variation, from 1). The value is
     /// read by how the file stores the field: a whole number (a yes/no field takes <c>1</c> or <c>0</c>), a number
-    /// with a <c>.</c>, or text. It goes to the skin file when the game keeps the field there, else to the main file.
+    /// with a <c>.</c>, or text; a choice of one value takes one of its list's values (see <see cref="Parse"/>). It goes to the skin file when the game keeps the field there, else to the main file.
     /// A value equal to the standard one (numbers compared as numbers) removes the map's modification instead, unless
     /// the standard value differs between graphics modes. Text whose modification holds <c>TRIGSTR_n</c> changes
     /// that entry of <c>war3map.wts</c> and keeps the reference, unless another modification of the map refers to the
@@ -33,8 +33,9 @@ public sealed partial class Session
     /// inline, so the other field keeps its text.
     /// </summary>
     /// <exception cref="EditException">
-    /// <c>noObject</c>, <c>noField</c>, <c>readOnly</c>, <c>notNumber</c>, or <c>badText</c> for text an object file
-    /// or the strings file cannot hold.
+    /// <c>noObject</c>, <c>noField</c>, <c>readOnly</c>, <c>notNumber</c>, <c>badValue</c> (a yes/no field's value
+    /// other than 1 and 0, or a value a choice's list does not have), or <c>badText</c> for text an object file or
+    /// the strings file cannot hold.
     /// </exception>
     public void Set(ObjectKind kind, string id, string field, int level, string value)
     {
@@ -297,9 +298,25 @@ public sealed partial class Session
         }
     }
 
-    /// <summary>A typed value as the field's file stores it; throws <c>notNumber</c> or <c>badText</c>.</summary>
-    private static FieldValue Parse(FieldInfo field, string value)
+    /// <summary>
+    /// A typed value as the field's file stores it. A yes/no field takes <c>1</c> or <c>0</c> only. A choice of one
+    /// value takes one of its list's values (case does not matter, and the other spellings the game's data uses count
+    /// too), and is stored as the list spells it; a label is not a value. Throws <c>notNumber</c>, <c>badValue</c> or
+    /// <c>badText</c>.
+    /// </summary>
+    private FieldValue Parse(FieldInfo field, string value)
     {
+        if (field.Type == "bool")
+        {
+            return ParseBool(field, value);
+        }
+
+        if (field.Type == "choice" && field.Choice != null
+            && _game.Choices.TryGetValue(field.Choice, out var list) && !list.Flags)
+        {
+            value = ChoiceValue(field, list, value);
+        }
+
         switch (field.Store)
         {
             case "int":
@@ -322,6 +339,47 @@ public sealed partial class Session
                 CheckText(value);
                 return new FieldValue.Text(value);
         }
+    }
+
+    /// <summary>A yes/no field's value: <c>1</c> or <c>0</c>, as a whole number; throws <c>badValue</c>.</summary>
+    private static FieldValue ParseBool(FieldInfo field, string value)
+    {
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+            && number is 0 or 1)
+        {
+            return new FieldValue.Int(number);
+        }
+
+        throw new EditException("badValue", $"{field.Label} takes 1 (yes) or 0 (no), not \"{value}\".");
+    }
+
+    /// <summary>
+    /// The list's spelling of a choice's value: the entry whose value (or one of whose other spellings) is
+    /// <paramref name="value"/>, case aside; for a list stored as a whole number, the number as the list writes it.
+    /// Throws <c>badValue</c> when no entry is.
+    /// </summary>
+    private static string ChoiceValue(FieldInfo field, ChoiceList list, string value)
+    {
+        var text = value;
+        if (list.Store == "int"
+            && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        {
+            text = number.ToString(CultureInfo.InvariantCulture);
+        }
+
+        bool Same(string spelling) => string.Equals(spelling, text, StringComparison.OrdinalIgnoreCase);
+        var entry = list.Entries.FirstOrDefault(entry => Same(entry.Value))
+            ?? list.Entries.FirstOrDefault(entry => entry.Alternates.Any(Same));
+        if (entry != null)
+        {
+            return entry.Value;
+        }
+
+        const int shown = 12;
+        var values = string.Join(", ", list.Entries.Take(shown).Select(entry => entry.Value));
+        var more = list.Entries.Count > shown ? ", ..." : "";
+        throw new EditException(
+            "badValue", $"{field.Label} takes one of its list's values ({values}{more}), not \"{value}\".");
     }
 
     /// <summary>
@@ -660,8 +718,9 @@ public sealed class EditException : Exception
 
     /// <summary>
     /// Why: <c>noObject</c> (no such object), <c>noField</c> (no such field, or not at that level), <c>notNumber</c>
-    /// (text in a number field), <c>idTaken</c>, <c>idInvalid</c>, <c>readOnly</c> (the kind or the object cannot be
-    /// edited), or <c>badText</c> (text a map file cannot hold).
+    /// (text in a number field), <c>badValue</c> (a value the field's type does not take: a yes/no field's other than
+    /// 1 and 0, a choice's that its list does not have), <c>idTaken</c>, <c>idInvalid</c>, <c>readOnly</c> (the kind
+    /// or the object cannot be edited), or <c>badText</c> (text a map file cannot hold).
     /// </summary>
     public string Code { get; }
 }

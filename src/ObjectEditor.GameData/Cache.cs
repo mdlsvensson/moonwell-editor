@@ -14,7 +14,7 @@ internal static class Cache
 {
     // Raised whenever what is cached changes (these records, or what Moonwell's generator makes), so an older cache is
     // built again.
-    private const int Format = 1;
+    private const int Format = 2;
 
     /// <summary>
     /// The version of the code that builds the data: this assembly's module id, which a deterministic build changes
