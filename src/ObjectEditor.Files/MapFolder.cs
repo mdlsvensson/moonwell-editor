@@ -40,9 +40,9 @@ public sealed class MapFolder : IMapStore
 
     /// <summary>
     /// Writes files: each one is written to a temporary file first, which then replaces the old one. Null bytes delete
-    /// the file (nothing happens when it is not there).
+    /// the file (nothing happens when it is not there). The stamp is not checked (see <see cref="IMapStore.Write"/>).
     /// </summary>
-    public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
+    public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null)
     {
         var paths = files.Select(file => FilePath(file.Name)).ToList();
         for (var i = 0; i < files.Count; i++)

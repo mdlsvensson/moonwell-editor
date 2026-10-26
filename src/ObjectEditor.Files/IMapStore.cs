@@ -15,8 +15,13 @@ public interface IMapStore
     /// <summary>A file's bytes, or null when the map has no such file.</summary>
     byte[]? Read(string name);
 
-    /// <summary>Writes files; null bytes delete a file (an archive refuses a delete).</summary>
-    void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files);
+    /// <summary>
+    /// Writes files; null bytes delete a file (an archive refuses a delete). With <paramref name="stamp"/>, the stamp
+    /// the caller checked, an archive refuses the save (<see cref="MapArchiveException.ChangedOnDisk"/>) when the map
+    /// has another one once the save holds it; a folder, whose files are written one at a time and not held, ignores
+    /// it.
+    /// </summary>
+    void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null);
 
     /// <summary>
     /// A fingerprint of the map's files on disk, compared for equality: a different stamp means the map changed on

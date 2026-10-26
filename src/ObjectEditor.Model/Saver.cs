@@ -177,7 +177,7 @@ public sealed partial class Session
         var note = "";
         try
         {
-            _store.Write([.. changes.Select(change => (change.Name, (byte[]?)change.Bytes))]);
+            _store.Write([.. changes.Select(change => (change.Name, (byte[]?)change.Bytes))], _stamp);
         }
         catch (MapArchiveException e) when (e.Saved)
         {
@@ -190,6 +190,11 @@ public sealed partial class Session
             {
                 // The map is as it was: its backup would only push out an older one.
                 DeleteFolder(backup);
+            }
+
+            if (e is MapArchiveException { ChangedOnDisk: true })
+            {
+                throw new ChangedOnDiskException(_store.Path);
             }
 
             throw new MapFileException(e.Message, e);

@@ -102,13 +102,15 @@ public sealed class MapArchive : IMapStore
     /// A failure leaves the map as it was, deletes the new file and throws <see cref="MapArchiveException"/> saying
     /// why; when the replace fails half way, the map's path is never left empty, and the message says whether the old
     /// map or the new one is there (<see cref="MapArchiveException.Saved"/> is true for the new one). A
-    /// <c>&lt;archive&gt;.replacing</c> left by an earlier save cut short that cannot be deleted refuses the save before
-    /// anything is written. A delete (null bytes) is refused: a save never removes a file from an archive. War3Net
+    /// <c>&lt;archive&gt;.replacing</c> left by an earlier save cut short that cannot be deleted refuses the save
+    /// before anything is written. A delete (null bytes) is refused: a save never removes a file from an archive. War3Net
     /// writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any bytes after the
     /// archive (a signature cannot stay valid after an edit); a hash-table slot that held something in the old archive
-    /// keeps a deleted entry where War3Net left it empty, so the game finds every file as before.
+    /// keeps a deleted entry where War3Net left it empty, so the game finds every file as before. With
+    /// <paramref name="stamp"/>, a map whose <see cref="Stamp"/> is another one once the save holds it (World Editor
+    /// saved it after the caller checked) is not saved (<see cref="MapArchiveException.ChangedOnDisk"/>).
     /// </summary>
-    public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
+    public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null)
     {
         var written = new List<(string Name, byte[] Bytes)>();
         foreach (var (name, bytes) in files)
@@ -142,7 +144,7 @@ public sealed class MapArchive : IMapStore
 
         try
         {
-            Save(written, saving);
+            Save(written, saving, stamp);
         }
         catch (Exception e)
         {
@@ -244,10 +246,15 @@ public sealed class MapArchive : IMapStore
     }
 
     // Writes the new archive to saving and checks it against the archive at Path (see Write).
-    private void Save(List<(string Name, byte[] Bytes)> written, string saving)
+    private void Save(List<(string Name, byte[] Bytes)> written, string saving, string? stamp)
     {
-        // Read only, and nobody may write the map while it is read.
+        // Read only, and nobody may write the map while it is read; from here on its stamp cannot change.
         using var source = OpenRead(Path, FileShare.Read);
+        if (stamp is not null && StampOf(Path) != stamp)
+        {
+            throw MapArchiveException.Changed(Path);
+        }
+
         using var original = MpqArchive.Open(source, loadListFile: true);
         MpqArchiveBuilder? builder = null;
         try
@@ -687,11 +694,13 @@ public sealed class MapArchiveException : Exception
     {
     }
 
-    private MapArchiveException(string path, Exception? inner, string message, bool saved = false)
+    private MapArchiveException(
+        string path, Exception? inner, string message, bool saved = false, bool changedOnDisk = false)
         : base(message, inner)
     {
         Path = path;
         Saved = saved;
+        ChangedOnDisk = changedOnDisk;
     }
 
     /// <summary>The archive file's path.</summary>
@@ -703,9 +712,20 @@ public sealed class MapArchiveException : Exception
     /// </summary>
     public bool Saved { get; }
 
+    /// <summary>
+    /// True for a save refused because the map's stamp was not the one the caller checked once the save held the map
+    /// (another program wrote it meanwhile); the map is as that program left it.
+    /// </summary>
+    public bool ChangedOnDisk { get; }
+
     /// <summary>A save of the archive at <paramref name="path"/> failed, for <paramref name="reason"/>.</summary>
     internal static MapArchiveException NotSaved(string path, string reason, Exception? inner = null) =>
         new(path, inner, $"The map archive {path} was not saved, and is as it was: {reason}");
+
+    /// <summary>A save refused because the map changed on disk (<see cref="ChangedOnDisk"/> is true).</summary>
+    internal static MapArchiveException Changed(string path) =>
+        new(path, null, $"The map archive {path} was not saved: it changed on disk since it was opened or last "
+            + "saved.", changedOnDisk: true);
 
     /// <summary>A save that ended otherwise, with a message that says how.</summary>
     internal static MapArchiveException WithMessage(string path, Exception inner, string message) =>

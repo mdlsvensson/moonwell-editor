@@ -361,6 +361,28 @@ public sealed class MapArchiveTests : IDisposable
     }
 
     [Fact]
+    public void Save_is_refused_when_the_map_changed_after_its_stamp_was_taken()
+    {
+        var path = Copy(Sample, "Sample.w3x");
+        var map = MapArchive.Open(path);
+        var stamp = map.Stamp();
+
+        // World Editor saved the map after the stamp was taken, before the save held it.
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        var bytes = File.ReadAllBytes(path);
+        var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])], stamp));
+        Assert.True(problem.ChangedOnDisk);
+        Assert.False(problem.Saved);
+        Assert.Contains("changed on disk", problem.Message);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".saving"));
+
+        // With the stamp it has now, the save goes through.
+        map.Write([("war3map.w3u", [1, 2, 3])], map.Stamp());
+        Assert.Equal([1, 2, 3], War3NetReads(path, "war3map.w3u"));
+    }
+
+    [Fact]
     public void Locked_archive_refuses_the_save()
     {
         var path = Copy(Sample, "Sample.w3x");

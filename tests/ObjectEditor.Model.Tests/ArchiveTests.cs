@@ -276,6 +276,29 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Throws<ChangedOnDiskException>(() => session.Save());
     }
 
+    [Fact]
+    public void Archive_changed_after_the_save_checked_it_is_refused_as_changed_on_disk()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // World Editor saves the map after the session checked its stamp, before the archive's save holds it.
+        using var map = TempMap.OfArchive();
+        var store = new FailingStore(MapArchive.Open(map.Map));
+        var session = Session.Open(store, game);
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        store.BeforeWrite = () => File.SetLastWriteTimeUtc(map.Map, DateTime.UtcNow.AddMinutes(1));
+        var bytes = File.ReadAllBytes(map.Map);
+
+        Assert.Throws<ChangedOnDiskException>(() => session.Save());
+        Assert.Equal(bytes, File.ReadAllBytes(map.Map));
+        Assert.True(session.Dirty);
+        store.BeforeWrite = null;
+        Assert.Throws<ChangedOnDiskException>(() => session.Save());
+    }
+
     // Every named file of an archive and its bytes, but the archive's own files.
     private static Dictionary<string, byte[]> Files(string path)
     {
@@ -297,6 +320,8 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
     {
         public Action? FailWrite { get; set; }
 
+        public Action? BeforeWrite { get; set; }
+
         public bool FailStamp { get; set; }
 
         public string Path => archive.Path;
@@ -305,7 +330,7 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
 
         public byte[]? Read(string name) => archive.Read(name);
 
-        public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
+        public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null)
         {
             if (FailWrite is { } fail)
             {
@@ -313,10 +338,12 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
                 throw new IOException("Simulated");
             }
 
-            archive.Write(files);
+            BeforeWrite?.Invoke();
+            archive.Write(files, stamp);
         }
 
-        public string Stamp() => FailStamp ? throw new IOException("Simulated: the map cannot be read") : archive.Stamp();
+        public string Stamp() =>
+            FailStamp ? throw new IOException("Simulated: the map cannot be read") : archive.Stamp();
     }
 
     private static string Value(Session session, ObjectKind kind, string id, string field, int level) =>
