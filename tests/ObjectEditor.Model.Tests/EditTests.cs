@@ -186,6 +186,39 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Shared_trigstr_is_written_inline()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // Another kind's modification refers to the same entry as h000's name (TRIGSTR_012), spelled differently.
+        using var map = TempMap.Of("we-3.0");
+        var abilityPath = Path.Combine(map.Folder, "war3map.w3a");
+        var abilities = ObjectFile.Read(ObjectKind.Ability, File.ReadAllBytes(abilityPath));
+        abilities.AddOriginal("AHhb").Set("atp1", 1, 0, new FieldValue.Text("TRIGSTR_12"));
+        File.WriteAllBytes(abilityPath, abilities.ToBytes());
+        var wts = File.ReadAllBytes(Path.Combine(map.Folder, "war3map.wts"));
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+        var before = session.Strings!.Get(12);
+
+        session.Set(ObjectKind.Unit, "h000", "unam", 0, "Knight");
+
+        Assert.Equal("Knight", session.Object(ObjectKind.Unit, "h000")!.Name);
+        var skin = session.FileOf(ObjectKind.Unit, true)!.Custom.Single(entry => entry.Id == "h000");
+        Assert.Equal(new FieldValue.Text("Knight"), skin.Find("unam", 0)!.Value);
+        Assert.Equal(before, session.Strings!.Get(12));
+        Assert.Equal(wts, session.Strings!.ToBytes());
+        var shared = session.FileOf(ObjectKind.Ability, false)!.Original.Single(entry => entry.BaseId == "AHhb");
+        Assert.Equal(new FieldValue.Text("TRIGSTR_12"), shared.Find("atp1", 1)!.Value);
+
+        Assert.True(session.Undo());
+        Assert.Equal(new FieldValue.Text("TRIGSTR_012"), skin.Find("unam", 0)!.Value);
+        Assert.False(session.Dirty);
+    }
+
+    [Fact]
     public void New_ids_follow_world_editor()
     {
         if (Skipped(out var game))

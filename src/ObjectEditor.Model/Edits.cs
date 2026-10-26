@@ -28,7 +28,8 @@ public sealed partial class Session
     /// with a <c>.</c>, or text. It goes to the skin file when the game keeps the field there, else to the main file.
     /// A value equal to the standard one (numbers compared as numbers) removes the map's modification instead, unless
     /// the standard value differs between graphics modes. Text whose modification holds <c>TRIGSTR_n</c> changes
-    /// that entry of <c>war3map.wts</c> and keeps the reference.
+    /// that entry of <c>war3map.wts</c> and keeps the reference, unless another modification of the map refers to the
+    /// same entry: then the new text is written inline, so the other field keeps its text.
     /// </summary>
     /// <exception cref="EditException">
     /// <c>noObject</c>, <c>noField</c>, <c>readOnly</c>, <c>notNumber</c>, or <c>badText</c> for text an object file
@@ -288,8 +289,9 @@ public sealed partial class Session
         float.TryParse(standard, NumberStyles.Float, CultureInfo.InvariantCulture, out var other) && other == value;
 
     /// <summary>
-    /// When the value shown is a <c>TRIGSTR_n</c> text the strings file has, sets that entry to the new text and
-    /// returns true; the modification keeps the reference. Returns false otherwise.
+    /// When the value shown is a <c>TRIGSTR_n</c> text the strings file has, and no other modification refers to that
+    /// entry, sets the entry to the new text and returns true; the modification keeps the reference. Returns false
+    /// otherwise (the value is then written inline).
     /// </summary>
     private bool SetTriggerString(Edit edit, FieldTarget target, FieldValue value)
     {
@@ -313,6 +315,12 @@ public sealed partial class Session
             return true;
         }
 
+        // An entry another modification also shows is not changed under it: the new text goes inline instead.
+        if (SharedTriggerString(number!.Value, shown))
+        {
+            return false;
+        }
+
         var strings = _strings;
         var entry = number!.Value;
         if (!strings.Set(entry, text.Value))
@@ -323,6 +331,21 @@ public sealed partial class Session
 
         edit.Done(new Step(() => strings.Set(entry, text.Value), () => strings.Set(entry, before)));
         return true;
+    }
+
+    /// <summary>
+    /// Whether a modification other than <paramref name="own"/>, in any object file of the map (any kind, main or
+    /// skin), refers to entry <paramref name="number"/> of the strings file.
+    /// </summary>
+    private bool SharedTriggerString(int number, FieldMod own)
+    {
+        var mods = _kinds.Values
+            .SelectMany(map => new[] { map.Main, map.Skin })
+            .SelectMany(file => (file?.Original ?? []).Concat(file?.Custom ?? []))
+            .SelectMany(entry => entry.Mods);
+        return mods.Any(mod => !ReferenceEquals(mod, own)
+            && mod.Value is FieldValue.Text text
+            && WtsFile.TriggerString(text.Value) == number);
     }
 
     /// <summary>
