@@ -2,7 +2,7 @@
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import { onMount } from "svelte";
 import { call, on } from "./lib/bridge.ts";
-import { chooseGameData, type GameDataState, gameData, viewOf } from "./lib/gameData.ts";
+import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
 
 let status = $state("Connecting…");
 let data = $state<GameDataState | null>(null);
@@ -13,7 +13,8 @@ const view = $derived(data ? viewOf(data) : null);
 async function choose(): Promise<void> {
   problem = "";
   try {
-    data = await chooseGameData();
+    const chosen = await chooseGameData();
+    data = newer(data, chosen);
   } catch (error) {
     problem = error instanceof Error ? error.message : String(error);
   }
@@ -22,12 +23,13 @@ async function choose(): Promise<void> {
 onMount(() => {
   // Listen first, then ask: a load that ends in between still reaches the page.
   const stop = on("gameData", (payload) => {
-    data = payload as GameDataState;
+    data = newer(data, payload as GameDataState);
   });
   (async () => {
     try {
       status = await call<string>("ping");
-      data = await gameData();
+      const state = await gameData();
+      data = newer(data, state); // the event may have brought a newer state meanwhile
     } catch (error) {
       status = error instanceof Error ? error.message : String(error);
     }

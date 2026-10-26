@@ -19,4 +19,9 @@
     <ProjectReference Include="..\..\src\ObjectEditor.App\ObjectEditor.App.csproj" />
   </ItemGroup>
 
+  <!-- The map files in tests/fixtures, copied next to the test assembly as fixtures/. -->
+  <ItemGroup>
+    <None Include="..\fixtures\**\*" Link="fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

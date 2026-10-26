@@ -48,12 +48,23 @@ public sealed class Bridge
         {
             using var document = JsonDocument.Parse(requestJson);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new CommandException("badRequest", "A request is a JSON object.");
+            }
+
             if (root.TryGetProperty("id", out var idProperty))
             {
                 id = idProperty.Clone();
             }
 
-            var command = root.GetProperty("command").GetString() ?? "";
+            if (!root.TryGetProperty("command", out var commandProperty)
+                || commandProperty.ValueKind != JsonValueKind.String)
+            {
+                throw new CommandException("badRequest", "A request needs its command's name as text.");
+            }
+
+            var command = commandProperty.GetString()!;
             var args = root.TryGetProperty("args", out var argsProperty) ? argsProperty.Clone() : default;
             var result = await _run(command, args);
             return Reply(id, true, "result", result);

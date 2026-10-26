@@ -29,7 +29,7 @@ public sealed class CommandsTests : IDisposable
         string? savedFolder = null)
     {
         var settings = new Settings(_folder) { GameDataFolder = savedFolder };
-        return new Commands(settings, ask ?? (() => null), load);
+        return new Commands(settings, _ => ask == null ? null : ask(), load);
     }
 
     [Fact]
@@ -141,6 +141,29 @@ public sealed class CommandsTests : IDisposable
         Assert.True(after.GetProperty("result").GetProperty("loaded").GetBoolean());
         Assert.NotNull(commands.NeedGameData());
         Assert.Equal(folder, new Settings(_folder).GameDataFolder);
+    }
+
+    [Fact]
+    public async Task A_newer_state_has_a_higher_version()
+    {
+        var release = new ManualResetEventSlim();
+        var commands = Make(_ =>
+        {
+            release.Wait();
+            throw new InvalidOperationException("stop here");
+        }, savedFolder: _folder);
+        GameDataState? fromEvent = null;
+        commands.GameDataChanged += state => fromEvent = state;
+
+        var loading = commands.StartLoading();
+        var whileLoading = (await Ask(commands, "gameData")).GetProperty("result").GetProperty("version").GetInt32();
+        release.Set();
+        await loading;
+        var after = (await Ask(commands, "gameData")).GetProperty("result").GetProperty("version").GetInt32();
+
+        Assert.NotNull(fromEvent);
+        Assert.True(fromEvent.Version > whileLoading);
+        Assert.Equal(fromEvent.Version, after);
     }
 
     [Fact]

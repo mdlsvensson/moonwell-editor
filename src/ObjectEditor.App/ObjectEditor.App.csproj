@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ObjectEditor.GameData\ObjectEditor.GameData.csproj" />
+    <ProjectReference Include="..\ObjectEditor.Model\ObjectEditor.Model.csproj" />
   </ItemGroup>
 
   <!--

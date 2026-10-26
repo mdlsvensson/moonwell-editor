@@ -15,6 +15,10 @@ public sealed class MainForm : Form
     // The page's requests are answered one at a time, in the order they came.
     private readonly SemaphoreSlim _oneAtATime = new(1, 1);
 
+    // The origins (https://app.objecteditor, and the dev server's in a Debug build) whose pages may use the bridge
+    // and be navigated to; set when the page starts.
+    private readonly HashSet<string> _origins = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Makes the window. The page loads once the window is shown.</summary>
     public MainForm()
     {
@@ -30,6 +34,7 @@ public sealed class MainForm : Form
         _commands = new Commands(new Settings(appData), AskForFolder, folder => GameData.GameData.Load(folder, cache));
         _bridge = new Bridge(_commands.Run);
         _commands.GameDataChanged += state => Notify("gameData", state);
+        _commands.SessionChanged += state => Notify("sessionChanged", state);
 
         Load += async (_, _) =>
         {
@@ -43,12 +48,12 @@ public sealed class MainForm : Form
     public void Post(string message) => _web.CoreWebView2.PostWebMessageAsString(message);
 
     // Commands run on a background task, but a dialog must open on the window's own thread.
-    private string? AskForFolder() =>
+    private string? AskForFolder(string description) =>
         Invoke(() =>
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "Choose the game data folder (a war3.w3mod export)",
+                Description = description,
                 UseDescriptionForTitle = true,
             };
             return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedPath : null;
@@ -79,12 +84,29 @@ public sealed class MainForm : Form
         await _web.EnsureCoreWebView2Async(environment);
 
         var core = _web.CoreWebView2;
-        core.WebMessageReceived += (_, e) => _ = Answer(e.TryGetWebMessageAsString());
 
-        var devUrl = Environment.GetEnvironmentVariable("OBJECT_EDITOR_DEV_URL");
+        // Only the app's own pages may use the bridge, and the window never leaves them (a link to the web is ignored).
+        _origins.Add(Origin($"https://{Host}/"));
+        core.WebMessageReceived += (_, e) =>
+        {
+            if (_origins.Contains(Origin(e.Source)))
+            {
+                _ = Answer(e.TryGetWebMessageAsString());
+            }
+        };
+        core.NavigationStarting += (_, e) =>
+        {
+            if (!_origins.Contains(Origin(e.Uri)))
+            {
+                e.Cancel = true;
+            }
+        };
+
 #if DEBUG
+        var devUrl = Environment.GetEnvironmentVariable("OBJECT_EDITOR_DEV_URL");
         if (!string.IsNullOrEmpty(devUrl))
         {
+            _origins.Add(Origin(devUrl));
             core.Navigate(devUrl);
             return;
         }
@@ -93,6 +115,10 @@ public sealed class MainForm : Form
         core.SetVirtualHostNameToFolderMapping(Host, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
         core.Navigate($"https://{Host}/index.html");
     }
+
+    // A URL's scheme, host and port (https://app.objecteditor); "" for a URL that cannot be read, which matches none.
+    private static string Origin(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.GetLeftPart(UriPartial.Authority) : "";
 
     private async Task Answer(string request)
     {

@@ -32,6 +32,25 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void Remembered_maps_are_newest_first_without_duplicates_and_at_most_ten()
+    {
+        var settings = new Settings(_folder);
+        for (var i = 1; i <= 12; i++)
+        {
+            settings.RememberMap($@"C:\Maps\map{i}");
+        }
+
+        settings.RememberMap(@"c:\maps\MAP5");   // the same folder, spelled differently
+
+        Assert.Equal(10, settings.RecentMaps.Count);
+        Assert.Equal(@"c:\maps\MAP5", settings.RecentMaps[0]);
+        Assert.Equal(@"C:\Maps\map12", settings.RecentMaps[1]);
+        Assert.Single(settings.RecentMaps, map => map.Equals(@"C:\Maps\map5", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(@"C:\Maps\map2", settings.RecentMaps);
+        Assert.Equal(settings.RecentMaps, new Settings(_folder).RecentMaps);   // saved
+    }
+
+    [Fact]
     public void Missing_settings_file_gives_defaults()
     {
         var settings = new Settings(_folder);

@@ -1,0 +1,113 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "./api.ts";
+import { call, on } from "./bridge.ts";
+
+vi.mock("./bridge.ts", () => ({
+  call: vi.fn(async () => undefined),
+  on: vi.fn(() => () => {}),
+}));
+
+const called = vi.mocked(call);
+const listened = vi.mocked(on);
+
+beforeEach(() => {
+  called.mockClear();
+  listened.mockClear();
+});
+
+const footmanLife: api.FieldRef = { kind: "unit", id: "hfoo", field: "uhpm", level: 0 };
+
+describe("each wrapper calls its command with the app's argument names", () => {
+  const cases: [string, () => Promise<unknown>, string, object][] = [
+    [
+      "openMap with a path",
+      () => api.openMap("C:\\maps\\arena"),
+      "openMap",
+      { path: "C:\\maps\\arena" },
+    ],
+    ["openMap with the dialog", () => api.openMap(), "openMap", {}],
+    ["tree", () => api.tree("ability"), "tree", { kind: "ability" }],
+    ["object", () => api.object("unit", "hfoo"), "object", { kind: "unit", id: "hfoo" }],
+    [
+      "setField",
+      () => api.setField(footmanLife, "500"),
+      "setField",
+      { kind: "unit", id: "hfoo", field: "uhpm", level: 0, value: "500" },
+    ],
+    [
+      "resetField",
+      () => api.resetField(footmanLife),
+      "resetField",
+      { kind: "unit", id: "hfoo", field: "uhpm", level: 0 },
+    ],
+    [
+      "createObject",
+      () => api.createObject("unit", "hfoo"),
+      "createObject",
+      { kind: "unit", baseId: "hfoo" },
+    ],
+    [
+      "createObject with an id",
+      () => api.createObject("unit", "hfoo", "h00A"),
+      "createObject",
+      { kind: "unit", baseId: "hfoo", id: "h00A" },
+    ],
+    [
+      "copyObject",
+      () => api.copyObject("item", "I000", "I001"),
+      "copyObject",
+      { kind: "item", fromId: "I000", id: "I001" },
+    ],
+    [
+      "deleteObject",
+      () => api.deleteObject("doodad", "D000"),
+      "deleteObject",
+      { kind: "doodad", id: "D000" },
+    ],
+    ["undo", () => api.undo(), "undo", {}],
+    ["redo", () => api.redo(), "redo", {}],
+    ["save", () => api.save(), "save", {}],
+    ["reload", () => api.reload(), "reload", {}],
+    ["search", () => api.search("foot", 20), "search", { query: "foot", limit: 20 }],
+    ["choices", () => api.choices(), "choices", {}],
+  ];
+
+  it.each(cases)("%s", async (_name, run, command, args) => {
+    await run();
+
+    expect(called).toHaveBeenCalledTimes(1);
+    const [sentCommand, sentArgs] = called.mock.calls[0] ?? [];
+    expect(sentCommand).toBe(command);
+    // The names as JSON sends them: an argument left out is not sent at all.
+    expect(JSON.parse(JSON.stringify(sentArgs ?? {}))).toEqual(args);
+  });
+});
+
+describe("onSessionChanged", () => {
+  it("listens to the sessionChanged event and passes its payload on", () => {
+    const seen: api.SessionState[] = [];
+    const stop = api.onSessionChanged((state) => seen.push(state));
+
+    expect(listened).toHaveBeenCalledTimes(1);
+    const [event, handler] = listened.mock.calls[0] ?? [];
+    expect(event).toBe("sessionChanged");
+    handler?.({ dirty: true, changedObjects: 2 });
+
+    expect(seen).toEqual([{ dirty: true, changedObjects: 2 }]);
+    expect(typeof stop).toBe("function");
+  });
+});
+
+describe("the kinds", () => {
+  it("are the app's seven kind keys, in the Object Editor's tab order", () => {
+    expect(api.kinds).toEqual([
+      "unit",
+      "item",
+      "destructable",
+      "doodad",
+      "ability",
+      "buff",
+      "upgrade",
+    ]);
+  });
+});

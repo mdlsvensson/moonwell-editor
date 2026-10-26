@@ -26,8 +26,28 @@ public sealed class Settings
     /// <summary>The game data folder (a <c>war3.w3mod</c> export), or null before the user has chosen one.</summary>
     public string? GameDataFolder { get; set; }
 
-    /// <summary>The maps opened lately, newest first by whoever fills it.</summary>
+    /// <summary>How many maps <see cref="RememberMap"/> keeps.</summary>
+    public const int RecentMapsKept = 10;
+
+    /// <summary>The maps opened lately, newest first (see <see cref="RememberMap"/>).</summary>
     public List<string> RecentMaps { get; }
+
+    /// <summary>
+    /// Puts a map first in <see cref="RecentMaps"/> and saves the settings. The same folder spelled with other
+    /// letter case is taken out first, and only the newest <see cref="RecentMapsKept"/> are kept.
+    /// </summary>
+    /// <param name="map">The map folder's path.</param>
+    public void RememberMap(string map)
+    {
+        RecentMaps.RemoveAll(known => string.Equals(known, map, StringComparison.OrdinalIgnoreCase));
+        RecentMaps.Insert(0, map);
+        if (RecentMaps.Count > RecentMapsKept)
+        {
+            RecentMaps.RemoveRange(RecentMapsKept, RecentMaps.Count - RecentMapsKept);
+        }
+
+        Save();
+    }
 
     /// <summary>Writes the settings, creating the folder if it is not there yet.</summary>
     public void Save()

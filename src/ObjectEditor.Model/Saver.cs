@@ -79,6 +79,7 @@ public sealed partial class Session
         }
 
         _history.Saved();
+        _savedObjects = Describe();
         return new SaveReport(written, backup);
     }
 
@@ -96,6 +97,7 @@ public sealed partial class Session
         _stamp = loaded.Stamp;
         _history = new History();
         _search.Rebuild(_kinds, _strings);
+        _savedObjects = Describe();
     }
 
     /// <summary>

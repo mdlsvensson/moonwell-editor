@@ -242,6 +242,43 @@ public sealed class SaveTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Changed_objects_counts_objects_that_differ_from_the_last_save()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("we-3.0");
+        var session = Open(map, game);
+        Assert.Equal(0, session.ChangedObjects());
+
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        session.Set(ObjectKind.Unit, "hfoo", "umvs", 0, "300");
+        session.Set(ObjectKind.Unit, "h000", "unam", 0, "Knight");   // a TRIGSTR text: only war3map.wts changes
+        session.Create(ObjectKind.Item, "ratc", null);               // a new object, with no modifications yet
+        Assert.Equal(3, session.ChangedObjects());
+
+        Assert.True(session.Undo());
+        Assert.Equal(2, session.ChangedObjects());
+
+        session.Save();
+        Assert.Equal(0, session.ChangedObjects());
+
+        // Changed and changed back: dirty, but nothing differs from the save.
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "600");
+        Assert.Equal(1, session.ChangedObjects());
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        Assert.True(session.Dirty);
+        Assert.Equal(0, session.ChangedObjects());
+
+        session.Delete(ObjectKind.Unit, "h000");
+        Assert.Equal(1, session.ChangedObjects());
+        session.Reload();
+        Assert.Equal(0, session.ChangedObjects());
+    }
+
+    [Fact]
     public void Read_only_kind_is_never_written()
     {
         if (Skipped(out var game))

@@ -11,7 +11,7 @@ public sealed class BridgeTests
     private static Commands PingOnly() =>
         new(
             new Settings(Path.Combine(Path.GetTempPath(), "ObjectEditor.App.Tests", "bridge")),
-            () => null,
+            _ => null,
             _ => throw new InvalidOperationException());
 
     [Fact]
@@ -52,6 +52,49 @@ public sealed class BridgeTests
         Assert.Equal("it broke", failed.GetProperty("error").GetProperty("message").GetString());
         Assert.True(next.GetProperty("ok").GetBoolean());
         Assert.Equal("fine", next.GetProperty("result").GetString());
+    }
+
+    [Fact]
+    public async Task Missing_command_is_a_bad_request()
+    {
+        var bridge = new Bridge(PingOnly().Run);
+
+        var reply = Parse(await bridge.Handle("""{"id":3,"args":{}}"""));
+        var notText = Parse(await bridge.Handle("""{"id":4,"command":5}"""));
+
+        Assert.Equal(3, reply.GetProperty("id").GetInt32());
+        Assert.False(reply.GetProperty("ok").GetBoolean());
+        Assert.Equal("badRequest", reply.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal(4, notText.GetProperty("id").GetInt32());
+        Assert.Equal("badRequest", notText.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData("[1,2]")]
+    [InlineData("\"ping\"")]
+    [InlineData("42")]
+    [InlineData("not json")]
+    public async Task A_request_that_is_not_an_object_is_a_bad_request_with_no_id(string request)
+    {
+        var bridge = new Bridge(PingOnly().Run);
+
+        var reply = Parse(await bridge.Handle(request));
+
+        Assert.Equal(JsonValueKind.Null, reply.GetProperty("id").ValueKind);
+        Assert.False(reply.GetProperty("ok").GetBoolean());
+        Assert.Equal("badRequest", reply.GetProperty("error").GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task A_string_id_comes_back_as_it_was_sent()
+    {
+        var bridge = new Bridge(PingOnly().Run);
+
+        var reply = Parse(await bridge.Handle("""{"id":"abc","command":"ping"}"""));
+
+        Assert.Equal("abc", reply.GetProperty("id").GetString());
+        Assert.True(reply.GetProperty("ok").GetBoolean());
+        Assert.Equal("pong", reply.GetProperty("result").GetString());
     }
 
     [Fact]

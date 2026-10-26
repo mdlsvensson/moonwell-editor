@@ -37,6 +37,7 @@ public sealed partial class Session
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
         _search = new SearchIndex(game, _kinds, _strings);
+        _savedObjects = Describe();
     }
 
     /// <summary>
