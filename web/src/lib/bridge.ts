@@ -5,7 +5,7 @@
 
 type Webview = NonNullable<NonNullable<Window["chrome"]>["webview"]>;
 type Reply = {
-  id: number;
+  id: number | null;
   ok: boolean;
   result?: unknown;
   error?: { code: string; message: string };
@@ -47,22 +47,34 @@ function receive(data: unknown): void {
     return;
   }
   const reply = message as Reply;
+  if (reply.id === null || reply.id === undefined) {
+    // The app could not read a request (a badRequest), so it cannot say which one: every waiting call fails.
+    if (!reply.ok) {
+      const error = errorOf(reply);
+      for (const waiting of pending.values()) waiting.reject(error);
+      pending.clear();
+    }
+    return;
+  }
   const waiting = pending.get(reply.id);
   if (!waiting) return;
   pending.delete(reply.id);
   if (reply.ok) waiting.resolve(reply.result as never);
-  else {
-    waiting.reject(
-      new BridgeError(
-        reply.error?.code ?? "failed",
-        reply.error?.message ?? "The app reported an error.",
-      ),
-    );
-  }
+  else waiting.reject(errorOf(reply));
 }
 
-/** Runs a command in the app. Rejects with a BridgeError (the app's code and message) when the command fails. */
-export function call<T>(command: string, args: object = {}): Promise<T> {
+function errorOf(reply: Reply): BridgeError {
+  return new BridgeError(
+    reply.error?.code ?? "failed",
+    reply.error?.message ?? "The app reported an error.",
+  );
+}
+
+/**
+ * Runs a command in the app. Rejects with a BridgeError (the app's code and message) when the command fails, and
+ * with an Error when the page is not inside the Object Editor window.
+ */
+export async function call<T>(command: string, args: object = {}): Promise<T> {
   const channel = webview();
   const id = nextId++;
   return new Promise<T>((resolve, reject) => {

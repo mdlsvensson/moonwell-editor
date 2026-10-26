@@ -62,6 +62,30 @@ describe("call", () => {
     await expect(first).resolves.toBe("from a");
     await expect(second).resolves.toBe("from b");
   });
+
+  it("rejects, rather than throws, outside the Object Editor window", async () => {
+    vi.stubGlobal("window", {});
+
+    const pending = call("ping");
+
+    await expect(pending).rejects.toThrow("not running inside the Object Editor window");
+  });
+
+  it("rejects every waiting call when an error reply has no id", async () => {
+    const first = call("a");
+    const second = call("b");
+
+    // The app could not read a request, so it cannot say which one it was.
+    webview.reply({ id: null, ok: false, error: { code: "badRequest", message: "not JSON" } });
+
+    await expect(first).rejects.toMatchObject({ code: "badRequest", message: "not JSON" });
+    await expect(second).rejects.toMatchObject({ code: "badRequest", message: "not JSON" });
+
+    // Later calls are not affected.
+    const third = call<string>("c");
+    webview.reply({ id: webview.sent[2]?.id, ok: true, result: "fine" });
+    await expect(third).resolves.toBe("fine");
+  });
 });
 
 describe("on", () => {
