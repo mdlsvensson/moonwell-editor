@@ -66,6 +66,57 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
     }
 
     [Fact]
+    public void World_editors_own_archive_opens_edits_and_saves()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // Saved by World Editor from the template map with no object edits: it has no object files, and no kind of it
+        // is read-only.
+        using var map = TempMap.OfArchive("we-heavy-archive/ObjectEditorTest.w3x");
+        var before = Files(map.Map);
+        var session = Session.Open(MapStore.Open(map.Map), game);
+        Assert.Empty(session.Problems);
+        foreach (var kind in Enum.GetValues<ObjectKind>())
+        {
+            var standard = session.Tree(kind).First(entry => entry.BaseId == null);
+            Assert.False(standard.Changed);
+            Assert.Null(session.Object(kind, standard.Id)!.ReadOnly);
+        }
+
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        session.Set(ObjectKind.Unit, "hfoo", "unam", 0, "Captain");   // the skin file
+        session.Set(ObjectKind.Ability, "AHhb", "atp1", 1, "Healing");   // a level, the skin file
+        var created = session.Create(ObjectKind.Unit, "hfoo", null);
+        var report = session.Save();
+
+        Assert.Equal(
+            new[] { "war3map.w3u", "war3mapSkin.w3a", "war3mapSkin.w3u" },
+            report.Written.Order(StringComparer.Ordinal));
+        Assert.Equal("", report.Note);
+        Assert.False(session.Dirty);
+        var reopened = Session.Open(MapStore.Open(map.Map), game);
+        Assert.Empty(reopened.Problems);
+        Assert.Equal("500", Value(reopened, ObjectKind.Unit, "hfoo", "uhpm", 0));
+        Assert.Equal("Captain", reopened.Object(ObjectKind.Unit, "hfoo")!.Name);
+        Assert.Equal("Healing", Value(reopened, ObjectKind.Ability, "AHhb", "atp1", 1));
+        Assert.Equal("hfoo", reopened.Object(ObjectKind.Unit, created)!.BaseId);
+
+        // Every other file of the archive is as it was, byte for byte; the written ones hold what the session has.
+        var after = Files(map.Map);
+        Assert.Equal(before.Keys.Concat(report.Written).Distinct().Order(), after.Keys.Order());
+        foreach (var (name, bytes) in before.Where(file => !report.Written.Contains(file.Key)))
+        {
+            Assert.True(bytes.AsSpan().SequenceEqual(after[name]), $"{name} changed");
+        }
+
+        Assert.Equal(session.FileOf(ObjectKind.Unit, false)!.ToBytes(), after["war3map.w3u"]);
+        Assert.Equal(session.FileOf(ObjectKind.Ability, true)!.ToBytes(), after["war3mapSkin.w3a"]);
+    }
+
+    [Fact]
     public void Archive_backup_holds_the_previous_archive()
     {
         if (Skipped(out var game))

@@ -31,6 +31,10 @@ public sealed class MapArchiveTests : IDisposable
     /// <summary>Moonwell's Sample.w3x, next to the test assembly.</summary>
     private static string Sample => Path.Combine(Fixtures.Root, "moonwell-sample", "Sample.w3x");
 
+    /// <summary>The archive World Editor saved of the unedited template map (see its SOURCE.md).</summary>
+    private static string WorldEditorArchive =>
+        Path.Combine(Fixtures.Root, "we-heavy-archive", "ObjectEditorTest.w3x");
+
     [Fact]
     public void Reads_the_files_of_an_archive()
     {
@@ -534,6 +538,101 @@ public sealed class MapArchiveTests : IDisposable
         AssertCarried(before, Entries(path), "war3map.w3u");
         Assert.Equal(new FileInfo(path).Length, BitConverter.ToUInt32(File.ReadAllBytes(path), 8));
         Assert.Equal([1, 2, 3], map.Read("war3map.w3u"));
+    }
+
+    [Fact]
+    public void World_editors_own_archive_opens()
+    {
+        // Saved by World Editor from the template map with no object edits (File > Save Map As): no object files.
+        var path = Copy(WorldEditorArchive, "ObjectEditorTest.w3x");
+        var bytes = File.ReadAllBytes(path);
+        var map = MapArchive.Open(path);
+
+        // The MPQ header is the first thing in the file: this World Editor writes no 512-byte HM3W header before it.
+        Assert.Equal("MPQ\x1A"u8.ToArray(), bytes[..4]);
+        Assert.Empty(map.PreArchive);
+        Assert.Equal(16634, bytes.Length);
+        Assert.Equal(32u, BitConverter.ToUInt32(bytes, 4));
+        Assert.Equal((uint)bytes.Length, BitConverter.ToUInt32(bytes, 8));
+        Assert.Equal(3, BitConverter.ToUInt16(bytes, 14));
+
+        // Its seventeen files by name, besides (listfile) and (attributes).
+        string[] expected =
+        [
+            "conversation.json", "war3map.doo", "war3map.lua", "war3map.mmp", "war3map.shd", "war3map.w3c",
+            "war3map.w3e", "war3map.w3grp", "war3map.w3i", "war3map.w3l", "war3map.w3r", "war3map.wct", "war3map.wpm",
+            "war3map.wtg", "war3map.wts", "war3mapMap.blp", "war3mapUnits.doo",
+        ];
+        Assert.Equal(
+            expected.Order(StringComparer.Ordinal),
+            map.Names.Where(name => !Specials.Contains(name)).Order(StringComparer.Ordinal));
+        Assert.Contains("(listfile)", map.Names);
+        Assert.Contains("(attributes)", map.Names);
+
+        // No read-only kind (no object or strings file under another locale), and what the app reads is what War3Net
+        // reads: the strings file, and no object file at all.
+        foreach (var name in MapStore.ObjectAndStringFiles)
+        {
+            Assert.Null(map.WriteProblem(name));
+            Assert.Equal(War3NetReads(path, name), map.Read(name));
+            Assert.Equal(name == "war3map.wts", map.Read(name) is not null);
+        }
+
+        // The strings file is the template's own, with the byte order mark World Editor writes.
+        var strings = map.Read("war3map.wts")!;
+        Assert.Equal(176, strings.Length);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, strings[..3]);
+        Assert.Contains("Moonwell Template", System.Text.Encoding.UTF8.GetString(strings));
+
+        // Files the app does not read at open are read when asked for.
+        foreach (var name in new[] { "war3map.w3i", "war3map.lua", "war3map.w3e", "war3mapMap.blp" })
+        {
+            Assert.Equal(War3NetReads(path, name), map.Read(name));
+        }
+
+        Assert.IsType<MapArchive>(MapStore.Open(path));
+    }
+
+    [Fact]
+    public void World_editors_own_archive_saves_every_file_as_it_was()
+    {
+        var path = Copy(WorldEditorArchive, "ObjectEditorTest.w3x");
+        var before = Entries(path);
+        var map = MapArchive.Open(path);
+        var names = map.Names.Where(name => !Specials.Contains(name)).Order(StringComparer.Ordinal).ToList();
+        var read = names.ToDictionary(name => name, name => map.Read(name)!);
+        Assert.Equal(17, names.Count);
+
+        // A war3map.w3u the archive did not have (the heavy folder fixture's) and a changed war3map.wts.
+        var units = Fixtures.Bytes("we-heavy/war3map.w3u");
+        byte[] strings = [.. read["war3map.wts"], .. "STRING 7\r\n{\r\nChanged\r\n}\r\n\r\n"u8];
+        map.Write([("war3map.w3u", units), ("war3map.wts", strings)]);
+
+        // Every other file is carried as stored (same flags, same bytes), and reads the same.
+        var after = Entries(path);
+        AssertCarried(before, after, "war3map.w3u", "war3map.wts");
+        Assert.Equal(
+            before.Single(entry => entry.FileName == "war3map.wts").Flags,
+            after.Single(entry => entry.FileName == "war3map.wts").Flags);
+        var reopened = MapArchive.Open(path);
+        Assert.Equal(units, reopened.Read("war3map.w3u"));
+        Assert.Equal(strings, reopened.Read("war3map.wts"));
+        foreach (var (name, original) in read.Where(file => file.Key != "war3map.wts"))
+        {
+            Assert.True(original.AsSpan().SequenceEqual(reopened.Read(name)), $"{name} changed");
+        }
+
+        // Every name is still listed, with the new file; the MPQ header is still the first thing in the file.
+        Assert.Equal(
+            names.Append("war3map.w3u").Order(StringComparer.Ordinal),
+            reopened.Names.Where(name => !Specials.Contains(name)).Order(StringComparer.Ordinal));
+        Assert.Empty(reopened.PreArchive);
+        var saved = File.ReadAllBytes(path);
+        Assert.Equal("MPQ\x1A"u8.ToArray(), saved[..4]);
+        Assert.Equal((uint)saved.Length, BitConverter.ToUInt32(saved, 8));
+        Assert.Equal(3, BitConverter.ToUInt16(saved, 14));
+        Assert.False(File.Exists(path + ".saving"));
+        Assert.False(File.Exists(path + ".replacing"));
     }
 
     [Fact]
