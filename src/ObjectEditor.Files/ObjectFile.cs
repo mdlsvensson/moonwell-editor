@@ -186,10 +186,15 @@ public sealed class ObjectFile
         return stream.ToArray();
     }
 
-    // Records carry set flags since version 3.
-    private bool HasSetFlags => Version >= ObjectDataFormatVersion.v3;
+    /// <summary>
+    /// The file's format version: 1, 2 or 3 (since patch 1.33). Only version 3 records carry set flags.
+    /// </summary>
+    public int Version => (int)FormatVersion;
 
-    private ObjectDataFormatVersion Version => data switch
+    // Records carry set flags since version 3.
+    private bool HasSetFlags => FormatVersion >= ObjectDataFormatVersion.v3;
+
+    private ObjectDataFormatVersion FormatVersion => data switch
     {
         UnitObjectData units => units.FormatVersion,
         ItemObjectData items => items.FormatVersion,

@@ -1,0 +1,95 @@
+using ObjectEditor.GameData;
+
+namespace ObjectEditor.Model.Tests;
+
+/// <summary>
+/// The game data folder named by <c>OBJECT_EDITOR_GAME_DATA</c>, loaded once per test run for every test class of the
+/// <see cref="GameDataCollection"/>. The cache lives under the system temp folder and is kept between runs, so only the
+/// first run builds it.
+/// </summary>
+public sealed class GameDataFixture
+{
+    /// <summary>The environment variable that names the game data folder.</summary>
+    public const string Variable = "OBJECT_EDITOR_GAME_DATA";
+
+    public GameDataFixture()
+    {
+        var folder = Environment.GetEnvironmentVariable(Variable);
+        if (string.IsNullOrEmpty(folder))
+        {
+            Reason = $"{Variable} is not set; set it to a game data folder (war3.w3mod) to run this test";
+            return;
+        }
+
+        if (!Directory.Exists(folder))
+        {
+            Reason = $"{Variable} names {folder}, which does not exist; skipped";
+            return;
+        }
+
+        var cache = Path.Combine(Path.GetTempPath(), "ObjectEditor.Model.Tests", "gamedata");
+        Data = GameData.GameData.Load(folder, cache);
+    }
+
+    /// <summary>Why the tests cannot run, or null when <see cref="Data"/> is loaded.</summary>
+    public string? Reason { get; }
+
+    /// <summary>The game data, or null when the tests cannot run.</summary>
+    public GameData.GameData? Data { get; }
+}
+
+/// <summary>The test classes that share one <see cref="GameDataFixture"/>.</summary>
+[CollectionDefinition(Name)]
+public sealed class GameDataCollection : ICollectionFixture<GameDataFixture>
+{
+    /// <summary>The collection's name, for <c>[Collection]</c>.</summary>
+    public const string Name = "Game data";
+}
+
+/// <summary>
+/// A temporary copy of a fixture folder (or an empty folder), deleted when disposed, so a test can change the files.
+/// </summary>
+public sealed class TempMap : IDisposable
+{
+    private readonly string _root;
+
+    private TempMap(string root, string folder)
+    {
+        _root = root;
+        Folder = folder;
+    }
+
+    /// <summary>The map folder.</summary>
+    public string Folder { get; }
+
+    /// <summary>
+    /// Copies the fixture <paramref name="fixture"/> (<c>we-3.0</c>, <c>moonwell-mymap</c>; null for an empty folder)
+    /// into a new temporary folder, at <paramref name="inside"/> below it when given (such as <c>build/MyMap</c>).
+    /// </summary>
+    public static TempMap Of(string? fixture, string? inside = null)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ObjectEditor.Model.Tests", "maps", Guid.NewGuid().ToString("N"));
+        var folder = inside == null ? Path.Combine(root, "map") : Path.Combine(root, inside);
+        Directory.CreateDirectory(folder);
+        if (fixture != null)
+        {
+            foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", fixture)))
+            {
+                File.Copy(file, Path.Combine(folder, Path.GetFileName(file)));
+            }
+        }
+
+        return new TempMap(root, folder);
+    }
+
+    /// <summary>The temporary folder that holds the map folder.</summary>
+    public string Root => _root;
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root))
+        {
+            Directory.Delete(_root, true);
+        }
+    }
+}

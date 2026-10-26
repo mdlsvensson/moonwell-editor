@@ -167,6 +167,19 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Version_is_the_files()
+    {
+        var bytes = Fixtures.Bytes("we-3.0/war3map.w3u");
+        byte[] version2 = [2, 0, 0, 0, .. bytes[4..20], .. bytes[28..]];   // without h000's set count and flag
+
+        Assert.Equal(3, Fixtures.Read("we-3.0/war3map.w3u").Version);
+        Assert.Equal(3, ObjectFile.Empty(ObjectKind.Ability).Version);
+        var older = ObjectFile.Read(ObjectKind.Unit, version2);
+        Assert.Equal(2, older.Version);
+        Assert.Equal(0, older.Custom[0].SetCount);
+    }
+
+    [Fact]
     public void Original_entry_has_no_id()
     {
         var units = ObjectFile.Empty(ObjectKind.Unit);
