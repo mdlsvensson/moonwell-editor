@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Sven's War3Net fork, at the version Moonwell builds with. -->
+    <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.3" />
+  </ItemGroup>
+
+</Project>
