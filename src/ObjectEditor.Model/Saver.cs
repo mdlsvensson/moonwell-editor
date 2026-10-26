@@ -75,7 +75,7 @@ public sealed partial class Session
 
         if (backup != "")
         {
-            Prune(Path.GetDirectoryName(backup)!);
+            Prune(backup);
         }
 
         _history.Saved();
@@ -171,15 +171,18 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// Deletes the backup folders older than the newest 10. Only folders named as a backup are counted or deleted; one
-    /// that cannot be deleted now is left for a later save.
+    /// Deletes the backup folders older than the newest 10, beside <paramref name="made"/>, the one this save just
+    /// made. That one is always kept and counted, even when others are named later (the clock was set back since
+    /// they were made). Only folders named as a backup are counted or deleted; one that cannot be deleted now is left
+    /// for a later save.
     /// </summary>
-    private static void Prune(string root)
+    private static void Prune(string made)
     {
-        var old = Backups(root)
+        var old = Backups(Path.GetDirectoryName(made)!)
+            .Where(backup => !string.Equals(backup.Path, made, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(backup => backup.Time, StringComparer.Ordinal)
             .ThenByDescending(backup => backup.Number)
-            .Skip(BackupsKept);
+            .Skip(BackupsKept - 1);
         foreach (var backup in old)
         {
             try

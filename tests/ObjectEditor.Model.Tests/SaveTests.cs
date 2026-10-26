@@ -169,6 +169,34 @@ public sealed class SaveTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Backup_just_made_is_kept_when_later_ones_exist()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // Ten backups named later than now (the clock was set back since): the save's own backup still stays.
+        using var map = TempMap.Of("we-3.0");
+        var backups = map.Folder + ".backup";
+        var later = Enumerable.Range(1, 10)
+            .Select(i => Path.Combine(backups, $"2999-01-{i:00} 00-00-00"))
+            .ToList();
+        later.ForEach(folder => Directory.CreateDirectory(folder));
+        var session = Open(map, game);
+        var units = File.ReadAllBytes(Path.Combine(map.Folder, "war3map.w3u"));
+
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        var report = session.Save();
+
+        Assert.True(Directory.Exists(report.Backup));
+        Assert.Equal(units, File.ReadAllBytes(Path.Combine(report.Backup, "war3map.w3u")));
+        Assert.Equal(10, Directory.GetDirectories(backups).Length);   // the new one and the newest nine
+        Assert.False(Directory.Exists(later[0]));
+        Assert.All(later.Skip(1), folder => Assert.True(Directory.Exists(folder), folder));
+    }
+
+    [Fact]
     public void Save_refuses_when_changed_on_disk()
     {
         if (Skipped(out var game))
