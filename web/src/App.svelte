@@ -463,6 +463,22 @@ function askDelete(): void {
   deleting = { kind: shown.kind, id: shown.id, name: shown.name, baseId: shown.baseId };
 }
 
+/** The Delete key (Ctrl Shift D with `copy`): deletes (asking first) or copies the custom object shown. */
+function deleteOrCopyKey(copy: boolean): void {
+  const shown = current;
+  if (!shown) return;
+  if (!shown.baseId) {
+    say(copy ? "Only custom objects can be copied." : "Only custom objects can be deleted.");
+    return;
+  }
+  if (shown.readOnly) {
+    say(`Read only: ${shown.readOnly}`, { warn: true });
+    return;
+  }
+  if (copy) copyShown();
+  else askDelete();
+}
+
 async function deleteAsked(): Promise<void> {
   const asked = deleting;
   deleting = null;
@@ -498,6 +514,11 @@ function typingIn(target: EventTarget | null): boolean {
     return !["checkbox", "radio", "button", "submit", "reset"].includes(target.type);
   }
   return target instanceof HTMLElement && target.isContentEditable;
+}
+
+/** True when a key goes to a popover or dialog (a list of choices, a checkbox), not to the object shown. */
+function inPopup(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[role="dialog"]') !== null;
 }
 
 /** Shows an object, and remembers it in the history unless the history is being walked. */
@@ -595,9 +616,16 @@ function onkeydown(event: KeyboardEvent): void {
   } else if (event.ctrlKey && !event.altKey && key === "f") {
     event.preventDefault();
     details?.focusFilter();
+  } else if (ctrl && event.shiftKey && key === "d") {
+    event.preventDefault();
+    deleteOrCopyKey(true);
   } else if (event.ctrlKey && !event.altKey && key === "d") {
     event.preventDefault();
     showIds = !showIds;
+  } else if (event.key === "Delete" && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+    if (typingIn(event.target) || inPopup(event.target)) return; // the box's own Delete
+    event.preventDefault();
+    deleteOrCopyKey(false);
   } else if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
     event.preventDefault();
     walk(event.key === "ArrowLeft" ? -1 : 1);

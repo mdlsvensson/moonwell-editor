@@ -133,7 +133,7 @@ function clearOnEscape(event: KeyboardEvent): void {
             <button
               type="button"
               class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
-              title="A copy of this object, with the next free id"
+              title="A copy of this object, with the next free id (Ctrl Shift D)"
               onclick={oncopy}
             >
               <Copy size={13} />
@@ -142,7 +142,7 @@ function clearOnEscape(event: KeyboardEvent): void {
             <button
               type="button"
               class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-warn hover:text-warn"
-              title="Delete this object (asks first; Ctrl Z brings it back)"
+              title="Delete this object (Delete; asks first, and Ctrl Z brings it back)"
               onclick={ondelete}
             >
               <Trash size={13} />
