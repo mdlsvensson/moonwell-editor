@@ -160,7 +160,8 @@ Folder maps need no archive code, so they come first.
 
 1. **Browse:** open a map folder; tree, details panel, field filter, search. Read only.
 2. **Edit and save** a map folder: every field editor, reset, undo and redo, new and copied objects, validation,
-   backups. Closes only once the app's save of Sven's test map opens right in World Editor and the game.
+   backups. Closes only once the app's save of Sven's test map opens right in World Editor and the game. *(Done
+   2026-10-26: World Editor check passed, `docs/checks.md`; the game check left out by Sven.)*
 3. **Table bulk edit** (goal 4; Sven, 2026-10-26: first after browsing and editing).
 4. **Archives:** open and save `.w3x`/`.w3m`.
 5. **Standard data from the game install** (reading the game's CASC storage), so a modder needs no exported data
@@ -340,7 +341,8 @@ anti-goals hold.
 2. It is for Sven and other modders.
 3. Table bulk edit comes first after browsing and editing.
 4. Sven will save a World Editor test map with many object edits; milestone 2 waits for it. Until it exists, saving
-   ships behind a warning ("saving is tested only on small maps").
+   ships behind a warning ("saving is tested only on small maps"). He saved it the same day (`tests/fixtures/we-heavy`);
+   the app's save of it passed his World Editor check, so the warning is gone, and he left out the check in the game.
 5. C# on War3Net, with the Svelte interface in a WebView2 window (replacing Tauri and Rust).
 
 ## Open questions (Sven's, not blocking the first plan)
