@@ -95,6 +95,7 @@ public sealed partial class Session
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
         _history = new History();
+        _search.Rebuild(_kinds, _strings);
     }
 
     /// <summary>

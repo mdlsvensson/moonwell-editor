@@ -36,6 +36,7 @@ public sealed partial class Session
         _problems = loaded.Problems;
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;
+        _search = new SearchIndex(game, _kinds, _strings);
     }
 
     /// <summary>
@@ -147,7 +148,7 @@ public sealed partial class Session
     }
 
     /// <summary>Where a standard object sits in the tree; see <see cref="TreeEntry.Path"/>.</summary>
-    private static IReadOnlyList<string> PathOf(ObjectKind kind, StandardObject standard)
+    internal static IReadOnlyList<string> PathOf(ObjectKind kind, StandardObject standard)
     {
         var race = standard.Race.Length > 0 ? standard.Race : "Other";
         if (kind != ObjectKind.Unit)

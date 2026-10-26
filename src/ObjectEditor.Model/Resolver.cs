@@ -273,7 +273,7 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     /// <summary>
     /// A modification's value as text; a <c>TRIGSTR_n</c> shows the strings file's text when it has it.
     /// </summary>
-    private string Show(FieldValue value) => value switch
+    internal string Show(FieldValue value) => value switch
     {
         FieldValue.Int number => number.Value.ToString(CultureInfo.InvariantCulture),
         FieldValue.Real real => Real(real.Value),

@@ -1,3 +1,5 @@
+using ObjectEditor.Files;
+
 namespace ObjectEditor.Model;
 
 /// <summary>
@@ -35,30 +37,30 @@ internal sealed class History
         _done++;
     }
 
-    /// <summary>Undoes the last edit; false when there is none.</summary>
-    public bool Undo()
+    /// <summary>Undoes the last edit and returns it; null when there is none.</summary>
+    public Edit? Undo()
     {
         if (_done == 0)
         {
-            return false;
+            return null;
         }
 
         _done--;
         _edits[_done].Undo();
-        return true;
+        return _edits[_done];
     }
 
-    /// <summary>Makes the last undone edit again; false when there is none.</summary>
-    public bool Redo()
+    /// <summary>Makes the last undone edit again and returns it; null when there is none.</summary>
+    public Edit? Redo()
     {
         if (_done == _edits.Count)
         {
-            return false;
+            return null;
         }
 
         _edits[_done].Redo();
         _done++;
-        return true;
+        return _edits[_done - 1];
     }
 
     /// <summary>Marks the current state as the one on disk (after a save).</summary>
@@ -72,9 +74,16 @@ internal sealed class History
 internal sealed class Edit
 {
     private readonly List<Step> _steps = [];
+    private readonly List<(ObjectKind Kind, string Id)> _touched = [];
 
     /// <summary>The steps, in the order they were done.</summary>
     public IReadOnlyList<Step> Steps => _steps;
+
+    /// <summary>The objects the edit is about (their kind and id), for the search index.</summary>
+    public IReadOnlyList<(ObjectKind Kind, string Id)> Touched => _touched;
+
+    /// <summary>Records that the edit is about this object.</summary>
+    public void Touch(ObjectKind kind, string id) => _touched.Add((kind, id));
 
     /// <summary>Adds a step that was just done.</summary>
     public void Done(Step step) => _steps.Add(step);

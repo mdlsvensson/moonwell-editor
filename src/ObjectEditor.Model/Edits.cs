@@ -17,10 +17,10 @@ public sealed partial class Session
     public bool Dirty => _history.Dirty;
 
     /// <summary>Undoes the last edit; false when there is none.</summary>
-    public bool Undo() => _history.Undo();
+    public bool Undo() => Reindex(_history.Undo());
 
     /// <summary>Makes the last undone edit again; false when there is none.</summary>
-    public bool Redo() => _history.Redo();
+    public bool Redo() => Reindex(_history.Redo());
 
     /// <summary>
     /// Sets a field of an object at a level (0 for a field without levels; a doodad's variation, from 1). The value is
@@ -41,6 +41,7 @@ public sealed partial class Session
         var info = target.Field;
         var parsed = Parse(info, value);
         var edit = new Edit();
+        edit.Touch(kind, id);
         var resolver = new Resolver(kind, target.Data, _strings);
         var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
         var modes = target.Standard.Modes.ContainsKey(Resolver.Key(info, target.Level));
@@ -53,7 +54,7 @@ public sealed partial class Session
             WriteMod(edit, target, parsed);
         }
 
-        _history.Add(edit);
+        Commit(edit);
     }
 
     /// <summary>
@@ -65,8 +66,9 @@ public sealed partial class Session
     {
         var target = Target(kind, id, field, level);
         var edit = new Edit();
+        edit.Touch(kind, id);
         RemoveMods(edit, target);
-        _history.Add(edit);
+        Commit(edit);
     }
 
     /// <summary>
@@ -90,12 +92,13 @@ public sealed partial class Session
         RefuseReadOnly(map, null);
         var newId = NewId(kind, map, data, baseId, id);
         var edit = new Edit();
+        edit.Touch(kind, newId);
         foreach (var skin in new[] { false, true })
         {
             AddCustom(edit, map, kind, skin, baseId, newId);
         }
 
-        _history.Add(edit);
+        Commit(edit);
         return newId;
     }
 
@@ -115,6 +118,7 @@ public sealed partial class Session
         var baseId = found is { Custom: true } ? found.BaseId : fromId;
         var newId = NewId(kind, map, data, baseId, id);
         var edit = new Edit();
+        edit.Touch(kind, newId);
         foreach (var skin in new[] { false, true })
         {
             var entry = AddCustom(edit, map, kind, skin, baseId, newId);
@@ -126,7 +130,7 @@ public sealed partial class Session
             }
         }
 
-        _history.Add(edit);
+        Commit(edit);
         return newId;
     }
 
@@ -149,6 +153,7 @@ public sealed partial class Session
 
         RefuseReadOnly(map, found);
         var edit = new Edit();
+        edit.Touch(kind, id);
         foreach (var file in new[] { map.Main, map.Skin })
         {
             foreach (var entry in file?.Custom.Where(entry => entry.Id == id).ToList() ?? [])
@@ -159,7 +164,30 @@ public sealed partial class Session
             }
         }
 
+        Commit(edit);
+    }
+
+    /// <summary>Keeps an edit that was just made in the history, and brings the search index up to date.</summary>
+    private void Commit(Edit edit)
+    {
         _history.Add(edit);
+        Reindex(edit);
+    }
+
+    /// <summary>Updates the search index for the objects an edit touched; false when there is no edit.</summary>
+    private bool Reindex(Edit? edit)
+    {
+        if (edit == null)
+        {
+            return false;
+        }
+
+        foreach (var (kind, id) in edit.Touched)
+        {
+            _search.Update(kind, id, _kinds[kind], _game.Kind(kind), _strings);
+        }
+
+        return true;
     }
 
     /// <summary>
