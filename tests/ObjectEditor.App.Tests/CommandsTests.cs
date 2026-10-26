@@ -45,6 +45,33 @@ public sealed class CommandsTests : IDisposable
     }
 
     [Fact]
+    public async Task The_startup_map_is_given_once_then_cleared()
+    {
+        var settings = new Settings(_folder);
+        var commands = new Commands(
+            settings,
+            _ => null,
+            _ => throw new InvalidOperationException("must not load"),
+            @"C:\Maps\Arena");
+
+        var first = await Ask(commands, "startup");
+        var second = await Ask(commands, "startup");
+
+        Assert.Equal(@"C:\Maps\Arena", first.GetProperty("result").GetProperty("map").GetString());
+        Assert.Equal(JsonValueKind.Null, second.GetProperty("result").GetProperty("map").ValueKind);
+    }
+
+    [Fact]
+    public async Task With_no_startup_map_startup_gives_none()
+    {
+        var commands = Make(_ => throw new InvalidOperationException("must not load"));
+
+        var reply = await Ask(commands, "startup");
+
+        Assert.Equal(JsonValueKind.Null, reply.GetProperty("result").GetProperty("map").ValueKind);
+    }
+
+    [Fact]
     public async Task Game_data_with_no_setting_is_missing()
     {
         var commands = Make(_ => throw new InvalidOperationException("must not load"));

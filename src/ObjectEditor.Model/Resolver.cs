@@ -178,6 +178,7 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
             field.Sort,
             field.Type,
             field.Choice,
+            field.ListOf,
             level,
             mapValue ?? standardValue,
             standardValue,

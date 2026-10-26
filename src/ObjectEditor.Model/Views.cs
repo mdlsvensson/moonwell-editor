@@ -58,6 +58,10 @@ public sealed record ChainLink(string Name, string Id);
 /// The kind of value (<c>int</c>, <c>float</c>, <c>bool</c>, <c>string</c>, <c>choice</c> ...).
 /// </param>
 /// <param name="Choice">For a <c>choice</c> field, the key of its list of values; null for other types.</param>
+/// <param name="ListOf">
+/// For an <c>objectList</c> or <c>objectRef</c> field, what it holds: <c>Ability</c>, <c>Unit</c>, <c>Item</c>,
+/// <c>Upgrade</c>, <c>Buff</c>, or <c>object</c> for units and upgrades together; null for other types.
+/// </param>
 /// <param name="Level">
 /// The level (variation for a doodad), from 1, for a per-level field; 0 for any other field.
 /// </param>
@@ -86,6 +90,7 @@ public sealed record FieldView(
     string Sort,
     string Type,
     string? Choice,
+    string? ListOf,
     int Level,
     string Value,
     string Base,

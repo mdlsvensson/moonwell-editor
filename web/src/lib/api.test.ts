@@ -70,6 +70,7 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["reload", () => api.reload(), "reload", {}],
     ["search", () => api.search("foot", 20), "search", { query: "foot", limit: 20 }],
     ["choices", () => api.choices(), "choices", {}],
+    ["startup", () => api.startup(), "startup", {}],
   ];
 
   it.each(cases)("%s", async (_name, run, command, args) => {

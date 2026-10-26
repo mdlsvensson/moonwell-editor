@@ -75,6 +75,11 @@ export type FieldView = {
   type: string;
   /** For a choice field, the key of its list in `choices()`; null for other types. */
   choice: string | null;
+  /**
+   * For an `objectList` or `objectRef` field, what it holds: `Ability`, `Unit`, `Item`, `Upgrade`, `Buff`, or
+   * `object` for units and upgrades together; null for other types.
+   */
+  listOf: string | null;
   /** The level (a doodad's variation), from 1, for a per-level field; 0 for any other. */
   level: number;
   value: string;
@@ -127,6 +132,14 @@ export type SessionState = { dirty: boolean; changedObjects: number };
 
 /** One field of one object at one level, for an edit. */
 export type FieldRef = { kind: Kind; id: string; field: string; level: number };
+
+/** What the app was started with: `map` is the folder from its command line, given once (null after). */
+export type Startup = { map: string | null };
+
+/** Asks what the app was started with; the page opens `map` once the game data is ready. */
+export function startup(): Promise<Startup> {
+  return call<Startup>("startup");
+}
 
 /** Opens a map folder: `path`, or the one the user picks in the app's dialog (null when they cancel). */
 export function openMap(path?: string): Promise<MapInfo | null> {

@@ -20,7 +20,8 @@ public sealed class MainForm : Form
     private readonly HashSet<string> _origins = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Makes the window. The page loads once the window is shown.</summary>
-    public MainForm()
+    /// <param name="startupMap">A map folder for the page to open once the game data is ready; null for none.</param>
+    public MainForm(string? startupMap = null)
     {
         Text = "Object Editor";
         ClientSize = new Size(1400, 860);
@@ -31,7 +32,11 @@ public sealed class MainForm : Form
         var appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ObjectEditor");
         var cache = Path.Combine(appData, "gamedata");
-        _commands = new Commands(new Settings(appData), AskForFolder, folder => GameData.GameData.Load(folder, cache));
+        _commands = new Commands(
+            new Settings(appData),
+            AskForFolder,
+            folder => GameData.GameData.Load(folder, cache),
+            startupMap);
         _bridge = new Bridge(_commands.Run);
         _commands.GameDataChanged += state => Notify("gameData", state);
         _commands.SessionChanged += state => Notify("sessionChanged", state);

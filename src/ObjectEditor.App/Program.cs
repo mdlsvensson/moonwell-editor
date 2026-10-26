@@ -4,10 +4,15 @@ namespace ObjectEditor.App;
 public static class Program
 {
     /// <summary>Opens the window.</summary>
+    /// <param name="args">
+    /// Optionally a map folder (<c>ObjectEditor.App.exe C:\Maps\Arena</c>), which the page opens once the game data is
+    /// ready, as if it had been picked with "Open map…".
+    /// </param>
     [STAThread]
-    public static void Main()
+    public static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        var map = args.Length > 0 && args[0].Length > 0 ? Path.GetFullPath(args[0]) : null;
+        Application.Run(new MainForm(map));
     }
 }

@@ -33,6 +33,21 @@ OBJECT_EDITOR_DEV_URL=http://localhost:5173 dotnet run --project src/ObjectEdito
 Without `OBJECT_EDITOR_DEV_URL` the window shows the built page instead: run `npm run build` in `web/` first, then
 `dotnet build` copies `web/dist` next to the exe as `wwwroot`. (`dotnet build` does not run npm.)
 
+## Open a map at start
+
+The app takes a map folder as its first command-line argument and opens it once the game data is ready, as if it had
+been picked with "Open map…" (handy for checking the window without the folder dialog, and for "open with"):
+
+```
+dotnet run --project src/ObjectEditor.App -- "C:\Maps\Arena"
+src/ObjectEditor.App/bin/Debug/net10.0-windows/ObjectEditor.App.exe "C:\Maps\Arena"
+```
+
+The page asks for it with the `startup` command, which gives the folder once; a page loaded again (live reload) does
+not open it again.
+
+The page logs how long opening a map, a kind's tree and an object take to the console, as `[timing] …` lines.
+
 ## Tests and checks
 
 ```

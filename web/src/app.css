@@ -25,6 +25,8 @@
   --changed: #e6cc77;
   --warn: #cb7676;
   --warn-lo: #43242b;
+  --cyan: #5eaab5;
+  --purple: #6872ab;
   --font-ui: "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Nunito Variable", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
@@ -46,6 +48,9 @@
   --color-accent-lo: var(--accent-lo);
   --color-changed: var(--changed);
   --color-warn: var(--warn);
+  --color-warn-lo: var(--warn-lo);
+  --color-cyan: var(--cyan);
+  --color-purple: var(--purple);
   --font-sans: var(--font-ui);
   --font-heading: var(--font-heading);
   --font-mono: var(--font-mono);

@@ -22,6 +22,13 @@ public sealed record GameDataState(string? Source, bool Loaded, string? Error, i
 /// </param>
 public sealed record SessionState(bool Dirty, int ChangedObjects);
 
+/// <summary>What the app was started with, for the page to act on once it is ready.</summary>
+/// <param name="Map">
+/// The map folder given as the app's first command-line argument, which the page opens once the game data is ready;
+/// null when there was none, or once the page has asked.
+/// </param>
+public sealed record Startup(string? Map);
+
 /// <summary>The map that was opened or reloaded.</summary>
 /// <param name="Name">The map folder's name.</param>
 /// <param name="Path">The map folder's full path.</param>
@@ -45,6 +52,9 @@ public sealed class Commands
     private readonly Func<string, Data> _load;
     private readonly object _lock = new();
 
+    // The map folder from the command line, until the page asks for it.
+    private string? _startupMap;
+
     private string? _source;
     private Data? _data;
     private string? _error;
@@ -62,11 +72,20 @@ public sealed class Commands
     /// any thread.
     /// </param>
     /// <param name="load">Loads the game data from a folder; the app uses <c>GameData.Load</c> with its cache folder.</param>
-    public Commands(Settings settings, Func<string, string?> askFolder, Func<string, Data> load)
+    /// <param name="startupMap">
+    /// The map folder the app was started with (its first command-line argument), which the <c>startup</c> command
+    /// gives once; null for none.
+    /// </param>
+    public Commands(
+        Settings settings,
+        Func<string, string?> askFolder,
+        Func<string, Data> load,
+        string? startupMap = null)
     {
         _settings = settings;
         _askFolder = askFolder;
         _load = load;
+        _startupMap = string.IsNullOrEmpty(startupMap) ? null : startupMap;
     }
 
     /// <summary>Raised, on a background thread, when a load ends (well or badly).</summary>
@@ -147,6 +166,7 @@ public sealed class Commands
         {
             "ping" => "pong",
             "gameData" => State(),
+            "startup" => TakeStartup(),
             "chooseGameData" => ChooseGameData(),
             "openMap" => OpenMap(OptionalText(args, "path")),
             "tree" => Map().Tree(Kind(args)),
@@ -164,6 +184,14 @@ public sealed class Commands
             "choices" => NeedGameData().Choices,
             _ => throw new UnknownCommandException(command),
         };
+
+    // The map from the command line the first time, so a page that is loaded again does not open it again.
+    private Startup TakeStartup()
+    {
+        var map = _startupMap;
+        _startupMap = null;
+        return new Startup(map);
+    }
 
     // Opens a map folder, asking for one when the page gives no path. Null when the user cancels the dialog. The game
     // data is checked first, so the user is not asked for a folder that cannot be opened yet.
