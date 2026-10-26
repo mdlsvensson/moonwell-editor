@@ -133,6 +133,14 @@ export function nameField(view: ObjectView): FieldView | undefined {
 }
 
 /**
+ * A status-bar notice's tooltip: its whole text first (the bar cuts a long one short), then its own title when it
+ * has one.
+ */
+export function noticeTitle(notice: { text: string; title?: string }): string {
+  return notice.title ? `${notice.text}\n${notice.title}` : notice.text;
+}
+
+/**
  * What the status bar says after a save: the files written, where the backup went (its last two parts), and the
  * save's note when it has one.
  */

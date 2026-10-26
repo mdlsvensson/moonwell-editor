@@ -7,10 +7,11 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { SessionState } from "./api.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
+import { noticeTitle } from "./values.ts";
 
 /**
- * A short message in the status bar, such as what a save wrote; `title` is its tooltip, `caution` a warning shown
- * after it in full (it is not cut off when the text is long).
+ * A short message in the status bar, such as what a save wrote or why it failed; its tooltip is the whole text (a long
+ * one is cut off with an ellipsis), then `title` when given; `caution` is a warning shown after it in full.
  */
 export type Notice = { text: string; title?: string; warn?: boolean; caution?: string };
 
@@ -68,7 +69,7 @@ const folderName = $derived(
     <span
       class="min-w-0 truncate {notice.warn ? 'text-warn' : 'text-accent-hi'}"
       data-testid="notice"
-      title={notice.title ?? notice.text}
+      title={noticeTitle(notice)}
       role="status"
     >
       {notice.text}

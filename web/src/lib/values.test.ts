@@ -6,6 +6,7 @@ import {
   editorFor,
   formatFlags,
   nameField,
+  noticeTitle,
   parseFlags,
   removeId,
   savedText,
@@ -202,6 +203,17 @@ describe("nameField", () => {
     expect(nameField(view("buff", ["fnam", "ftip"]))?.id).toBe("ftip");
     expect(nameField(view("upgrade", ["gnam"]))?.id).toBe("gnam");
     expect(nameField(view("doodad", ["uhpm"]))).toBeUndefined();
+  });
+});
+
+describe("noticeTitle", () => {
+  it("starts with the whole text, so a long one cut off in the status bar can be read", () => {
+    const text =
+      "Not saved: The map archive C:\\Maps\\Arena.w3x was not saved, and is as it was: a reason";
+    expect(noticeTitle({ text })).toBe(text);
+    expect(noticeTitle({ text: "Saved 1 file", title: "war3map.w3u\nBackup: C:\\B" })).toBe(
+      "Saved 1 file\nwar3map.w3u\nBackup: C:\\B",
+    );
   });
 });
 
