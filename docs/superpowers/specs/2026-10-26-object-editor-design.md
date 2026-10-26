@@ -3,9 +3,10 @@
 A desktop app, made with Tauri, that does the job of World Editor's Object Editor (units, items, abilities, buffs,
 upgrades, destructables and doodads) and is faster, searchable and easier to use.
 
-Status: **draft, not approved.** Sven skipped the design questions on 2026-10-26 ("skip"), so every choice below is
-the agent's call unless it says otherwise. Nothing here is Sven's decision until he confirms it. The calls are listed
-together at the end ("Calls to check") so they can be read and corrected in one place.
+Status: **draft, not approved.** Sven skipped the open design questions on 2026-10-26 ("skip"), so every choice
+below is the agent's call unless it says otherwise. After a reviewer read the draft, Sven answered four questions the
+same day; those answers are marked **Sven, 2026-10-26**. The agent's calls are listed together at the end ("Calls to
+check") so they can be read and corrected in one place.
 
 The clickable mockup is `docs/mockups/editor.html` (open it in a browser).
 
@@ -58,15 +59,14 @@ the usual complaints; Sven has not named his own.)*
 
 ## Who it is for
 
-Sven first. Nothing in it needs Moonwell to run: a modder with a map and the app can use it. *(Agent's call; Sven has
-not said whether other modders are a target. Making it work without Moonwell costs nothing extra, because the game's
-standard data ships with the app.)*
+**Sven and other modders** (Sven, 2026-10-26). Sven uses it first, while it is built; other modders use it once it is
+released. So nothing in the released app may need Moonwell, .NET or a wc3-cs checkout, and it may not ship Blizzard's
+data: it reads the game's standard data from the user's own Warcraft III install (see "The game's standard data").
 
 ## What it edits
 
-**A map's own object files** (option (a) of the brief), straight in a map: a map folder (World Editor 3.0 can save a
-map as a folder) or a `.w3x`/`.w3m` archive. *(Agent's call, and the one most worth Sven's check: see "Open
-questions".)*
+**A map's own object files** (Sven, 2026-10-26: option (a) of the brief), straight in a map: a map folder (World
+Editor 3.0 can save a map as a folder) or a `.w3x`/`.w3m` archive.
 
 The files are the seven kinds' main and skin files and the strings file:
 
@@ -120,8 +120,8 @@ Mod:
 - Strings are kept as **raw bytes**, not decoded and re-encoded, so a map with non-UTF-8 text still round-trips.
   They are shown as UTF-8 (with replacement marks where invalid) and written back unchanged unless edited.
 - Anything after the two tables (some writers add an empty third table) is kept and written back.
-- A version 3 object with a set count other than 1 is kept as raw bytes and shown read-only, with a note: no tool
-  documents what more than one set means.
+- A version 3 object with a set count other than 1 is read as War3Net reads it (the count, then that many set flags)
+  and shown read-only, with a note: no tool documents what more than one set means.
 - `.w3o`: `int32 version`, then for unit, item, destructable, doodad, ability, buff, upgrade in that order an `int32`
   present flag (0 or 1) and, when 1, a whole per-kind file. No skin files.
 - `war3map.wts`: `STRING n`, optional `// comment` lines, `{`, the text, `}`. World Editor writes a UTF-8 BOM and CRLF
@@ -155,9 +155,21 @@ Folder maps need no archive code, so they come first.
   `TRIGSTR` strings, changes to standard objects). Sven to provide one; until then the writer is not trusted on maps
   with heavy edits.
 
-Later stages, in the agent's suggested order: (2) "copy as Moonwell C#" for a custom object; (3) icons from the game
-install; (4) reading the base data from the game install instead of the shipped export; (5) reading and writing
-Moonwell's C# classes.
+## Milestones
+
+1. **Browse:** open a map folder; tree, details panel, field filter, search. Read only.
+2. **Edit and save** a map folder: every field editor, reset, undo and redo, new and copied objects, validation,
+   backups. Closes only once the writer passes Sven's World Editor test map (Sven, 2026-10-26: he will make one).
+3. **Table bulk edit** (goal 4; Sven, 2026-10-26: first after browsing and editing).
+4. **Archives:** open and save `.w3x`/`.w3m`.
+5. **Standard data from the game install**, so the app no longer needs the development bundle; required before any
+   public release.
+6. **Compare** (goal 5), then **used by, components and tooltips** (goal 6). *(Order of these two: agent's call.)*
+
+Later, in the agent's suggested order: icons from the game install; "copy as Moonwell C#" for a custom object;
+reading and writing Moonwell's C# classes; `.w3o` import and export.
+
+The first build plan covers milestones 1 and 2; each later milestone gets its own plan.
 
 ## How the app is put together
 
@@ -190,12 +202,13 @@ wc3-object-editor/
     objdata/        reads and writes the object files (.w3u ... .w3q, skin files, .w3o) and war3map.wts
     mapfile/        opens a map: a folder or an MPQ archive (.w3x/.w3m); lists, reads and replaces files
     basedata/       loads the game's standard data bundle (fields, choices, standard objects)
+    gamedata/       (milestone 5) builds that bundle from the user's game install
     model/          the edit model: map + base data -> resolved values, edits, undo, search, compare, references
   src-tauri/        the Tauri app: commands and events over `model`
   src/              the web side (Svelte 5, TypeScript)
   tools/BaseData/   .NET 10 console app that writes the standard data bundle with Moonwell's generator
   tools/Oracle/     .NET 10 console app that dumps object files to JSON with War3Net, for tests
-  base-data/        the bundle the app ships (one per game version)
+  base-data/        the development bundle, one per game version (git-ignored: Blizzard's data)
   docs/
 ```
 
@@ -210,16 +223,29 @@ func, skin and string files per object; `Fields.Of` gives each kind's fields wit
 limits; `StandardObjects.Of` gives each standard object's values keyed `fieldId` or `fieldId:level`, its race,
 campaign flag, hero flag and the balance sets it is in. All three are public in `Moonwell.Generator`.
 
-**The agent's call:** a small .NET tool (`tools/BaseData`) references `Moonwell.Generator` and writes one bundle,
-`base-data/<game version>.json`, which the app ships and loads at start. Moonwell already writes much of this as
+Because the released app reads the user's own install (Sven, 2026-10-26: other modders too), the rules end up in
+Rust. **The agent's call** is to get there in two steps, so the editor can be built before the port:
+
+1. **Development bundle (milestones 1-4).** A small .NET tool (`tools/BaseData`) references `Moonwell.Generator` and
+   writes one bundle, `base-data/<game version>.json`, which the app loads at start during development. It is not
+   committed (it holds Blizzard's data); `tools/BaseData` regenerates it from the export at
+   `C:\Users\mdlsvensson\Downloads\Work\war3.w3mod`.
+2. **The Rust port (milestone 5).** A crate `gamedata` ports `ExportTables`, `Fields` and `StandardObjects` and reads
+   the files from the install's CASC storage. Its test: the bundle it makes equals `tools/BaseData`'s, field for field
+   and object for object, on the same export, so the port is checked against Moonwell's tested rules over the whole
+   data set. The app builds the bundle on first start and caches it in its data folder; a game patch rebuilds it.
+   Reading CASC: no permissively licensed Rust reader for Warcraft III exists (`casc-rs` is GPL-3.0); the agent's call
+   is CascLib (MIT, C++) through a small FFI binding, decided by a spike at the start of milestone 5.
+
+During development the bundle is made this way: Moonwell already writes much of this as
 `src/Moonwell.Objects/Generated/Values/<kind>.json` (fields with type, store, per-level, data pointer and skin flag;
 each object's values): 5.7 MB for all kinds, so plain JSON is small enough, and the bundle adds labels, categories,
 limits and choices on top. The alternatives weighed:
 
 | Way | Cost | Risk |
 |---|---|---|
-| **Bundle from Moonwell's generator (chosen)** | Small: ~200 lines of C#, run once per game patch. The app needs no .NET. | Depends on `Moonwell.Generator`'s public API; a Moonwell change can break the tool (caught when it is run). |
-| Port `ExportTables`, `Fields` and `StandardObjects` to Rust | Large: ~1,500 lines of subtle rules (per-level columns, `appendIndex`, quoted lists, `:hd` keys, use flags) to rewrite and re-test. | Two copies of the rules that drift apart. |
+| **Bundle from Moonwell's generator (chosen for milestones 1-4)** | Small: ~200 lines of C#, run once per game patch. The app needs no .NET. | Depends on `Moonwell.Generator`'s public API; builds only beside a wc3-cs checkout. |
+| Port `ExportTables`, `Fields` and `StandardObjects` to Rust (milestone 5) | Large: ~1,500 lines of subtle rules (per-level columns, `appendIndex`, quoted lists, `:hd` keys, use flags) to rewrite. | Two copies of the rules that drift apart; held in check by the whole-bundle equality test against `tools/BaseData`. |
 | Read Moonwell's generated C# (`src/Moonwell.Objects/Generated`) | Parsing C#. | Fragile; loses labels and categories. |
 
 Each field in the bundle carries the metadata the editor needs that `Field` does not: `category` and `sort` (the
@@ -228,9 +254,9 @@ entries and labels (`ui/uniteditordata.txt`). The bundle records the game versio
 bar.
 
 Base values for a map's game data set: a map may use a balance set (`melee_v0`, `custom_v0`, `custom_v1`), which
-changes standard values. The bundle carries each object's per-set differences (`StandardObject.Sets`). First version:
-the base tables, with a status-bar switch to view another set. Reading the map's own setting from `war3map.w3i` is a
-later task. *(Agent's call.)*
+changes standard values. The bundle carries each object's per-set differences (`StandardObject.Sets`). Milestones 1
+and 2 show the base tables (the status bar says so); a switch to view another set, and reading the map's own setting
+from `war3map.w3i`, come later. *(Agent's call.)*
 
 ## The map's data and how a value is shown
 
@@ -297,8 +323,8 @@ Editor's limit of 99999"), matching Moonwell's `MW0009` wording where it can. Va
 - Tauri 2, Rust stable (1.99 installed), edition 2024.
 - Front end: Svelte 5, TypeScript, Vite, Tailwind CSS 4, Lucide icons, fontsource fonts. Exact versions pinned.
 - Biome for formatting and linting the front end (2-space indent, 100 columns), `rustfmt` and `clippy` for Rust.
-- Tests: `cargo test` for the crates; Vitest for front-end logic; a Playwright smoke test against the Vite page with
-  Tauri's IPC mocked (`@tauri-apps/api/mocks`).
+- Tests: `cargo test` for the crates; Vitest for front-end logic, with Tauri's IPC mocked (`@tauri-apps/api/mocks`);
+  the window itself checked by screenshots.
 - npm (no pnpm), LF line ends (`.gitattributes`: `* text=auto eol=lf`).
 - Windows first; nothing Windows-only in the crates.
 
@@ -323,27 +349,28 @@ Names inside the code, the exact JSON shape of the bundle and of the command res
 tree is cached, the backup folder's exact name, and any detail the plan does not fix, as long as the goals and
 anti-goals hold.
 
-## Open questions (Sven's)
+## Sven's answers (2026-10-26)
 
-1. **What the app edits.** The agent chose (a), the map's object files. Moonwell's decision 3 says a Moonwell modder
-   never opens the Object Editor, so for Moonwell maps the app is mostly a fast browser of the standard data; the
-   editing serves World Editor maps (and the objects a Moonwell map keeps in its `map/` folder). If Sven's real use is
-   Moonwell, (d) a viewer and search with "copy as Moonwell C#" may be the better first version, and much smaller.
-2. **What annoys him most** and **what he does most** in the Object Editor: this decides which of goals 4-6 come
-   first.
-3. **Other modders:** if yes, the base data bundle holds Blizzard's data, which matters for a public repository and
-   release (Moonwell's public repository already commits the same kind of data in `Generated/Values/*.json`). Also,
-   `tools/BaseData` builds only beside a wc3-cs checkout, because `Moonwell.Generator` is not a package; fine for Sven
-   alone, not for outside contributors.
-4. **The World Editor save with heavy edits:** until it exists, the plan has saving ship behind a warning ("saving is
-   tested only on small maps") and the save milestone does not close.
+1. The first version edits the map's object files (option (a)).
+2. It is for Sven and other modders.
+3. Table bulk edit comes first after browsing and editing.
+4. Sven will save a World Editor test map with many object edits (every tab, abilities with levels, doodad
+   variations, edited standard units); milestone 2 waits for it. Until it exists, saving ships behind a warning
+   ("saving is tested only on small maps").
+
+## Open questions (Sven's, not blocking the first plan)
+
+1. **Licence and repository** for the public release (a GitHub repository, pushing and publishing are each his
+   call).
+2. **What annoys him most** in the Object Editor, if anything beyond the goals above.
 
 ## Calls to check
 
-Every call below is the agent's, made because the questions were skipped:
+Every call below is the agent's:
 
-- Edit the map's own object files, folder or `.w3x`; no project format of its own.
-- Works without Moonwell; the standard data ships as a bundle made by Moonwell's generator.
+- No project format of its own; folder maps before archives.
+- The standard data comes from a development bundle made by Moonwell's generator until milestone 5, then from the
+  user's install through a Rust port checked against that bundle; CascLib through FFI for reading the install.
 - Read and write the formats exactly; unchanged files byte for byte.
 - Custom objects inherit from the standard base, not the map's change to it (as the game does).
 - Strings: `TRIGSTR` entries edited in `war3map.wts`, inline strings stay inline, new strings inline.
