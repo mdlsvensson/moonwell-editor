@@ -78,7 +78,8 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
         Directory.CreateDirectory(oldest);
         var session = Session.Open(MapStore.Open(map.Map), game);
 
-        // Seven saves, many in the same second: each backup holds the whole archive as it was before that save.
+        // Seven saves, many in the same second: each backup holds the whole archive as it was before that save, named
+        // with .bak after the map's own name.
         var made = new List<string>();
         for (var i = 0; i < 7; i++)
         {
@@ -88,7 +89,7 @@ public sealed class ArchiveTests(GameDataFixture fixture, ITestOutputHelper outp
             output.WriteLine(report.Backup);
             Assert.Equal(backups, Path.GetDirectoryName(report.Backup));
             var copy = Assert.Single(Directory.GetFiles(report.Backup));
-            Assert.Equal("Sample.w3x", Path.GetFileName(copy));
+            Assert.Equal("Sample.w3x.bak", Path.GetFileName(copy));   // not a map the game's list shows
             Assert.Equal(previous, File.ReadAllBytes(copy));
             made.Add(report.Backup);
         }
