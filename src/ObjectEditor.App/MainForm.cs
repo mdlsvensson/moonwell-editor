@@ -9,7 +9,8 @@ public sealed class MainForm : Form
     private const string Host = "app.objecteditor";
 
     private readonly WebView2 _web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(0x12, 0x12, 0x12) };
-    private readonly Bridge _bridge = new(Commands.Run);
+    private readonly Commands _commands;
+    private readonly Bridge _bridge;
 
     // The page's requests are answered one at a time, in the order they came.
     private readonly SemaphoreSlim _oneAtATime = new(1, 1);
@@ -22,12 +23,53 @@ public sealed class MainForm : Form
         MinimumSize = new Size(900, 600);
         BackColor = Color.FromArgb(0x12, 0x12, 0x12);
         Controls.Add(_web);
-        Load += async (_, _) => await StartPage();
+
+        var appData = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ObjectEditor");
+        var cache = Path.Combine(appData, "gamedata");
+        _commands = new Commands(new Settings(appData), AskForFolder, folder => GameData.GameData.Load(folder, cache));
+        _bridge = new Bridge(_commands.Run);
+        _commands.GameDataChanged += state => Notify("gameData", state);
+
+        Load += async (_, _) =>
+        {
+            _ = _commands.StartLoading();
+            await StartPage();
+        };
     }
 
     /// <summary>Sends a message (for example from <see cref="Bridge.Event"/>) to the page. Call it from the UI thread.</summary>
     /// <param name="message">The message, as JSON text.</param>
     public void Post(string message) => _web.CoreWebView2.PostWebMessageAsString(message);
+
+    // Commands run on a background task, but a dialog must open on the window's own thread.
+    private string? AskForFolder() =>
+        Invoke(() =>
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Choose the game data folder (a war3.w3mod export)",
+                UseDescriptionForTitle = true,
+            };
+            return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedPath : null;
+        });
+
+    // Tells the page about something that happened on a background thread.
+    private void Notify(string name, object payload)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        BeginInvoke(() =>
+        {
+            if (_web.CoreWebView2 != null)
+            {
+                Post(Bridge.Event(name, payload));
+            }
+        });
+    }
 
     private async Task StartPage()
     {

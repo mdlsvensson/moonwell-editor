@@ -11,6 +11,10 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ObjectEditor.GameData\ObjectEditor.GameData.csproj" />
+  </ItemGroup>
+
   <!--
     The Svelte front end is built by `npm run build` in web/ (dotnet build does not run npm). When web/dist exists,
     its files are copied next to the exe as wwwroot, where MainForm maps them to https://app.objecteditor/.

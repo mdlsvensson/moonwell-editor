@@ -11,6 +11,16 @@ public sealed class UnknownCommandException(string command)
 }
 
 /// <summary>
+/// A command that failed for a reason the page can act on. The bridge answers it with the error <see cref="Code"/>
+/// and the message, so the page can tell it from a bug (for example <c>gameDataLoading</c>).
+/// </summary>
+public sealed class CommandException(string code, string message) : Exception(message)
+{
+    /// <summary>The error code the page sees.</summary>
+    public string Code { get; } = code;
+}
+
+/// <summary>
 /// The page's way to ask the app for things. A request is <c>{"id","command","args"}</c>; the reply is
 /// <c>{"id","ok":true,"result"}</c> or <c>{"id","ok":false,"error":{"code","message"}}</c>. It knows nothing about
 /// WebView2: the window passes it the strings, so it can be tested without a window.
@@ -51,6 +61,10 @@ public sealed class Bridge
         catch (UnknownCommandException exception)
         {
             return Reply(id, false, "error", new { code = "unknownCommand", message = exception.Message });
+        }
+        catch (CommandException exception)
+        {
+            return Reply(id, false, "error", new { code = exception.Code, message = exception.Message });
         }
         catch (JsonException exception)
         {

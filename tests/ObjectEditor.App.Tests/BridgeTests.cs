@@ -7,10 +7,17 @@ public sealed class BridgeTests
 {
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
+    // Commands that never touch the settings or the game data: only ping and the unknown-command error are used.
+    private static Commands PingOnly() =>
+        new(
+            new Settings(Path.Combine(Path.GetTempPath(), "ObjectEditor.App.Tests", "bridge")),
+            () => null,
+            _ => throw new InvalidOperationException());
+
     [Fact]
     public async Task Ping_round_trips()
     {
-        var bridge = new Bridge(Commands.Run);
+        var bridge = new Bridge(PingOnly().Run);
 
         var reply = Parse(await bridge.Handle("""{"id":7,"command":"ping","args":{}}"""));
 
@@ -22,7 +29,7 @@ public sealed class BridgeTests
     [Fact]
     public async Task Unknown_command_is_an_error()
     {
-        var bridge = new Bridge(Commands.Run);
+        var bridge = new Bridge(PingOnly().Run);
 
         var reply = Parse(await bridge.Handle("""{"id":1,"command":"nope","args":{}}"""));
 

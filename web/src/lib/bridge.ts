@@ -12,6 +12,17 @@ type Reply = {
 };
 type Pending = { resolve: (value: never) => void; reject: (error: Error) => void };
 
+/** A command that failed in the app. `code` is the app's error code, such as `gameDataLoading`. */
+export class BridgeError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "BridgeError";
+    this.code = code;
+  }
+}
+
 let nextId = 1;
 const pending = new Map<number, Pending>();
 const handlers = new Map<string, Set<(payload: unknown) => void>>();
@@ -40,10 +51,17 @@ function receive(data: unknown): void {
   if (!waiting) return;
   pending.delete(reply.id);
   if (reply.ok) waiting.resolve(reply.result as never);
-  else waiting.reject(new Error(reply.error?.message ?? "The app reported an error."));
+  else {
+    waiting.reject(
+      new BridgeError(
+        reply.error?.code ?? "failed",
+        reply.error?.message ?? "The app reported an error.",
+      ),
+    );
+  }
 }
 
-/** Runs a command in the app. Rejects with the app's error message when the command fails. */
+/** Runs a command in the app. Rejects with a BridgeError (the app's code and message) when the command fails. */
 export function call<T>(command: string, args: object = {}): Promise<T> {
   const channel = webview();
   const id = nextId++;
