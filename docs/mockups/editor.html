@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Object Editor mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #121212; --surface: #181818; --raised: #1e1e1e; --hover: #222222; --border: #262626;
+    --fg: #dbd7ca; --text: #bfbaaa; --muted: #959da5; --faint: #6b6f73;
+    --green: #4d9375; --green-hi: #80a665; --green-lo: #144620;
+    --blue: #6394bf; --cyan: #5eaab5; --orange: #d4976c; --yellow: #e6cc77;
+    --red: #cb7676; --red-lo: #43242b; --purple: #6872ab; --pink: #d9739f;
+    --sans: "Nunito", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+  button { font: inherit; color: inherit; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .app { display: grid; grid-template-rows: 44px 1fr 26px; height: 100vh; }
+  header { display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  header .map { color: var(--fg); font-weight: 700; }
+  header .map small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .search { flex: 1; max-width: 520px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--muted); cursor: text; }
+  .kbd { font-family: var(--mono); font-size: 11px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
+  .views { display: flex; gap: 2px; }
+  .views button { background: none; border: 0; padding: 6px 10px; border-radius: 5px; color: var(--muted); cursor: pointer; }
+  .views button.on { background: var(--green-lo); color: var(--green-hi); }
+  .save { background: var(--green); color: #121212; border: 0; border-radius: 5px; padding: 5px 12px; font-weight: 700; cursor: pointer; }
+  main { display: grid; grid-template-columns: 290px 1fr 300px; min-height: 0; }
+  main.wide { grid-template-columns: 1fr; }
+  @media (max-width: 1100px) { main { grid-template-columns: 230px 1fr 240px; } }
+  aside, section { min-height: 0; overflow: auto; }
+  aside.tree { background: var(--surface); border-right: 1px solid var(--border); }
+  aside.side { background: var(--surface); border-left: 1px solid var(--border); padding: 12px; }
+  .kinds { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px; border-bottom: 1px solid var(--border); }
+  .kinds button { background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+  .kinds button.on { color: var(--fg); border-color: var(--green); }
+  .filter { padding: 8px 10px; }
+  .filter input, .fieldfilter input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; color: var(--fg); font: inherit; }
+  .node { display: flex; align-items: center; gap: 6px; padding: 3px 10px; cursor: pointer; white-space: nowrap; }
+  .node:hover { background: var(--hover); }
+  .node.sel { background: rgba(77,147,117,.16); color: var(--fg); }
+  .node .id { margin-left: auto; color: var(--faint); }
+  .node.custom .name { color: var(--green-hi); }
+  .caret { width: 12px; color: var(--faint); }
+  .group { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 10px 4px; }
+  section.details { padding: 0 0 40px; }
+  .objhead { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 14px 18px 10px; border-bottom: 1px solid var(--border); }
+  .objhead h1 { margin: 0; font-size: 20px; color: var(--fg); display: flex; align-items: baseline; gap: 10px; }
+  .objhead h1 .mono { color: var(--muted); font-weight: 400; }
+  .chain { margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .chain b { color: var(--text); font-weight: 600; }
+  .fieldfilter { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .chip { white-space: nowrap; background: var(--raised); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+  .chip.on { color: var(--yellow); border-color: var(--yellow); }
+  .cat { margin: 14px 18px 0; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .cat > .cathead { display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 6px 10px; color: var(--fg); font-weight: 700; cursor: pointer; }
+  .cat > .cathead .count { margin-left: auto; color: var(--faint); font-weight: 400; font-size: 12px; }
+  .row { display: grid; grid-template-columns: 22px minmax(170px, 1fr) minmax(120px, 260px) 24px; align-items: center; border-top: 1px solid var(--border); min-height: 30px; }
+  .row:hover { background: var(--surface); }
+  .row .mark { justify-self: center; width: 4px; height: 18px; border-radius: 2px; }
+  .row.mod .mark { background: var(--yellow); }
+  .row .label { padding: 4px 8px 4px 0; }
+  .row .label .fid { color: var(--faint); margin-left: 6px; }
+  .row .value { padding: 3px 8px; }
+  .row .value input, .row .value select { width: 100%; background: var(--bg); border: 1px solid transparent; border-radius: 4px; padding: 3px 6px; color: var(--fg); font: 12.5px var(--mono); }
+  .row .value input:hover, .row .value select:hover { border-color: var(--border); }
+  .row.mod .value input, .row.mod .value select { color: var(--yellow); }
+  .row .reset { color: var(--yellow); cursor: pointer; visibility: hidden; text-align: center; }
+  .row.mod .reset { visibility: visible; }
+  .row.warn .value input { border-color: var(--red); background: var(--red-lo); }
+  .note { grid-column: 2 / 5; color: var(--red); font-size: 12px; padding: 0 8px 6px 0; }
+  .levels { grid-column: 2 / 5; padding: 2px 8px 8px 0; }
+  .levels table { border-collapse: collapse; }
+  .levels td, .levels th { border: 1px solid var(--border); padding: 2px 8px; font: 12.5px var(--mono); text-align: right; }
+  .levels th { color: var(--muted); font-weight: 400; }
+  .levels td.mod { color: var(--yellow); }
+  .side h3 { margin: 4px 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .comp { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; background: var(--raised); cursor: pointer; }
+  .comp:hover { border-color: var(--green); }
+  .comp .id { margin-left: auto; color: var(--faint); }
+  .comp .tag { font-size: 11px; color: var(--cyan); }
+  .tip { background: #0d0d0d; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 13px; }
+  .tip .gold { color: #ffcc00; }
+  footer { display: flex; gap: 16px; align-items: center; padding: 0 12px; background: var(--surface); border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  footer .dirty { color: var(--yellow); }
+  /* table view */
+  .tablewrap { padding: 14px 18px; overflow: auto; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .bar .sel { color: var(--fg); }
+  .bar input { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px; color: var(--fg); font: 12.5px var(--mono); width: 110px; }
+  .bar button { background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+  table.grid { border-collapse: collapse; min-width: 900px; }
+  table.grid th, table.grid td { border: 1px solid var(--border); padding: 4px 10px; white-space: nowrap; }
+  table.grid th { background: var(--surface); color: var(--muted); font-weight: 600; text-align: left; position: sticky; top: 0; }
+  table.grid th .mono { color: var(--faint); font-weight: 400; margin-left: 4px; }
+  table.grid td.num { text-align: right; font: 12.5px var(--mono); color: var(--fg); }
+  table.grid td.mod { color: var(--yellow); }
+  table.grid tr.picked td { background: rgba(77,147,117,.10); }
+  table.grid td.cellsel { outline: 2px solid var(--green); outline-offset: -2px; }
+  /* compare */
+  .cmp { padding: 14px 18px; }
+  .cmp table { border-collapse: collapse; width: 100%; max-width: 1000px; }
+  .cmp td, .cmp th { border-bottom: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  .cmp th { color: var(--muted); font-weight: 600; }
+  .cmp td.a { color: var(--red); font-family: var(--mono); font-size: 12.5px; }
+  .cmp td.b { color: var(--green-hi); font-family: var(--mono); font-size: 12.5px; }
+  /* palette */
+  .veil { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-start; justify-content: center; padding-top: 90px; z-index: 10; }
+  .veil.open { display: flex; }
+  .palette { width: 640px; max-width: calc(100% - 32px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .palette input { width: 100%; padding: 14px 16px; background: var(--surface); border: 0; border-bottom: 1px solid var(--border); color: var(--fg); font: 16px var(--sans); outline: none; }
+  .hit { display: flex; gap: 10px; align-items: center; padding: 8px 16px; cursor: pointer; }
+  .hit.on, .hit:hover { background: var(--hover); }
+  .hit .kind { font-size: 11px; color: var(--cyan); width: 64px; }
+  .hit .sub { color: var(--faint); font-size: 12px; }
+  .hit .id { margin-left: auto; color: var(--faint); }
+  .hint { padding: 8px 16px; color: var(--faint); font-size: 12px; border-top: 1px solid var(--border); }
+  .hidden { display: none !important; }
+  .callout { margin: 12px 18px 0; padding: 8px 12px; border-left: 3px solid var(--purple); background: rgba(104,114,171,.10); color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="map">Moonwell Arena <small class="mono">maps/arena.w3x</small></span>
+    <div class="search" id="openPalette">⌕ <span>Search objects, ids, fields, values…</span> <span class="kbd" style="margin-left:auto">Ctrl K</span></div>
+    <div class="views">
+      <button class="on" data-view="details">Details</button>
+      <button data-view="table">Table</button>
+      <button data-view="compare">Compare</button>
+    </div>
+    <button class="save">Save</button>
+  </header>
+
+  <main id="main">
+    <aside class="tree" id="tree">
+      <div class="kinds">
+        <button class="on">Units</button><button>Items</button><button>Abilities</button><button>Buffs</button>
+        <button>Upgrades</button><button>Destructables</button><button>Doodads</button>
+      </div>
+      <div class="filter"><input placeholder="Filter the tree (name or id)…"></div>
+      <div class="group">Custom · this map</div>
+      <div class="node custom sel" data-obj="champion"><span class="caret"></span><span class="name">Champion</span><span class="id mono">H000</span></div>
+      <div class="node custom" data-obj="spearman"><span class="caret"></span><span class="name">Spearman</span><span class="id mono">h001</span></div>
+      <div class="node custom"><span class="caret"></span><span class="name">Spearman (Veteran)</span><span class="id mono">h002</span></div>
+      <div class="group">Standard</div>
+      <div class="node"><span class="caret">▾</span>Human</div>
+      <div class="node" style="padding-left:26px"><span class="caret">▾</span>Melee</div>
+      <div class="node" style="padding-left:42px"><span class="caret">▾</span>Heroes</div>
+      <div class="node" style="padding-left:58px" data-obj="paladin"><span class="caret"></span><span class="name">Paladin</span><span class="id mono">Hpal</span></div>
+      <div class="node" style="padding-left:58px"><span class="caret"></span><span class="name">Archmage</span><span class="id mono">Hamg</span></div>
+      <div class="node" style="padding-left:42px"><span class="caret">▾</span>Units</div>
+      <div class="node" style="padding-left:58px"><span class="caret"></span><span class="name">Footman</span><span class="id mono">hfoo</span></div>
+      <div class="node" style="padding-left:58px"><span class="caret"></span><span class="name">Rifleman</span><span class="id mono">hrif</span></div>
+      <div class="node" style="padding-left:58px"><span class="caret"></span><span class="name">Knight</span><span class="id mono">hkni</span></div>
+      <div class="node" style="padding-left:26px"><span class="caret">▸</span>Campaign</div>
+      <div class="node"><span class="caret">▸</span>Orc</div>
+      <div class="node"><span class="caret">▸</span>Night Elf</div>
+      <div class="node"><span class="caret">▸</span>Undead</div>
+      <div class="node"><span class="caret">▸</span>Neutral</div>
+    </aside>
+
+    <section class="details" id="details">
+      <div class="objhead">
+        <h1>Champion <span class="mono">H000</span></h1>
+        <div class="chain">Unit › Hero › <b>Paladin</b> <span class="mono">Hpal</span> › <b style="color:var(--green-hi)">Champion</b> · 6 fields changed</div>
+        <div class="fieldfilter">
+          <input id="fieldFilter" placeholder="Filter fields: name, id or value (try “hit”, “uhpm”, “650”)…">
+          <span class="chip" id="onlyMod">Changed only</span>
+          <span class="chip" id="showIds">Field ids</span>
+        </div>
+      </div>
+      <div id="cats"></div>
+      <div class="callout">The yellow bar marks a field changed from Paladin; ↺ puts it back. A red box is past World Editor's limit (it still saves, with a warning).</div>
+    </section>
+
+    <aside class="side" id="side">
+      <h3>Components</h3>
+      <div class="comp"><span>Radiant Light</span><span class="tag">ability</span><span class="id mono">A000</span></div>
+      <div class="comp"><span>Divine Shield</span><span class="tag">ability</span><span class="id mono">AHds</span></div>
+      <div class="comp"><span>Devotion Aura</span><span class="tag">ability</span><span class="id mono">AHad</span></div>
+      <div class="comp"><span>Resurrection</span><span class="tag">ability</span><span class="id mono">AHre</span></div>
+      <div class="comp"><span>Inventory (Hero)</span><span class="tag">ability</span><span class="id mono">AInv</span></div>
+      <div class="comp" style="border-style:dashed;color:var(--muted)">+ Add ability…</div>
+      <h3 style="margin-top:16px">Used by</h3>
+      <div class="comp"><span>Altar of Kings</span><span class="tag">trains</span><span class="id mono">halt</span></div>
+      <h3 style="margin-top:16px">Tooltip preview</h3>
+      <div class="tip">Hire <span class="gold">Champion</span><br>A warrior hero, sworn to the Light. Can learn <span class="gold">Radiant Light</span>, Divine Shield, Devotion Aura and Resurrection.</div>
+    </aside>
+
+    <section class="tablewrap hidden" id="table">
+      <div class="bar">
+        <span class="sel">5 of 8 units picked</span>
+        <span style="color:var(--muted)">· Set the picked cells of</span>
+        <span class="chip on">Gold Cost</span>
+        <span style="color:var(--muted)">to</span><input value="× 1.10">
+        <button>Apply</button>
+        <span style="color:var(--faint)">(a number, +5, -10%, × 1.1; Ctrl V pastes a column from a spreadsheet)</span>
+      </div>
+      <table class="grid" id="grid"></table>
+    </section>
+
+    <section class="cmp hidden" id="compare">
+      <div class="bar">
+        <span class="chip on">Champion H000</span><span style="color:var(--muted)">against</span><span class="chip">Paladin Hpal (its base)</span>
+        <span class="chip">the map as last saved</span><span class="chip">another map…</span>
+      </div>
+      <table>
+        <tr><th>Field</th><th>Paladin · Hpal</th><th>Champion · H000</th></tr>
+        <tr><td>Name <span class="mono" style="color:var(--faint)">unam</span></td><td class="a">Paladin</td><td class="b">Champion</td></tr>
+        <tr><td>Hit Points (Base) <span class="mono" style="color:var(--faint)">uhpm</span></td><td class="a">100</td><td class="b">650</td></tr>
+        <tr><td>Starting Strength <span class="mono" style="color:var(--faint)">ustr</span></td><td class="a">22</td><td class="b">25</td></tr>
+        <tr><td>Movement Speed <span class="mono" style="color:var(--faint)">umvs</span></td><td class="a">270</td><td class="b">290</td></tr>
+        <tr><td>Abilities: Hero <span class="mono" style="color:var(--faint)">uhab</span></td><td class="a">AHhb, AHds, AHad, AHre</td><td class="b">A000, AHds, AHad, AHre</td></tr>
+        <tr><td>Proper Names <span class="mono" style="color:var(--faint)">upro</span></td><td class="a">Sir Gregory, Brother Edwin, …</td><td class="b">Lord Garithos</td></tr>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <span class="dirty">● 3 objects changed, not saved</span>
+    <span>Undo Ctrl Z · Redo Ctrl Y</span>
+    <span style="margin-left:auto">Game data 3.0.1.24370 · base tables</span>
+  </footer>
+</div>
+
+<div class="veil" id="veil">
+  <div class="palette">
+    <input id="q" value="hit poi" autocomplete="off">
+    <div id="hits"></div>
+    <div class="hint">↑↓ to move · Enter to open · Ctrl Enter opens beside · type <span class="mono">&gt;</span> for commands (copy object, new from…, save)</div>
+  </div>
+</div>
+
+<script>
+const cats = [
+  { name: "Stats", rows: [
+    ["Hit Points (Base)", "uhpm", "650", "100", { mod: true }],
+    ["Hit Points Regeneration", "uhpr", "0.25", "0.25"],
+    ["Mana (Base)", "umpm", "0", "0"],
+    ["Starting Strength", "ustr", "25", "22", { mod: true }],
+    ["Starting Agility", "uagi", "13", "13"],
+    ["Starting Intelligence", "uint", "17", "17"],
+    ["Strength per Level", "ustp", "2.7", "2.7"],
+    ["Armor (Base)", "udef", "-4", "-4"],
+    ["Sight Radius (Day)", "usid", "1800", "1800"],
+  ]},
+  { name: "Combat", rows: [
+    ["Attack 1 - Damage Base", "ua1b", "120000", "2", { mod: true, warn: "Above World Editor's limit of 99999." }],
+    ["Attack 1 - Cooldown Time", "ua1c", "2.2", "2.2"],
+    ["Attack Type", "ua1t", "select:Hero|Normal|Pierce|Siege|Magic|Chaos", "Hero"],
+    ["Armor Type", "udty", "select:Hero|Small|Medium|Large|Fortified|Divine|Unarmored", "Hero"],
+  ]},
+  { name: "Movement", rows: [
+    ["Movement Speed (Base)", "umvs", "290", "270", { mod: true }],
+    ["Turn Rate", "umvr", "0.5", "0.5"],
+  ]},
+  { name: "Text", rows: [
+    ["Name", "unam", "Champion", "Paladin", { mod: true }],
+    ["Proper Names", "upro", "Lord Garithos", "Sir Gregory, …", { mod: true }],
+    ["Hotkey", "uhot", "C", "P", { mod: true }],
+  ]},
+];
+const abilityLevels = { name: "Radiant Light · per level (Data) — shown when you open A000", rows: [] };
+
+const catsEl = document.getElementById("cats");
+let onlyMod = false, showIds = false, filter = "";
+function render() {
+  catsEl.innerHTML = "";
+  for (const cat of cats) {
+    const rows = cat.rows.filter(r => {
+      if (onlyMod && !(r[4] && r[4].mod)) return false;
+      if (!filter) return true;
+      const f = filter.toLowerCase();
+      return r[0].toLowerCase().includes(f) || r[1].includes(f) || r[2].toLowerCase().includes(f);
+    });
+    if (!rows.length) continue;
+    const box = document.createElement("div");
+    box.className = "cat";
+    box.innerHTML = `<div class="cathead">▾ ${cat.name}<span class="count">${rows.length} fields</span></div>`;
+    for (const [label, id, value, base, opt = {}] of rows) {
+      const row = document.createElement("div");
+      row.className = "row" + (opt.mod ? " mod" : "") + (opt.warn ? " warn" : "");
+      let input;
+      if (value.startsWith("select:")) {
+        input = `<select>${value.slice(7).split("|").map(v => `<option>${v}</option>`).join("")}</select>`;
+      } else {
+        input = `<input value="${value}" title="Paladin: ${base}">`;
+      }
+      row.innerHTML = `<span class="mark"></span><span class="label">${label}${showIds ? `<span class="fid mono">${id}</span>` : ""}</span><span class="value">${input}</span><span class="reset" title="Back to Paladin's ${base}">↺</span>`;
+      if (opt.warn) row.innerHTML += `<span class="note">${opt.warn}</span>`;
+      box.appendChild(row);
+    }
+    catsEl.appendChild(box);
+  }
+  const lv = document.createElement("div");
+  lv.className = "cat";
+  lv.innerHTML = `<div class="cathead">▾ Per-level fields, as a grid (example: the ability Radiant Light, A000)<span class="count">levels across</span></div>
+    <div class="row" style="grid-template-columns:22px 1fr"><span class="mark"></span><div class="levels" style="grid-column:2">
+    <table><tr><th></th><th>1</th><th>2</th><th>3</th></tr>
+    <tr><th style="text-align:left">Amount Healed/Damaged <span class="mono">Hhb1</span></th><td class="mod">250</td><td class="mod">450</td><td>600</td></tr>
+    <tr><th style="text-align:left">Mana Cost <span class="mono">amcs</span></th><td>65</td><td>65</td><td>65</td></tr>
+    <tr><th style="text-align:left">Cooldown <span class="mono">acdn</span></th><td class="mod">7</td><td>9</td><td>9</td></tr>
+    </table></div></div>`;
+  catsEl.appendChild(lv);
+}
+render();
+document.getElementById("fieldFilter").addEventListener("input", e => { filter = e.target.value; render(); });
+document.getElementById("onlyMod").addEventListener("click", e => { onlyMod = !onlyMod; e.target.classList.toggle("on", onlyMod); render(); });
+document.getElementById("showIds").addEventListener("click", e => { showIds = !showIds; e.target.classList.toggle("on", showIds); render(); });
+
+const units = [
+  ["Footman", "hfoo", 135, 0, 420, 12, 2, 1.35, true],
+  ["Rifleman", "hrif", 205, 30, 535, 21, 0, 1.5, true],
+  ["Knight", "hkni", 245, 60, 835, 34, 5, 1.4, true],
+  ["Priest", "hmpr", 135, 10, 290, 8, 0, 2.0, false],
+  ["Sorceress", "hsor", 155, 20, 325, 10, 0, 1.75, false],
+  ["Spellbreaker", "hspt", 215, 30, 600, 14, 3, 2.0, true],
+  ["Mortar Team", "hmtm", 180, 70, 360, 58, 0, 3.5, false],
+  ["Spearman", "h001", 150, 10, 480, 15, 2, 1.5, true, true],
+];
+const grid = document.getElementById("grid");
+grid.innerHTML = `<tr><th></th><th>Name</th><th>Id</th><th>Gold Cost<span class="mono">ugol</span></th><th>Lumber Cost<span class="mono">ulum</span></th><th>Hit Points<span class="mono">uhpm</span></th><th>Damage Base<span class="mono">ua1b</span></th><th>Armor<span class="mono">udef</span></th><th>Cooldown<span class="mono">ua1c</span></th><th style="color:var(--faint)">+ add a column</th></tr>` +
+  units.map(u => `<tr class="${u[8] ? "picked" : ""}"><td>${u[8] ? "☑" : "☐"}</td><td style="${u[9] ? "color:var(--green-hi)" : ""}">${u[0]}</td><td class="mono" style="color:var(--faint)">${u[1]}</td>
+    <td class="num ${u[8] ? "cellsel" : ""}">${u[2]}</td><td class="num">${u[3]}</td><td class="num ${u[9] ? "mod" : ""}">${u[4]}</td><td class="num">${u[5]}</td><td class="num">${u[6]}</td><td class="num">${u[7]}</td><td></td></tr>`).join("");
+
+const views = { details: ["tree", "details", "side"], table: ["table"], compare: ["compare"] };
+document.querySelectorAll(".views button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".views button").forEach(x => x.classList.toggle("on", x === b));
+  for (const id of ["tree", "details", "side", "table", "compare"]) document.getElementById(id).classList.toggle("hidden", !views[b.dataset.view].includes(id));
+  document.getElementById("main").classList.toggle("wide", b.dataset.view !== "details");
+}));
+
+const all = [
+  ["unit", "Champion", "H000", "custom · from Paladin"], ["field", "Hit Points (Base)", "uhpm", "unit field · Stats"],
+  ["field", "Hit Points Regeneration", "uhpr", "unit field · Stats"], ["unit", "Footman", "hfoo", "Human · Melee"],
+  ["ability", "Holy Light", "AHhb", "Human · Hero"], ["ability", "Radiant Light", "A000", "custom · from Holy Light"],
+  ["item", "Potion of Healing", "phea", "Permanent"], ["unit", "Spearman", "h001", "custom · from Footman"],
+  ["buff", "Devotion Aura", "BHad", "Human"], ["upgrade", "Iron Forged Swords", "Rhme", "Human"],
+];
+const veil = document.getElementById("veil"), q = document.getElementById("q"), hits = document.getElementById("hits");
+function search() {
+  const words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
+  const found = all.filter(h => words.every(w => (h[1] + " " + h[2] + " " + h[3]).toLowerCase().includes(w)));
+  hits.innerHTML = (found.length ? found : all.slice(0, 6)).slice(0, 8).map((h, i) =>
+    `<div class="hit ${i === 0 ? "on" : ""}"><span class="kind">${h[0]}</span><span>${h[1]} <span class="sub">${h[3]}</span></span><span class="id mono">${h[2]}</span></div>`).join("");
+}
+document.getElementById("openPalette").addEventListener("click", () => { veil.classList.add("open"); q.focus(); search(); });
+q.addEventListener("input", search);
+veil.addEventListener("click", e => { if (e.target === veil) veil.classList.remove("open"); });
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key.toLowerCase() === "k") { e.preventDefault(); veil.classList.add("open"); q.focus(); q.select(); search(); }
+  if (e.key === "Escape") veil.classList.remove("open");
+});
+</script>
+</body>
+</html>

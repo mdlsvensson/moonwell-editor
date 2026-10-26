@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.w3u binary
+*.w3t binary
+*.w3b binary
+*.w3d binary
+*.w3a binary
+*.w3h binary
+*.w3q binary
+*.w3o binary
+*.w3x binary
+*.w3m binary
+*.wts -text
