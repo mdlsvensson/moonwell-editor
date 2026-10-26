@@ -8,3 +8,4 @@ obj/
 *.backup/
 test-results/
 base-data/
+.superpowers/
