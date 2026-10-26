@@ -46,8 +46,9 @@ public static class MapStore
     internal static readonly IReadOnlyList<string> ObjectAndStringFiles = MakeObjectAndStringFiles();
 
     /// <summary>
-    /// Opens the map at <paramref name="path"/>: a folder as a <see cref="MapFolder"/>, a file as a
-    /// <see cref="MapArchive"/>. Throws <see cref="FileNotFoundException"/> when there is neither, and
+    /// Opens the map at <paramref name="path"/>: a folder as a <see cref="MapFolder"/>, a <c>.w3x</c> or <c>.w3m</c>
+    /// file (letter case ignored) as a <see cref="MapArchive"/>. Throws <see cref="FileNotFoundException"/> when there
+    /// is neither a folder nor a file, <see cref="InvalidDataException"/> ("Not a map: ...") for any other file, and
     /// <see cref="MapArchiveException"/> when the file is not an archive that can be read.
     /// </summary>
     public static IMapStore Open(string path)
@@ -57,12 +58,19 @@ public static class MapStore
             return MapFolder.Open(path);
         }
 
-        if (File.Exists(path))
+        var full = System.IO.Path.GetFullPath(path);
+        if (File.Exists(full))
         {
-            return MapArchive.Open(path);
+            var extension = System.IO.Path.GetExtension(full);
+            if (!extension.Equals(".w3x", StringComparison.OrdinalIgnoreCase)
+                && !extension.Equals(".w3m", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"Not a map: {full} is a file, but not a .w3x or .w3m map archive.");
+            }
+
+            return MapArchive.Open(full);
         }
 
-        var full = System.IO.Path.GetFullPath(path);
         throw new FileNotFoundException($"There is no map folder or archive at {full}.", full);
     }
 

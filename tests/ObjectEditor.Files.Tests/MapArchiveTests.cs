@@ -79,6 +79,16 @@ public sealed class MapArchiveTests : IDisposable
         Assert.Equal(War3NetReads(Sample, "war3map.w3u"), archive.Read("war3map.w3u"));
 
         Assert.Throws<FileNotFoundException>(() => MapStore.Open(Path.Combine(_folder, "missing.w3x")));
+
+        // A file is opened as a map only when it ends .w3x or .w3m (letter case ignored).
+        Assert.IsType<MapArchive>(MapStore.Open(Copy(Sample, "UPPER.W3X")));
+        Assert.IsType<MapArchive>(MapStore.Open(Copy(Sample, "melee.w3m")));
+        foreach (var name in new[] { "Sample.w3x.bak", "Sample.zip", "Sample" })
+        {
+            var other = Copy(Sample, name);
+            var problem = Assert.Throws<InvalidDataException>(() => MapStore.Open(other));
+            Assert.Equal($"Not a map: {other} is a file, but not a .w3x or .w3m map archive.", problem.Message);
+        }
     }
 
     [Fact]
