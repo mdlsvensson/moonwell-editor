@@ -13,22 +13,29 @@ public sealed partial class Session
     internal const string BuildOutputNote =
         "This is Moonwell's build output, rewritten by every build: edit the project's map/ folder";
 
-    private readonly GameData.GameData _game;
-    private readonly Dictionary<ObjectKind, MapKind> _kinds;
-    private readonly WtsFile? _strings;
-    private readonly List<string> _problems;
-    private readonly History _history = new();
+    /// <summary>The strings file's name.</summary>
+    private const string StringsName = "war3map.wts";
 
-    private Session(
-        GameData.GameData game,
-        Dictionary<ObjectKind, MapKind> kinds,
-        WtsFile? strings,
-        List<string> problems)
+    private readonly MapFolder _folder;
+    private readonly GameData.GameData _game;
+
+    // What was read from the folder at open (or reload); see Load. A save updates the baseline and the stamp.
+    private Dictionary<ObjectKind, MapKind> _kinds;
+    private WtsFile? _strings;
+    private List<string> _problems;
+    private Dictionary<string, byte[]?> _baseline;
+    private DateTime _stamp;
+    private History _history = new();
+
+    private Session(MapFolder folder, GameData.GameData game, Loaded loaded)
     {
+        _folder = folder;
         _game = game;
-        _kinds = kinds;
-        _strings = strings;
-        _problems = problems;
+        _kinds = loaded.Kinds;
+        _strings = loaded.Strings;
+        _problems = loaded.Problems;
+        _baseline = loaded.Baseline;
+        _stamp = loaded.Stamp;
     }
 
     /// <summary>
@@ -47,30 +54,41 @@ public sealed partial class Session
     /// Opens a map folder. Any of its files may be missing: a kind without files has only its standard objects, and
     /// a map without <c>war3map.wts</c> shows <c>TRIGSTR_n</c> values as they are.
     /// </summary>
-    public static Session Open(MapFolder map, GameData.GameData game)
+    public static Session Open(MapFolder map, GameData.GameData game) => new(map, game, Load(map));
+
+    /// <summary>
+    /// Reads the folder's object files and strings file, keeping each one's bytes as the baseline a save compares
+    /// with. The stamp is taken first, so a change made while reading is seen at the next save.
+    /// </summary>
+    private static Loaded Load(MapFolder map)
     {
+        var stamp = map.Stamp();
         var problems = new List<string>();
         if (IsMoonwellBuildOutput(map.Path))
         {
             problems.Add(BuildOutputNote);
         }
 
+        var baseline = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
         var kinds = new Dictionary<ObjectKind, MapKind>();
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
             var mainName = "war3map." + ObjectKinds.Extension(kind);
             var skinName = "war3mapSkin." + ObjectKinds.Extension(kind);
+            baseline[mainName] = map.Read(mainName);
+            baseline[skinName] = map.Read(skinName);
             var kindProblems = new List<string>();
-            var main = ReadFile(map, kind, mainName, kindProblems);
-            var skin = ReadFile(map, kind, skinName, kindProblems);
+            var main = ReadFile(kind, mainName, baseline[mainName], kindProblems);
+            var skin = ReadFile(kind, skinName, baseline[skinName], kindProblems);
             problems.AddRange(kindProblems);
             var problem = kindProblems.Count == 0 ? null : string.Join(" ", kindProblems);
             kinds[kind] = new MapKind(mainName, main, skinName, skin, problem);
         }
 
-        var stringBytes = map.Read("war3map.wts");
+        var stringBytes = map.Read(StringsName);
+        baseline[StringsName] = stringBytes;
         var strings = stringBytes == null ? null : WtsFile.Read(stringBytes);
-        return new Session(game, kinds, strings, problems);
+        return new Loaded(kinds, strings, problems, baseline, stamp);
     }
 
     /// <summary>
@@ -145,13 +163,12 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// Reads one object file; null when the folder has none. A problem is added to <paramref name="problems"/>: a file
-    /// War3Net read but cannot write back exactly is still returned, to show (its kind is then read only, so it is
-    /// never saved); a file War3Net cannot read gives null.
+    /// Reads one object file from its bytes; null when the folder has none (null bytes). A problem is added to
+    /// <paramref name="problems"/>: a file War3Net read but cannot write back exactly is still returned, to show (its
+    /// kind is then read only, so it is never saved); a file War3Net cannot read gives null.
     /// </summary>
-    private static ObjectFile? ReadFile(MapFolder map, ObjectKind kind, string name, List<string> problems)
+    private static ObjectFile? ReadFile(ObjectKind kind, string name, byte[]? bytes, List<string> problems)
     {
-        var bytes = map.Read(name);
         if (bytes == null)
         {
             return null;
@@ -183,6 +200,19 @@ public sealed partial class Session
         var project = parent.Parent;
         return project != null && Directory.EnumerateFiles(project.FullName, "*.csproj").Any();
     }
+
+    /// <summary>What <see cref="Load"/> read from the folder.</summary>
+    /// <param name="Kinds">Each kind's object files.</param>
+    /// <param name="Strings">The strings file, or null.</param>
+    /// <param name="Problems">The problems found.</param>
+    /// <param name="Baseline">Each file's bytes as read (null when the folder has none), by name.</param>
+    /// <param name="Stamp">The folder's <see cref="MapFolder.Stamp"/> before reading.</param>
+    private sealed record Loaded(
+        Dictionary<ObjectKind, MapKind> Kinds,
+        WtsFile? Strings,
+        List<string> Problems,
+        Dictionary<string, byte[]?> Baseline,
+        DateTime Stamp);
 }
 
 /// <summary>
