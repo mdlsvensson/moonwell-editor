@@ -2,7 +2,8 @@
 /**
  * The editor of one field at one level, by its type (see `editorFor`): a number or text box (Enter or leaving it
  * sends the value, Esc puts the value back), a toggle, a select, the flags' checkboxes, or an object list's chips
- * and picker. A value the app refuses keeps what was typed, with the reason in `error`.
+ * and picker. A value the app refuses keeps what was typed, with the reason in `error`. The table's cell editor starts
+ * it with what was typed into the cell (`initial`), and sends or drops the typed value itself (`commit`, `cancel`).
  */
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
@@ -23,6 +24,8 @@ type Props = {
   onopen: (kind: Kind, id: string) => void;
   /** Why the last value sent or typed was refused; "" (or undefined) when it was not. */
   error?: string;
+  /** Text the box starts with as typed (a number or text box only); null or undefined starts from the value. */
+  initial?: string | null;
 };
 
 let {
@@ -33,6 +36,7 @@ let {
   onset,
   onopen,
   error = $bindable(),
+  initial = null,
 }: Props = $props();
 
 // What the user typed and has not sent yet (or that was refused); null shows the field's value.
@@ -40,13 +44,24 @@ let draft = $state<string | null>(null);
 // The typed value on its way, and the last one the app refused: neither is sent again when the box is left.
 let sending: string | null = null;
 let refused: string | null = null;
+// The answer to the typed value on its way: whether the app took it.
+let pending: Promise<boolean> | null = null;
 
 // A value changed elsewhere (↺, undo, redo) replaces what was typed and its error. Only this field's value counts:
 // every answer brings new field objects, and an edit of another field must not wipe what is typed or refused here.
+// The first run starts the box with `initial` instead.
 const value = $derived(field.value);
+let started = false;
 $effect(() => {
   value;
   untrack(() => {
+    if (!started) {
+      started = true;
+      if (initial !== null) {
+        setDraft(initial);
+        return;
+      }
+    }
     if (sending === null) cancel();
   });
 });
@@ -88,25 +103,35 @@ async function send(value: string): Promise<boolean> {
   return problem === null;
 }
 
-// Sends what was typed, when it differs from the value; a value refused (here or by the app) stays in the box.
-async function commit(): Promise<void> {
-  if (draft === null || draft === sending || draft === refused) return;
+/**
+ * Sends what was typed, when it differs from the value; a value refused (here or by the app) stays in the box. True
+ * when nothing typed is left to send (it was taken, matched the value, or nothing was typed); false when it was
+ * refused, or more was typed while it was on its way. Sending the value already on its way waits for its answer instead of sending it again.
+ */
+export async function commit(): Promise<boolean> {
+  if (draft === null) return true;
+  if (draft === refused) return false;
+  if (draft === sending && pending) return pending;
   const typed = draft;
   const checked = checkValue(field, typed);
   if (!checked.ok) {
     error = checked.problem;
-    return;
+    return false;
   }
   if (checked.value === field.value) {
     setDraft(null);
     error = "";
-    return;
+    return true;
   }
   sending = typed;
-  const taken = await send(checked.value);
+  pending = send(checked.value);
+  const taken = await pending;
+  pending = null;
   sending = null;
   if (!taken) refused = typed;
   else if (draft === typed) setDraft(null);
+  // Typed on while it was on its way: that is still to send, so the box is not done.
+  return taken && draft === null;
 }
 
 // A toggle or a select the app refused shows the field's value again.
@@ -116,7 +141,8 @@ async function choose(element: HTMLInputElement | HTMLSelectElement, value: stri
   else element.value = field.value;
 }
 
-function cancel(): void {
+/** Drops what was typed (and its error): the box shows the value again. */
+export function cancel(): void {
   setDraft(null);
   refused = null;
   error = "";

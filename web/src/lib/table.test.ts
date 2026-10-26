@@ -8,6 +8,7 @@ import {
   defaultChips,
   fitColumns,
   groupChips,
+  levelColumnLimit,
   mostLevels,
   nextSort,
   readColumns,
@@ -239,6 +240,13 @@ describe("the columns", () => {
       "ulum:0",
     ]);
     expect(addColumns([], cooldown, 0)).toEqual([{ field: "acdn", level: 1 }]);
+  });
+
+  it("add at most 20 levels of a per-level field at once", () => {
+    expect(levelColumnLimit).toBe(20);
+    const added = addColumns([], info("acdn", true), 34);
+    expect(added).toHaveLength(20);
+    expect(added.at(-1)).toEqual({ field: "acdn", level: 20 });
   });
 
   it("remove a column by its key", () => {

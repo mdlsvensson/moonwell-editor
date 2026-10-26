@@ -156,14 +156,18 @@ export function writeColumns(kind: Kind, columns: Column[], store: () => Store |
   }
 }
 
+/** The most level columns "All levels" adds at once, so a long level count does not flood the table. */
+export const levelColumnLimit = 20;
+
 /**
  * The columns with a field added: a field with no levels as one column, a per-level field as one column for each
- * level from 1 to `levels` (at least level 1). They go after the field's last column when it has one, else at the
- * end. A (field, level) that is already a column is not added again.
+ * level from 1 to `levels` (at least level 1, at most `levelColumnLimit`). They go after the field's last column when
+ * it has one, else at the end. A (field, level) that is already a column is not added again.
  */
 export function addColumns(columns: Column[], field: FieldInfo, levels: number): Column[] {
+  const count = Math.min(levelColumnLimit, Math.max(1, Math.floor(levels)));
   const wanted: Column[] = field.perLevel
-    ? Array.from({ length: Math.max(1, Math.floor(levels)) }, (_, at) => ({
+    ? Array.from({ length: count }, (_, at) => ({
         field: field.id,
         level: at + 1,
       }))

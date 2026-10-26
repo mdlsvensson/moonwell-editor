@@ -4,10 +4,16 @@
  * buttons do), filters the rows by the tree's filter text and the row chips (Custom, the tree's top groups, Changed),
  * and the grid shows the cells. The rows are fetched again (`table`) after every change of the map (an edit, undo,
  * redo or reload sends `sessionChanged`) and whenever the kind, the filter, the chips or the columns change; the grid
- * keeps its scroll position.
+ * keeps its scroll position and the selection.
+ *
+ * Every change of cells is one `setCells` (`onedit`), one step of undo: a cell's editor, the bar that sets the
+ * selected cells to a value or an expression, and the grid's Ctrl V (paste from the clipboard at the block's upper
+ * left cell), Ctrl D (fill down) and Delete (reset). A refusal changes nothing and is said in the status bar (the bar's
+ * also beside it). Ctrl C copies the selected values as tab-separated text.
  */
 import { untrack } from "svelte";
 import {
+  type CellEdit,
   type ChoiceList,
   type Column,
   type FieldInfo,
@@ -21,12 +27,24 @@ import {
 } from "./api.ts";
 import ColumnPicker from "./ColumnPicker.svelte";
 import { type Lookup, listKinds } from "./fields.ts";
-import TableGrid from "./TableGrid.svelte";
+import {
+  blockSize,
+  bulkEdits,
+  clampSelection,
+  copyBlock,
+  fillDownEdits,
+  pasteEdits,
+  resetEdits,
+  type Selection,
+  topLeft,
+} from "./grid.ts";
+import TableGrid, { type BulkAction } from "./TableGrid.svelte";
 import {
   addColumns,
   columnKey,
   defaultChips,
   groupChips,
+  levelColumnLimit,
   levelFields,
   mostLevels,
   nextSort,
@@ -40,6 +58,10 @@ import {
   writeColumns,
 } from "./table.ts";
 import { kindNames } from "./tree.ts";
+import { formatTsv, parseTsv } from "./tsv.ts";
+
+/** What a change of cells answers: how many changed, or why it was refused (nothing changed). */
+export type EditResult = { changed: number } | { error: string };
 
 type Props = {
   kind: Kind;
@@ -62,6 +84,10 @@ type Props = {
   onneed: (kind: Kind) => void;
   /** Opens an object of the kind in the details view. */
   onopen: (kind: Kind, id: string) => void;
+  /** Changes cells of a kind as one edit (`setCells`), after the edits asked before it. */
+  onedit: (kind: Kind, edits: CellEdit[]) => Promise<EditResult>;
+  /** Says something in the status bar (`warn` for a refusal). */
+  onnotice: (text: string, warn?: boolean) => void;
 };
 
 let {
@@ -77,6 +103,8 @@ let {
   onkind,
   onneed,
   onopen,
+  onedit,
+  onnotice,
 }: Props = $props();
 
 /** The rows shown, with the kind and columns they were fetched for. */
@@ -91,7 +119,12 @@ let loading = $state(false);
 let asked = 0;
 let picker = $state<HTMLElement | null>(null);
 let pickerError = $state("");
+// What the picker says after "All levels" stopped at the most it adds.
+let pickerNote = $state("");
 let filterInput: HTMLInputElement | undefined = $state();
+let selection = $state.raw<Selection | null>(null);
+let bulkText = $state("");
+let bulkError = $state("");
 
 const store = (): Store | null => globalThis.localStorage ?? null;
 
@@ -112,6 +145,34 @@ const rows = $derived(shown ? sortTable(shown.rows, sort, shown.columns) : []);
 const suffixes = $derived(
   new Map((entries ?? []).filter((entry) => entry.suffix).map((entry) => [entry.id, entry.suffix])),
 );
+
+// Another kind starts with nothing selected, and without the messages of the last one.
+$effect(() => {
+  kind;
+  untrack(() => {
+    selection = null;
+    fieldsError = "";
+    pickerError = "";
+    bulkError = "";
+  });
+});
+
+// The selection stays across a fetch of the rows (after an edit, undo or redo), pulled in when the table shrank.
+$effect(() => {
+  const size = { rows: rows.length, cols: shown?.columns.length ?? 0 };
+  untrack(() => {
+    const kept = clampSelection(selection, size);
+    if (kept !== selection) selection = kept;
+  });
+});
+
+// The bar's error was about the cells selected then.
+$effect(() => {
+  selection;
+  untrack(() => {
+    bulkError = "";
+  });
+});
 
 // The kind's fields, once; then its columns (also for a map opened since), from this computer's storage or the
 // defaults.
@@ -207,6 +268,7 @@ async function levelsShown(each: Kind): Promise<number> {
 async function add(field: FieldInfo, all: boolean): Promise<void> {
   const each = kind;
   pickerError = "";
+  pickerNote = "";
   let levels = 1;
   if (field.perLevel && all) {
     try {
@@ -215,6 +277,11 @@ async function add(field: FieldInfo, all: boolean): Promise<void> {
       pickerError = message(error);
       return;
     }
+  }
+  if (levels > levelColumnLimit) {
+    pickerNote =
+      `"All levels" adds at most ${levelColumnLimit} columns: ${field.label} has levels 1 to ` +
+      `${levelColumnLimit} of the ${levels} the rows have.`;
   }
   setColumns(each, addColumns(tableState.columns[each] ?? [], field, levels));
 }
@@ -246,6 +313,143 @@ function clearOnEscape(event: KeyboardEvent): void {
   if (event.key === "Escape" && filter) {
     event.stopPropagation();
     filter = "";
+  }
+}
+
+function cellCount(count: number): string {
+  return `${count} ${count === 1 ? "cell" : "cells"}`;
+}
+
+const selectedText = $derived.by(() => {
+  if (!selection) return "No cells selected";
+  const size = blockSize(selection);
+  return `${cellCount(size.rows * size.cols)} selected`;
+});
+
+/** The fields of the kind the rows were fetched for. */
+function shownFields(): FieldInfo[] {
+  return shown ? (fieldLists[shown.kind] ?? []) : [];
+}
+
+/**
+ * Changes cells as one edit and says what it did in the status bar (`done` names it: "Pasted"); a refusal changed
+ * nothing and says why. Answers with the refusal, or null.
+ */
+async function change(each: Kind, edits: CellEdit[], done: string): Promise<string | null> {
+  const result = await onedit(each, edits);
+  if ("error" in result) {
+    onnotice(result.error, true);
+    return result.error;
+  }
+  onnotice(
+    result.changed === 0
+      ? "Nothing changed: the cells already hold those values"
+      : `${done} ${cellCount(result.changed)} · Ctrl Z undoes it`,
+  );
+  return null;
+}
+
+/** Sets one cell from its editor; the editor shows a refusal itself. */
+async function setCell(row: TableRow, column: Column, value: string): Promise<string | null> {
+  const each = shown?.kind;
+  if (!each) return "The table is not shown.";
+  const result = await onedit(each, [
+    { id: row.id, field: column.field, level: column.level, value },
+  ]);
+  return "error" in result ? result.error : null;
+}
+
+async function copy(s: Selection): Promise<void> {
+  const block = copyBlock(s, rows);
+  try {
+    await navigator.clipboard.writeText(formatTsv(block));
+  } catch {
+    onnotice("Copy needs clipboard access", true);
+    return;
+  }
+  onnotice(`Copied ${cellCount(block.length * (block[0]?.length ?? 0))}`);
+}
+
+async function paste(s: Selection): Promise<void> {
+  let text: string;
+  try {
+    text = await navigator.clipboard.readText();
+  } catch {
+    onnotice("Paste needs clipboard access", true);
+    return;
+  }
+  const at = shown;
+  if (!at) return;
+  const block = parseTsv(text);
+  if (block.length === 0) {
+    onnotice("The clipboard holds no text to paste.");
+    return;
+  }
+  const edits = pasteEdits(topLeft(s), block, rows, at.columns, shownFields());
+  if (edits.length === 0) {
+    onnotice("None of the cells the paste covers can be changed.");
+    return;
+  }
+  await change(at.kind, edits, "Pasted");
+}
+
+function bulk(action: BulkAction): void {
+  const s = selection;
+  const at = shown;
+  if (!s || !at) return;
+  if (action === "copy") {
+    copy(s);
+    return;
+  }
+  if (action === "paste") {
+    paste(s);
+    return;
+  }
+  if (action === "fill") {
+    if (blockSize(s).rows < 2) {
+      onnotice("Ctrl D fills the top cell of each selected column down: select more than one row.");
+      return;
+    }
+    const edits = fillDownEdits(s, rows, at.columns);
+    if (edits.length === 0) {
+      onnotice("None of the selected cells can be filled.");
+      return;
+    }
+    change(at.kind, edits, "Filled");
+    return;
+  }
+  const edits = resetEdits(s, rows, at.columns);
+  if (edits.length === 0) {
+    onnotice("None of the selected cells can be reset.");
+    return;
+  }
+  change(at.kind, edits, "Reset");
+}
+
+/** The bar's Apply: the selected cells set to the value or expression typed. */
+async function apply(): Promise<void> {
+  const s = selection;
+  const at = shown;
+  if (!s || !at) {
+    bulkError = "Select the cells to set first.";
+    return;
+  }
+  const edits = bulkEdits(s, rows, at.columns, shownFields(), bulkText);
+  if ("error" in edits) {
+    bulkError = edits.error;
+    return;
+  }
+  bulkError = (await change(at.kind, edits, "Set")) ?? "";
+}
+
+function bulkKeys(event: KeyboardEvent): void {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    apply();
+  } else if (event.key === "Escape" && (bulkText || bulkError)) {
+    event.stopPropagation();
+    bulkText = "";
+    bulkError = "";
   }
 }
 
@@ -314,6 +518,39 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
         <span class="text-[12.5px] text-faint">every group</span>
       {/if}
     </div>
+    <div class="flex flex-wrap items-center gap-2 text-[12.5px]" role="group" aria-label="Bulk change">
+      <span class="text-muted" data-testid="table-selection">{selectedText} ·</span>
+      <label class="flex items-center gap-2 text-muted">
+        Set the selected cells to
+        <input
+          class="w-36 rounded-[5px] border bg-bg px-2 py-0.5 font-mono text-fg outline-none focus:border-accent {bulkError
+            ? 'border-warn'
+            : 'border-line'}"
+          placeholder="50, +5, -10%, *1.1"
+          spellcheck="false"
+          aria-invalid={!!bulkError}
+          bind:value={bulkText}
+          onkeydown={bulkKeys}
+          oninput={() => (bulkError = "")}
+        />
+      </label>
+      <button
+        type="button"
+        class="rounded-[5px] border border-line bg-raised px-2.5 py-0.5 text-fg hover:border-accent disabled:opacity-40 disabled:hover:border-line"
+        disabled={!selection || bulkText.trim() === ""}
+        onclick={apply}
+      >
+        Apply
+      </button>
+      {#if bulkError}
+        <span class="text-warn" role="alert">{bulkError}</span>
+      {:else}
+        <span class="text-faint">
+          (a value, +5, -10%, *1.1 or /2; Ctrl V pastes from a spreadsheet, Ctrl D fills down, Delete
+          resets)
+        </span>
+      {/if}
+    </div>
     {#if treeError || fieldsError || rowsError || pickerError}
       <p class="m-0 text-[12.5px] text-warn" role="alert">
         {treeError || fieldsError || rowsError || pickerError}
@@ -327,6 +564,7 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
     {/if}
   {:else}
     <TableGrid
+      bind:selection
       {rows}
       columns={shown.columns}
       fields={fieldLists[shown.kind] ?? []}
@@ -338,9 +576,14 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
       onremove={remove}
       onadd={(anchor) => {
         pickerError = "";
+        pickerNote = "";
         picker = anchor;
       }}
       onopen={(id) => shown && onopen(shown.kind, id)}
+      onbulk={bulk}
+      onset={setCell}
+      {onnotice}
+      onfollow={onopen}
     />
   {/if}
 </div>
@@ -350,6 +593,7 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
     anchor={picker}
     fields={kindFields}
     {columns}
+    note={pickerNote}
     onadd={add}
     onclose={() => (picker = null)}
   />

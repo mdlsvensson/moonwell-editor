@@ -4,6 +4,7 @@ import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Search from "@lucide/svelte/icons/search";
 import { onMount } from "svelte";
 import {
+  type CellEdit,
   type ChoiceList,
   choices,
   closeAsking,
@@ -28,6 +29,7 @@ import {
   resetField,
   type SessionState,
   save,
+  setCells,
   setField,
   startup,
   type TreeEntry,
@@ -49,7 +51,7 @@ import {
   type Settling,
   settleUnsaved,
 } from "./lib/settle.ts";
-import TableView from "./lib/TableView.svelte";
+import TableView, { type EditResult } from "./lib/TableView.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
@@ -359,6 +361,24 @@ async function edit(field: FieldView, value: string | null): Promise<string | nu
   }
 }
 
+/**
+ * Changes cells of the table as one edit, after the edits asked before it (it goes on the queue at once, so a save
+ * asked after it waits for it). The table fetches its rows again on the `sessionChanged` that follows; the trees and
+ * the object shown are fetched here, as an edit there may rename or change them.
+ */
+async function editCells(each: Kind, edits: CellEdit[]): Promise<EditResult> {
+  try {
+    const result = await queued(() => setCells(each, edits));
+    if (result.changed > 0) {
+      refreshTrees(each);
+      refreshObject();
+    }
+    return result;
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
 async function undoOrRedo(again: boolean): Promise<void> {
   if (!map) return;
   try {
@@ -614,8 +634,9 @@ async function pick(hit: Hit): Promise<void> {
 }
 
 /**
- * The keys that act differently in the table: Ctrl F goes to its filter; the details view's keys for the object shown
- * (F2, Ctrl D, Ctrl Shift D, Delete, Alt ←/→) do nothing there, as that object is not in view. True when handled.
+ * The keys that act differently in the table: Ctrl F goes to its filter. The grid takes F2, Ctrl D and Delete for its
+ * cells (and they never reach here); anywhere else in the table they, and the details view's other keys for the
+ * object shown (Ctrl Shift D, Ctrl Shift N, Alt ←/→), do nothing, as that object is not in view. True when handled.
  */
 function tableKey(event: KeyboardEvent, key: string): boolean {
   const ctrl = event.ctrlKey && !event.altKey;
@@ -624,7 +645,7 @@ function tableKey(event: KeyboardEvent, key: string): boolean {
     tableView?.focusFilter();
     return true;
   }
-  if (event.key === "F2" || (ctrl && key === "d")) {
+  if (event.key === "F2" || (ctrl && key === "d") || (ctrl && event.shiftKey && key === "n")) {
     event.preventDefault();
     return true;
   }
@@ -908,6 +929,8 @@ onMount(() => {
           onkind={switchKind}
           onneed={ensureTree}
           onopen={openInDetails}
+          onedit={editCells}
+          onnotice={(text, warn) => say(text, { warn })}
         />
       </main>
     {/if}

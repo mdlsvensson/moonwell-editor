@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { Column, FieldInfo, TableCell, TableRow } from "./api.ts";
 import {
+  blockSize,
   bulkEdits,
+  cellField,
   cellsOf,
+  clampSelection,
+  copyBlock,
   defaultColumns,
+  editRefusal,
   fillDownEdits,
+  moveSelection,
   pasteEdits,
   resetEdits,
+  selectAll,
   sortRows,
+  topLeft,
 } from "./grid.ts";
 
 function cell(value: string, over: Partial<TableCell> = {}): TableCell {
@@ -371,5 +379,116 @@ describe("defaultColumns", () => {
     expect(defaultColumns.doodad).toEqual([]);
     expect(defaultColumns.buff).toEqual([]);
     expect(defaultColumns.upgrade).toEqual([]);
+  });
+});
+
+describe("moveSelection", () => {
+  const size = { rows: 3, cols: 4 };
+
+  it("starts at the top left when nothing is selected", () => {
+    expect(moveSelection(null, 1, 0, false, size)).toEqual(sel(0, 0, 0, 0));
+  });
+
+  it("moves the focus and leaves one cell selected", () => {
+    expect(moveSelection(sel(0, 0, 1, 1), 1, 1, false, size)).toEqual(sel(2, 2, 2, 2));
+  });
+
+  it("makes the block bigger from the anchor with extend", () => {
+    expect(moveSelection(sel(1, 1, 1, 1), 1, -1, true, size)).toEqual(sel(1, 1, 2, 0));
+  });
+
+  it("stops at the table's edge, also for a move to the edge", () => {
+    expect(moveSelection(sel(2, 3, 2, 3), 1, 1, false, size)).toEqual(sel(2, 3, 2, 3));
+    expect(
+      moveSelection(
+        sel(1, 1, 1, 1),
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        false,
+        size,
+      ),
+    ).toEqual(sel(2, 0, 2, 0));
+  });
+
+  it("selects nothing in an empty table", () => {
+    expect(moveSelection(sel(0, 0, 0, 0), 1, 0, false, { rows: 0, cols: 4 })).toBeNull();
+    expect(moveSelection(null, 1, 0, false, { rows: 3, cols: 0 })).toBeNull();
+  });
+});
+
+describe("selectAll", () => {
+  it("selects every shown cell, or nothing in an empty table", () => {
+    expect(selectAll({ rows: 3, cols: 4 })).toEqual(sel(0, 0, 2, 3));
+    expect(selectAll({ rows: 0, cols: 4 })).toBeNull();
+  });
+});
+
+describe("clampSelection", () => {
+  it("keeps a selection that fits, and pulls one in that no longer does", () => {
+    expect(clampSelection(sel(0, 1, 2, 2), { rows: 3, cols: 3 })).toEqual(sel(0, 1, 2, 2));
+    expect(clampSelection(sel(0, 1, 5, 6), { rows: 3, cols: 3 })).toEqual(sel(0, 1, 2, 2));
+  });
+
+  it("drops the selection when the table is empty", () => {
+    expect(clampSelection(sel(0, 0, 0, 0), { rows: 0, cols: 3 })).toBeNull();
+    expect(clampSelection(null, { rows: 3, cols: 3 })).toBeNull();
+  });
+});
+
+describe("topLeft and blockSize", () => {
+  it("give the block's upper left cell and its size whichever way it was made", () => {
+    expect(topLeft(sel(2, 3, 0, 1))).toEqual({ row: 0, col: 1 });
+    expect(blockSize(sel(2, 3, 0, 1))).toEqual({ rows: 3, cols: 3 });
+  });
+});
+
+describe("copyBlock", () => {
+  it("copies the values as the data spells them, a cell that does not apply as empty", () => {
+    let input = rows();
+    input = patched(input, 1, 0, cell("", { applies: false }));
+    expect(copyBlock(sel(1, 1, 0, 0), input)).toEqual([
+      ["100", "1.5"],
+      ["", "2.5"],
+    ]);
+  });
+});
+
+describe("cellField", () => {
+  it("gives the details view's field for a cell, at the column's level", () => {
+    const field = cellField(
+      { ...info("acdn", "Cooldown", "float", true), choice: null, listOf: null },
+      { field: "acdn", level: 2 },
+      cell("8", { base: "10", changed: true, warning: "Too long." }),
+    );
+    expect(field).toEqual({
+      id: "acdn",
+      label: "Cooldown",
+      category: "stats",
+      sort: "",
+      type: "float",
+      choice: null,
+      listOf: null,
+      level: 2,
+      value: "8",
+      base: "10",
+      changed: true,
+      skin: false,
+      warning: "Too long.",
+      modes: null,
+    });
+  });
+});
+
+describe("editRefusal", () => {
+  it("says why a cell cannot be edited: a read only row, or a field that does not apply", () => {
+    const column: Column = { field: "uhpm", level: 0 };
+    const readOnly = row("h000", ["1"], { readOnly: "The file is damaged." });
+    expect(editRefusal(readOnly, cell("1"), column, fields)).toBe(
+      "Read only: The file is damaged.",
+    );
+    expect(editRefusal(row("h000", [""]), cell("", { applies: false }), column, fields)).toBe(
+      "Hit points does not apply to Name h000.",
+    );
+    expect(editRefusal(row("h000", ["1"]), cell("1"), column, fields)).toBeNull();
   });
 });

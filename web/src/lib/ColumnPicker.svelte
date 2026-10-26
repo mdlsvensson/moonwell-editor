@@ -1,7 +1,8 @@
 <script lang="ts">
 /**
  * The column picker: searches the kind's fields by label, id and category and adds one as a column. A per-level field
- * is added at level 1, or at every level up to the most any shown row has. A column already shown is not added again.
+ * is added at level 1, or at every level up to the most any shown row has (at most 20; `note` says so when it stopped
+ * there). A column already shown is not added again.
  * Enter adds the first field found (at level 1); Esc closes the picker.
  */
 import type { Column, FieldInfo } from "./api.ts";
@@ -13,12 +14,14 @@ type Props = {
   anchor: HTMLElement;
   fields: FieldInfo[];
   columns: Column[];
+  /** A line to show under the search, such as where "All levels" stopped; "" for none. */
+  note?: string;
   /** Adds a field: `all` for every level of a per-level field, else level 1 (or the field, with no levels). */
   onadd: (field: FieldInfo, all: boolean) => void;
   onclose: () => void;
 };
 
-let { anchor, fields, columns, onadd, onclose }: Props = $props();
+let { anchor, fields, columns, note = "", onadd, onclose }: Props = $props();
 
 let query = $state("");
 let input: HTMLInputElement | undefined = $state();
@@ -55,6 +58,9 @@ const small =
       bind:value={query}
       {onkeydown}
     />
+    {#if note}
+      <p class="m-0 px-1 text-[12px] text-changed" role="status">{note}</p>
+    {/if}
     {#if found.length === 0}
       <p class="m-0 px-1 py-1 text-muted">No field matches.</p>
     {/if}

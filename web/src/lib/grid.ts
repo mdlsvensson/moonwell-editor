@@ -3,7 +3,7 @@
  * down, reset and the bar's expressions make from the selected cells. A cell can be changed in bulk only when its row
  * is not read only and the cell applies.
  */
-import type { CellEdit, Column, FieldInfo, Kind, TableCell, TableRow } from "./api.ts";
+import type { CellEdit, Column, FieldInfo, FieldView, Kind, TableCell, TableRow } from "./api.ts";
 import { applyExpression, parseExpression } from "./expression.ts";
 
 /** A cell of the shown table: a row and a column, both from 0. */
@@ -25,6 +25,116 @@ export function cellsOf(s: Selection): Cell[] {
     for (let col = left; col <= right; col++) cells.push({ row, col });
   }
   return cells;
+}
+
+/** How many rows and columns a table (or a block) has. */
+export type Size = { rows: number; cols: number };
+
+/** The block's upper left cell, which a paste starts at. */
+export function topLeft(s: Selection): Cell {
+  return { row: Math.min(s.anchor.row, s.focus.row), col: Math.min(s.anchor.col, s.focus.col) };
+}
+
+/** How many rows and columns the block spans. */
+export function blockSize(s: Selection): Size {
+  return {
+    rows: Math.abs(s.anchor.row - s.focus.row) + 1,
+    cols: Math.abs(s.anchor.col - s.focus.col) + 1,
+  };
+}
+
+function clampCell(at: Cell, size: Size): Cell {
+  return {
+    row: Math.max(0, Math.min(size.rows - 1, at.row)),
+    col: Math.max(0, Math.min(size.cols - 1, at.col)),
+  };
+}
+
+/**
+ * The selection after a move of the focus by rows and columns, stopping at the table's edge (an infinite move goes to
+ * it). With `extend` the anchor stays, so the block grows or shrinks; without, the one cell moved to is selected. With
+ * nothing selected it starts at the top left; an empty table selects nothing.
+ */
+export function moveSelection(
+  s: Selection | null,
+  rows: number,
+  cols: number,
+  extend: boolean,
+  size: Size,
+): Selection | null {
+  if (size.rows <= 0 || size.cols <= 0) return null;
+  if (!s) return { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } };
+  const focus = clampCell({ row: s.focus.row + rows, col: s.focus.col + cols }, size);
+  return { anchor: extend ? clampCell(s.anchor, size) : focus, focus };
+}
+
+/** Every cell of the table (Ctrl A); nothing in an empty table. */
+export function selectAll(size: Size): Selection | null {
+  if (size.rows <= 0 || size.cols <= 0) return null;
+  return { anchor: { row: 0, col: 0 }, focus: { row: size.rows - 1, col: size.cols - 1 } };
+}
+
+/**
+ * The selection pulled inside a table that changed size (fewer rows or columns after a fetch): a selection that fits
+ * is kept as it is; an empty table selects nothing.
+ */
+export function clampSelection(s: Selection | null, size: Size): Selection | null {
+  if (!s || size.rows <= 0 || size.cols <= 0) return null;
+  const anchor = clampCell(s.anchor, size);
+  const focus = clampCell(s.focus, size);
+  const same =
+    anchor.row === s.anchor.row &&
+    anchor.col === s.anchor.col &&
+    focus.row === s.focus.row &&
+    focus.col === s.focus.col;
+  return same ? s : { anchor, focus };
+}
+
+/**
+ * The selected cells' values as the data spells them, row by row, for copying as tab-separated text. A cell that does
+ * not apply (or is outside the table) is empty.
+ */
+export function copyBlock(s: Selection, rows: TableRow[]): string[][] {
+  const start = topLeft(s);
+  const size = blockSize(s);
+  return Array.from({ length: size.rows }, (_, r) =>
+    Array.from({ length: size.cols }, (_, c) => {
+      const cell = rows[start.row + r]?.cells[start.col + c];
+      return cell?.applies ? cell.value : "";
+    }),
+  );
+}
+
+/** A cell as the details view's editor takes it: the column's field at its level, with the cell's value. */
+export function cellField(info: FieldInfo, column: Column, cell: TableCell): FieldView {
+  return {
+    id: info.id,
+    label: info.label,
+    category: info.category,
+    sort: info.sort,
+    type: info.type,
+    choice: info.choice,
+    listOf: info.listOf,
+    level: column.level,
+    value: cell.value,
+    base: cell.base,
+    changed: cell.changed,
+    skin: false,
+    warning: cell.warning,
+    modes: null,
+  };
+}
+
+/** Why a cell cannot be edited (its row is read only, or the field does not apply to the object); null when it can. */
+export function editRefusal(
+  row: TableRow,
+  cell: TableCell,
+  column: Column,
+  fields: FieldInfo[],
+): string | null {
+  if (row.readOnly !== null) return `Read only: ${row.readOnly}`;
+  if (!cell.applies) return `${columnName(column, fields)} does not apply to ${row.name}.`;
+  return null;
 }
 
 /** What a cell of the shown table is made of; null when the cell is outside the table. */
