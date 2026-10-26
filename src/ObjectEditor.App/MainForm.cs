@@ -16,9 +16,9 @@ public sealed class MainForm : Form
     // The page's requests are answered one at a time, in the order they came.
     private readonly SemaphoreSlim _oneAtATime = new(1, 1);
 
-    // The origins (https://app.objecteditor, and the dev server's in a Debug build) whose pages may use the bridge
-    // and be navigated to; set when the page starts.
-    private readonly HashSet<string> _origins = new(StringComparer.OrdinalIgnoreCase);
+    // The origins (https://app.objecteditor, and the dev server's in a Debug build) whose pages may use the bridge,
+    // be navigated to and read the clipboard; set when the page starts.
+    private readonly PageOrigins _origins = new();
 
     // Closing asks the page first; a page that does not answer within the timer's wait is skipped.
     private readonly CloseGuard _closeGuard = new();
@@ -184,17 +184,17 @@ public sealed class MainForm : Form
         var core = _web.CoreWebView2;
 
         // Only the app's own pages may use the bridge, and the window never leaves them (a link to the web is ignored).
-        _origins.Add(Origin($"https://{Host}/"));
+        _origins.Add($"https://{Host}/");
         core.WebMessageReceived += (_, e) =>
         {
-            if (_origins.Contains(Origin(e.Source)))
+            if (_origins.Contains(e.Source))
             {
                 _ = Answer(e.TryGetWebMessageAsString());
             }
         };
         core.NavigationStarting += (_, e) =>
         {
-            if (!_origins.Contains(Origin(e.Uri)))
+            if (!_origins.Contains(e.Uri))
             {
                 e.Cancel = true;
                 return;
@@ -203,6 +203,16 @@ public sealed class MainForm : Form
             _pageLoaded = false;
         };
         core.NavigationCompleted += (_, e) => _pageLoaded = e.IsSuccess;
+
+        // The table's Ctrl V reads the clipboard: the app's own pages may, without a prompt. Any other permission or
+        // page is left to WebView2's default.
+        core.PermissionRequested += (_, e) =>
+        {
+            if (_origins.Grants(e.PermissionKind, e.Uri))
+            {
+                e.State = CoreWebView2PermissionState.Allow;
+            }
+        };
         core.ProcessFailed += OnProcessFailed;
 
 #if !DEBUG
@@ -228,7 +238,7 @@ public sealed class MainForm : Form
         var devUrl = Environment.GetEnvironmentVariable("OBJECT_EDITOR_DEV_URL");
         if (!string.IsNullOrEmpty(devUrl))
         {
-            _origins.Add(Origin(devUrl));
+            _origins.Add(devUrl);
             core.Navigate(devUrl);
             return;
         }
@@ -279,10 +289,6 @@ public sealed class MainForm : Form
         Controls.Add(_web);
         await StartPage();
     }
-
-    // A URL's scheme, host and port (https://app.objecteditor); "" for a URL that cannot be read, which matches none.
-    private static string Origin(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.GetLeftPart(UriPartial.Authority) : "";
 
     private async Task Answer(string request)
     {
