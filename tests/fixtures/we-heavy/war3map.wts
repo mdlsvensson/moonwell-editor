@@ -1,0 +1,156 @@
+﻿STRING 1
+{
+Moonwell Template
+}
+
+STRING 2
+{
+Any
+}
+
+STRING 3
+{
+Nondescript
+}
+
+STRING 4
+{
+Unknown
+}
+
+STRING 5
+{
+Player 1
+}
+
+STRING 6
+{
+Force 1
+}
+
+STRING 7
+// Units: hfoo (Changed Name), Name (Name)
+{
+Changed Name
+}
+
+STRING 8
+// Units: hmtt (ONE RENAMED OBJECT), Name (Name)
+{
+ONE RENAMED OBJECT
+}
+
+STRING 9
+// Units: h000 (Custom Mortar Team), Name (Name)
+{
+Custom Mortar Team
+}
+
+STRING 10
+// Units: H001 (Custom Archmage), Name (Name)
+{
+Custom Archmage
+}
+
+STRING 11
+// Items: afac (Change Item), Name (Name)
+{
+Change Item
+}
+
+STRING 12
+// Items: I000 (Custom Claws), Name (Name)
+{
+Custom Claws
+}
+
+STRING 13
+// Destructibles: ITf2 (Changed), Name (Name)
+{
+Changed
+}
+
+STRING 14
+// Destructibles: B000 (Custom Tree), Name (Name)
+{
+Custom Tree
+}
+
+STRING 15
+// Doodads: D000 (Custom Doodad), Name (Name)
+{
+Custom Doodad
+}
+
+STRING 16
+// Abilities: A000 (Holy Light), Tip (Tooltip - Normal)
+{
+EDITED 1
+}
+
+STRING 17
+// Abilities: A000 (Holy Light), Tip (Tooltip - Normal)
+{
+EDITED 2
+}
+
+STRING 18
+// Abilities: A000 (Holy Light), Tip (Tooltip - Normal)
+{
+EDITED 3
+}
+
+STRING 19
+// Abilities: A000 (Holy Light), Ubertip (Tooltip - Normal - Extended)
+{
+EXTENDED 1
+}
+
+STRING 20
+// Abilities: A000 (Holy Light), Ubertip (Tooltip - Normal - Extended)
+{
+EXTENDED 2
+}
+
+STRING 21
+// Abilities: A000 (Holy Light), Ubertip (Tooltip - Normal - Extended)
+{
+EXTENDED 3
+}
+
+STRING 22
+// Buffs/Effects: BHav (), Bufftip (Tooltip)
+{
+Changed Avatar
+}
+
+STRING 23
+// Buffs/Effects: B000 (Custom Berserk), EditorName (Name (Editor Only))
+{
+Custom Berserk
+}
+
+STRING 24
+// Upgrades: R000 (Iron Forged Swords,Steel Forged Swords,Mithril Forged Swords), Name (Name)
+{
+Custom Upgrade
+}
+
+STRING 25
+// Upgrades: R000 (Iron Forged Swords,Steel Forged Swords,Mithril Forged Swords), Tip (Tooltip)
+{
+LEVEL 2 TOOLTIP
+}
+
+STRING 26
+// Upgrades: R000 (Iron Forged Swords,Steel Forged Swords,Mithril Forged Swords), EditorSuffix (Editor Suffix)
+{
+LEVEL 2 EDITOR SUFFIX
+}
+
+STRING 27
+// Upgrades: R000 (Iron Forged Swords,Steel Forged Swords,Mithril Forged Swords), Hotkey (Hotkey)
+{
+C
+}
+

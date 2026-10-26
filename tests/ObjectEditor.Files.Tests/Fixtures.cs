@@ -8,8 +8,8 @@ internal static class Fixtures
     /// <summary>The folder that holds one folder per fixture.</summary>
     public static string Root => Path.Combine(AppContext.BaseDirectory, "fixtures");
 
-    /// <summary>The fixture folders: World Editor 3.0's save and Moonwell's MyMap build.</summary>
-    public static readonly string[] Folders = ["we-3.0", "moonwell-mymap"];
+    /// <summary>The fixture folders: World Editor 3.0's two saves and Moonwell's MyMap build.</summary>
+    public static readonly string[] Folders = ["we-3.0", "we-heavy", "moonwell-mymap"];
 
     /// <summary>Every object file of every fixture, as "folder/file".</summary>
     public static IEnumerable<string> ObjectFiles()

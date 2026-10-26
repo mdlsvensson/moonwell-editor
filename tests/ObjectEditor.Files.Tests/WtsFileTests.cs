@@ -10,13 +10,14 @@ public class WtsFileTests
     [
         "we-3.0/war3map.wts",
         "moonwell-mymap/war3map.wts",
+        "we-heavy/war3map.wts",
     ];
 
     private static byte[] Utf8(string text) => new UTF8Encoding(false).GetBytes(text);
 
     [Theory]
     [MemberData(nameof(WtsFixtures))]
-    public void Round_trips_both_fixtures(string file)
+    public void Round_trips_every_fixture(string file)
     {
         var bytes = Fixtures.Bytes(file);
 

@@ -25,6 +25,7 @@ public sealed class ObjectFileTests(ITestOutputHelper output)
 
         Assert.Equal(14, files.Count(file => file.StartsWith("we-3.0/", StringComparison.Ordinal)));
         Assert.Equal(12, files.Count(file => file.StartsWith("moonwell-mymap/", StringComparison.Ordinal)));
+        Assert.Equal(14, files.Count(file => file.StartsWith("we-heavy/", StringComparison.Ordinal)));
     }
 
     [Fact]
