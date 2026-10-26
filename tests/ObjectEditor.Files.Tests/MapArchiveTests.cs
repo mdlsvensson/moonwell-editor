@@ -55,11 +55,6 @@ public sealed class MapArchiveTests : IDisposable
         Assert.Contains("war3map.lua", map.Names);
         Assert.Contains("Moonwell\\hello.txt", map.Names);
 
-        // The file is closed after opening: another program may take it for itself.
-        using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
-        {
-        }
-
         // Behind a 512-byte header, as World Editor saves (the archive's offsets count from the MPQ header).
         var header = new byte[512];
         "HM3W"u8.CopyTo(header);
@@ -103,7 +98,209 @@ public sealed class MapArchiveTests : IDisposable
             Assert.Contains(path, problem.Message);
             Assert.Equal(path, problem.Path);
             Assert.Throws<MapArchiveException>(() => MapStore.Open(path));
+            AssertFree(path);
         }
+    }
+
+    [Fact]
+    public void The_file_is_free()
+    {
+        // After opening and reading: another program may take the file for itself, and even cut it short.
+        var opened = Copy(Sample, "opened.w3x");
+        var map = MapArchive.Open(opened);
+        Assert.NotNull(map.Read("Moonwell\\hello.txt"));
+        AssertFree(opened);
+
+        // After an open that failed on a file War3Net cannot read; the message names that file.
+        var damaged = Copy(Sample, "damaged.w3x");
+        Spoil(damaged, "war3map.wts", middle: true);
+        var problem = Assert.Throws<MapArchiveException>(() => MapArchive.Open(damaged));
+        Assert.Contains("war3map.wts", problem.Message);
+        AssertFree(damaged);
+
+        // After a save.
+        var saved = Copy(Sample, "saved.w3x");
+        MapArchive.Open(saved).Write([("war3map.w3u", [1, 2, 3])]);
+        AssertFree(saved);
+    }
+
+    [Fact]
+    public void Save_changes_only_the_written_files()
+    {
+        var path = Copy(Sample, "Sample.w3x");
+        var before = Entries(path);
+        var map = MapArchive.Open(path);
+        byte[] w3u = [.. map.Read("war3map.w3u")!, .. "changed"u8];
+        map.Write([("war3map.w3u", w3u)]);
+
+        var after = Entries(path);
+        AssertCarried(before, after, "war3map.w3u");
+        var written = after.Single(entry => entry.FileName == "war3map.w3u");
+        Assert.Equal(w3u, written.Data);
+        Assert.Equal(before.Single(entry => entry.FileName == "war3map.w3u").Flags, written.Flags);
+        Assert.Equal(w3u, map.Read("war3map.w3u"));
+        Assert.False(File.Exists(path + ".saving"));
+
+        // The MPQ header's sizes: 32 bytes of header, and the archive is the whole file.
+        var bytes = File.ReadAllBytes(path);
+        Assert.Equal(32u, BitConverter.ToUInt32(bytes, 4));
+        Assert.Equal((uint)bytes.Length, BitConverter.ToUInt32(bytes, 8));
+
+        // A file the archive did not have is added, with War3Net's default flags.
+        byte[] skin = [9, 8, 7];
+        map.Write([("war3mapSkin.w3a", skin)]);
+        var later = Entries(path);
+        AssertCarried(after, later, "war3mapSkin.w3a");
+        var added = later.Single(entry => entry.FileName == "war3mapSkin.w3a");
+        Assert.Equal(skin, added.Data);
+        Assert.Equal(MpqFileFlags.Exists | MpqFileFlags.CompressedMulti, added.Flags);
+        Assert.Equal(skin, map.Read("war3mapSkin.w3a"));
+    }
+
+    [Fact]
+    public void Replaced_file_keeps_its_flags()
+    {
+        // war3map.w3u stored as one unit and encrypted, not as War3Net would write a new file.
+        var flags = MpqFileFlags.Exists | MpqFileFlags.CompressedMulti | MpqFileFlags.SingleUnit
+            | MpqFileFlags.Encrypted;
+        var path = Path.Combine(_folder, "flags.w3x");
+        Rebuild(Sample, path, flags: ("war3map.w3u", flags));
+        var before = Entries(path);
+        Assert.Equal(flags, before.Single(entry => entry.FileName == "war3map.w3u").Flags);
+
+        byte[] w3u = [1, 2, 3, 4];
+        MapArchive.Open(path).Write([("war3map.w3u", w3u)]);
+
+        var after = Entries(path);
+        AssertCarried(before, after, "war3map.w3u");
+        var written = after.Single(entry => entry.FileName == "war3map.w3u");
+        Assert.Equal(flags, written.Flags);
+        Assert.Equal(w3u, written.Data);
+    }
+
+    [Fact]
+    public void Pre_archive_header_is_kept()
+    {
+        var header = new byte[512];
+        "HM3W"u8.CopyTo(header);
+        "Test Map\0"u8.CopyTo(header.AsSpan(8));
+        header[511] = 0x5A;
+        var path = Path.Combine(_folder, "behind.w3x");
+        File.WriteAllBytes(path, [.. header, .. File.ReadAllBytes(Sample)]);
+        var before = Entries(path);
+
+        var map = MapArchive.Open(path);
+        map.Write([("war3map.w3u", [1, 2, 3])]);
+
+        var bytes = File.ReadAllBytes(path);
+        Assert.Equal(header, bytes[..512]);
+        Assert.Equal("MPQ\x1A"u8.ToArray(), bytes[512..516]);
+
+        // War3Net writes these two fields wrong behind a header (32 - 512, and 512 too many): the save sets them again.
+        Assert.Equal(32u, BitConverter.ToUInt32(bytes, 512 + 4));
+        Assert.Equal((uint)(bytes.Length - 512), BitConverter.ToUInt32(bytes, 512 + 8));
+
+        AssertCarried(before, Entries(path), "war3map.w3u");
+        Assert.Equal(header, MapArchive.Open(path).PreArchive);
+        Assert.Equal([1, 2, 3], map.Read("war3map.w3u"));
+    }
+
+    [Fact]
+    public void Unnamed_files_survive()
+    {
+        // Moonwell\hello.txt left out of (listfile): a name nobody knows, so War3Net carries it by its hash alone.
+        const string unlisted = "Moonwell\\hello.txt";
+        var path = Path.Combine(_folder, "unlisted.w3x");
+        Rebuild(Sample, path, unlisted: unlisted);
+        var hash = MpqHash.GetHashedFileName(unlisted);
+        var before = Entries(path);
+        Assert.Null(before.Single(entry => entry.Name == hash).FileName);
+        Assert.DoesNotContain(unlisted, MapArchive.Open(path).Names);
+
+        MapArchive.Open(path).Write([("war3map.w3u", [1, 2, 3])]);
+
+        var after = Entries(path);
+        AssertCarried(before, after, "war3map.w3u");
+        var kept = after.Single(entry => entry.Name == hash);
+        Assert.Null(kept.FileName);
+        Assert.Equal(before.Single(entry => entry.Name == hash).Stored, kept.Stored);
+        Assert.Equal(War3NetReads(Sample, unlisted), War3NetReads(path, unlisted));
+    }
+
+    [Fact]
+    public void Failed_check_leaves_the_map()
+    {
+        // What the check is made to see in the new archive, and the file its message names.
+        var spoilers = new (Action<string> Spoil, string Named)[]
+        {
+            (saving => Spoil(saving, "war3map.lua", middle: true), "war3map.lua"),
+            (saving => Spoil(saving, "war3map.w3u", middle: false), "war3map.w3u"),
+            (saving => Spoil(saving, "Moonwell\\hello.txt", middle: false), "Moonwell\\hello.txt"),
+            (saving => AddFile(saving, "extra.txt"), "files where"),
+        };
+
+        foreach (var (spoil, named) in spoilers)
+        {
+            var path = Path.Combine(_folder, "Sample.w3x");
+            File.Copy(Sample, path, true);
+            var time = new DateTime(2001, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(path, time);
+            var bytes = File.ReadAllBytes(path);
+
+            var map = MapArchive.Open(path);
+            map.BeforeCheck = spoil;
+            var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])]));
+
+            Assert.Contains(path, problem.Message);
+            Assert.Contains(named, problem.Message);
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+            Assert.Equal(time, File.GetLastWriteTimeUtc(path));
+            Assert.False(File.Exists(path + ".saving"));
+            AssertFree(path);
+        }
+    }
+
+    [Fact]
+    public void Locked_archive_refuses_the_save()
+    {
+        var path = Copy(Sample, "Sample.w3x");
+        var bytes = File.ReadAllBytes(path);
+        var map = MapArchive.Open(path);
+
+        // Held with no sharing at all, and held for reading only (the map can be read, but not replaced).
+        var holds = new[] { (FileAccess.ReadWrite, FileShare.None), (FileAccess.Read, FileShare.Read) };
+        foreach (var (access, share) in holds)
+        {
+            using (new FileStream(path, FileMode.Open, access, share))
+            {
+                var problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])]));
+                Assert.Equal(
+                    "The map is open in another program (World Editor?): close it there and save again.",
+                    problem.Message);
+                Assert.Equal(path, problem.Path);
+                Assert.False(File.Exists(path + ".saving"));
+            }
+
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+        }
+
+        // Once it is closed there, the save goes through.
+        map.Write([("war3map.w3u", [1, 2, 3])]);
+        Assert.Equal([1, 2, 3], War3NetReads(path, "war3map.w3u"));
+    }
+
+    [Fact]
+    public void Delete_is_refused()
+    {
+        var path = Copy(Sample, "Sample.w3x");
+        var bytes = File.ReadAllBytes(path);
+        var map = MapArchive.Open(path);
+
+        var problem = Assert.Throws<MapArchiveException>(
+            () => map.Write([("war3map.w3a", [1, 2, 3]), ("war3map.w3u", null)]));
+        Assert.Contains("war3map.w3u", problem.Message);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".saving"));
     }
 
     [Fact]
@@ -143,6 +340,29 @@ public sealed class MapArchiveTests : IDisposable
         Assert.NotNull(map.Read("war3map.w3i"));
         Assert.Empty(map.PreArchive);
         Assert.Contains("war3map.w3i", map.Names);
+
+        // A save adds war3map.w3u (the map has none), keeps every other file as stored, and drops Blizzard's signature
+        // after the archive.
+        var before = Entries(path);
+        Assert.True(new FileInfo(path).Length > BitConverter.ToUInt32(File.ReadAllBytes(path), 8));
+        map.Write([("war3map.w3u", [1, 2, 3])]);
+        AssertCarried(before, Entries(path), "war3map.w3u");
+        Assert.Equal(new FileInfo(path).Length, BitConverter.ToUInt32(File.ReadAllBytes(path), 8));
+        Assert.Equal([1, 2, 3], map.Read("war3map.w3u"));
+    }
+
+    [Fact]
+    public void Block_size_is_kept()
+    {
+        // Saved with War3Net's default block size, 7 of these files would be compressed again (the spike).
+        var path = Path.Combine(_folder, "blocks.w3x");
+        Rebuild(Sample, path, blockSize: 4);
+        var before = Entries(path);
+
+        MapArchive.Open(path).Write([("war3map.w3u", [1, 2, 3])]);
+
+        Assert.Equal(4, BitConverter.ToUInt16(File.ReadAllBytes(path), 14));
+        AssertCarried(before, Entries(path), "war3map.w3u");
     }
 
     [Fact]
@@ -188,10 +408,158 @@ public sealed class MapArchiveTests : IDisposable
         return path;
     }
 
+    // No program holds the file: it can be taken with no sharing and cut to nothing (which a memory-mapped view left
+    // open by War3Net would refuse).
+    private static void AssertFree(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        stream.SetLength(0);
+    }
+
+    // The specials War3Net writes anew in every save.
+    private static readonly string[] Specials = ["(listfile)", "(attributes)", "(signature)"];
+
+    /// <summary>One hash entry of an archive, as the file on disk holds it.</summary>
+    /// <param name="Name">The file name's hash (what the archive itself keeps of a name).</param>
+    /// <param name="Locale">The entry's locale.</param>
+    /// <param name="FileName">The name, when War3Net knows it.</param>
+    /// <param name="Flags">The block's flags.</param>
+    /// <param name="Stored">The block's bytes as stored: compressed, maybe encrypted.</param>
+    /// <param name="Data">The file's bytes, decompressed; null when War3Net cannot read them.</param>
+    private sealed record Entry(
+        ulong Name, MpqLocale Locale, string? FileName, MpqFileFlags Flags, byte[] Stored, byte[]? Data);
+
+    // Every hash entry of an archive, with the names the app knows.
+    private static List<Entry> Entries(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        using var archive = MpqArchive.Open(new MemoryStream(bytes), loadListFile: true);
+        archive.AddFileNames(MapArchive.KnownNames);
+        var entries = new List<Entry>();
+        foreach (var hash in archive.EnumerateHashes())
+        {
+            var block = archive[(int)hash.BlockIndex];
+            var stored = bytes.AsSpan((int)block.FilePosition, (int)block.CompressedSize).ToArray();
+            byte[]? data = null;
+            using (var stream = archive.OpenFile(block))
+            {
+                if (stream.CanRead)
+                {
+                    var memory = new MemoryStream();
+                    stream.CopyTo(memory);
+                    data = memory.ToArray();
+                }
+            }
+
+            entries.Add(new Entry(hash.Name, hash.Locale, block.FileName, block.Flags, stored, data));
+        }
+
+        return entries;
+    }
+
+    // Every entry of before, other than the written files and the specials, is in after with the same flags and the
+    // same stored bytes; after has no other entries than those and the written files.
+    private static void AssertCarried(List<Entry> before, List<Entry> after, params string[] written)
+    {
+        var writtenHashes = written.Select(MpqHash.GetHashedFileName).ToHashSet();
+        var specialHashes = Specials.Select(MpqHash.GetHashedFileName).ToHashSet();
+        var carried = before.Where(entry => !specialHashes.Contains(entry.Name) && !writtenHashes.Contains(entry.Name))
+            .ToList();
+        foreach (var old in carried)
+        {
+            var now = after.Single(entry => entry.Name == old.Name && entry.Locale == old.Locale);
+            Assert.Equal(old.Flags, now.Flags);
+            Assert.True(old.Stored.AsSpan().SequenceEqual(now.Stored), $"{old.FileName ?? $"{old.Name:X16}"} changed");
+        }
+
+        Assert.Equal(carried.Count + written.Length, after.Count(entry => !specialHashes.Contains(entry.Name)));
+    }
+
+    // Changes one byte of a file's stored bytes in an archive (MPQ header at 0): the middle one or the last one.
+    private static void Spoil(string path, string name, bool middle)
+    {
+        var bytes = File.ReadAllBytes(path);
+        int position;
+        using (var archive = MpqArchive.Open(new MemoryStream(bytes), loadListFile: true))
+        {
+            var block = archive.GetMpqEntries(name).First();
+            position = (int)(block.FilePosition + (middle ? block.CompressedSize / 2 : block.CompressedSize - 1));
+        }
+
+        bytes[position] ^= 0xFF;
+        File.WriteAllBytes(path, bytes);
+    }
+
+    // Adds a file to an archive (MPQ header at 0), keeping every other file as it is.
+    private static void AddFile(string path, string name)
+    {
+        using var memory = new MemoryStream();
+        using (var archive = MpqArchive.Open(new MemoryStream(File.ReadAllBytes(path)), loadListFile: true))
+        {
+            var builder = new MpqArchiveBuilder(archive);
+            builder.AddFile(MpqFile.New(new MemoryStream([1, 2, 3]), name));
+            builder.SaveTo(memory, leaveOpen: true);
+        }
+
+        File.WriteAllBytes(path, memory.ToArray());
+    }
+
+    // Writes source's files into a new archive at target, as the spike did: optionally one file left out of
+    // (listfile), one file stored with other flags, and another block size than War3Net's default (3).
+    private static void Rebuild(
+        string source,
+        string target,
+        string? unlisted = null,
+        (string Name, MpqFileFlags Flags)? flags = null,
+        ushort blockSize = 3)
+    {
+        using var original = MpqArchive.Open(new MemoryStream(File.ReadAllBytes(source)), loadListFile: true);
+        List<string> listed;
+        using (var reader = new StreamReader(original.OpenFile("(listfile)")))
+        {
+            listed = [.. reader.ReadToEnd().Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)];
+        }
+
+        var files = new List<MpqFile>();
+        foreach (var name in listed.Where(name => !Specials.Contains(name) && original.FileExists(name)))
+        {
+            var memory = new MemoryStream();
+            using (var stream = original.OpenFile(name))
+            {
+                stream.CopyTo(memory);
+            }
+
+            memory.Position = 0;
+            var file = MpqFile.New(memory, name);
+            file.TargetFlags = flags is { } other && other.Name == name
+                ? other.Flags
+                : original.GetMpqEntries(name).First().Flags & ~MpqFileFlags.Garbage;
+            files.Add(file);
+        }
+
+        var listText = string.Join("\r\n", listed.Where(name => name != unlisted)) + "\r\n";
+        var listFile = MpqFile.New(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(listText)), "(listfile)");
+        listFile.TargetFlags = MpqFileFlags.Exists | MpqFileFlags.CompressedMulti | MpqFileFlags.Encrypted
+            | MpqFileFlags.BlockOffsetAdjustedKey;
+        files.Add(listFile);
+
+        var options = new MpqArchiveCreateOptions
+        {
+            ListFileCreateMode = MpqFileCreateMode.None,
+            AttributesCreateMode = MpqFileCreateMode.Overwrite,
+            AttributesFlags = AttributesFlags.Crc32,
+            BlockSize = blockSize,
+        };
+
+        using var archive = new MemoryStream();
+        MpqArchive.Create(archive, files, options, leaveOpen: true).Dispose();
+        File.WriteAllBytes(target, archive.ToArray());
+    }
+
     // A file's bytes as War3Net reads them from the archive, or null when it has none.
     private static byte[]? War3NetReads(string path, string name)
     {
-        using var archive = MpqArchive.Open(path, loadListFile: true);
+        using var archive = MpqArchive.Open(new MemoryStream(File.ReadAllBytes(path)), loadListFile: true);
         if (!archive.TryOpenFile(name, out var stream))
         {
             return null;

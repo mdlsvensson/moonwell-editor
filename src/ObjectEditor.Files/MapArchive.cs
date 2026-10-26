@@ -53,6 +53,9 @@ public sealed class MapArchive : IMapStore
     /// </summary>
     internal IReadOnlyList<string> Names => _contents.Names;
 
+    /// <summary>For tests: runs on the new archive's file after it is written and before the check reads it.</summary>
+    internal Action<string>? BeforeCheck { get; set; }
+
     /// <summary>
     /// Opens a map archive and reads what the app needs from it, then closes it. Throws
     /// <see cref="MapArchiveException"/> (naming the file and the reason) when War3Net cannot read it, or when several
@@ -84,10 +87,51 @@ public sealed class MapArchive : IMapStore
         return Load(Path, [name]).Files[name];
     }
 
-    /// <summary>Not yet: saving an archive comes with the checked save.</summary>
+    /// <summary>
+    /// Saves files into the archive. A new archive is built from the one on disk with War3Net's
+    /// <see cref="MpqArchiveBuilder"/>: each given file replaced (with the flags its old entry had; a new file with
+    /// War3Net's default), every other file carried over as it is stored, the bytes before the MPQ header written
+    /// first. It is written to <c>&lt;archive&gt;.saving</c> beside the map, opened again and checked against the old
+    /// one, and only then replaces the map. Any failure deletes the new file, leaves the map as it was and throws
+    /// <see cref="MapArchiveException"/> saying why. A delete (null bytes) is refused: a save never removes a file from
+    /// an archive. War3Net writes <c>(listfile)</c> and <c>(attributes)</c> anew and drops <c>(signature)</c> and any
+    /// bytes after the archive (a signature cannot stay valid after an edit).
+    /// </summary>
     public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files)
     {
-        throw new NotSupportedException($"Saving a map archive ({Path}) is not supported yet.");
+        var written = new List<(string Name, byte[] Bytes)>();
+        foreach (var (name, bytes) in files)
+        {
+            if (bytes is null)
+            {
+                throw MapArchiveException.NotSaved(Path, $"the save would remove {name}, and a save never removes a "
+                    + "file from an archive");
+            }
+
+            written.Add((name, bytes));
+        }
+
+        var saving = Path + ".saving";
+        try
+        {
+            Save(written, saving);
+            File.Replace(saving, Path, null);
+        }
+        catch (Exception e)
+        {
+            Delete(saving);
+            if (e is MapArchiveException)
+            {
+                throw;
+            }
+
+            if (IsLocked(e))
+            {
+                throw MapArchiveException.Locked(Path, e);
+            }
+
+            throw MapArchiveException.NotSaved(Path, e.Message, e);
+        }
     }
 
     /// <summary>
@@ -102,12 +146,295 @@ public sealed class MapArchive : IMapStore
         return file.Exists ? $"{file.LastWriteTimeUtc.Ticks}:{file.Length}" : "missing";
     }
 
+    // Deletes a file when it can; a failed save reports why it failed, not that its new file could not be deleted.
+    private static void Delete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    // Writes the new archive to saving and checks it against the archive at Path (see Write).
+    private void Save(List<(string Name, byte[] Bytes)> written, string saving)
+    {
+        // Read only, and nobody may write the map while it is read.
+        using var source = OpenRead(Path, FileShare.Read);
+        using var original = MpqArchive.Open(source, loadListFile: true);
+        MpqArchiveBuilder? builder = null;
+        try
+        {
+            original.AddFileNames(KnownNames);
+            original.AddFileNames(written.Select(file => file.Name));
+            var pre = ReadPreArchive(source);
+            var blockSize = ReadUInt16(source, pre.Length + 14);
+
+            builder = new MpqArchiveBuilder(original);
+            foreach (var (name, bytes) in written)
+            {
+                // AddFile alone, with no RemoveFile first: the builder's remove list would filter out the new file too.
+                var file = MpqFile.New(new MemoryStream(bytes), name);
+                if (OldFlags(original, name) is { } flags)
+                {
+                    builder.AddFile(file, flags);
+                }
+                else
+                {
+                    builder.AddFile(file);
+                }
+            }
+
+            using (var target = new FileStream(saving, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+            {
+                target.Write(pre);
+
+                // The original's block size (SaveTo would write War3Net's default, and compress files again); the
+                // builder keeps the hash table's size.
+                var options = new MpqArchiveCreateOptions
+                {
+                    BlockSize = blockSize,
+                    AttributesFlags = AttributesFlags.Crc32,
+                };
+                builder.SaveTo(target, options, leaveOpen: true);
+
+                // Behind bytes before the header, War3Net writes two of the header's fields wrong: the header's size
+                // (32 minus the bytes before it) and the archive's size (those bytes counted in). Both are set again.
+                WriteUInt32(target, pre.Length + 4, HeaderSize);
+                WriteUInt32(target, pre.Length + 8, (uint)(target.Length - pre.Length));
+            }
+
+            BeforeCheck?.Invoke(saving);
+            Check(original, source, pre, written, saving);
+        }
+        finally
+        {
+            // The builder disposes the files it wrote, not the ones it left out (each replaced file's old entry).
+            if (builder is not null)
+            {
+                foreach (var file in builder.OriginalFiles)
+                {
+                    file.Dispose();
+                }
+            }
+        }
+    }
+
+    // The flags of a file's entry in the archive (the neutral locale's, as a new file is written), or null when the
+    // archive has no such file.
+    private static MpqFileFlags? OldFlags(MpqArchive archive, string name)
+    {
+        var hashed = MpqHash.GetHashedFileName(name);
+        foreach (var hash in archive.EnumerateHashes())
+        {
+            if (hash.Name == hashed && hash.Locale == MpqLocale.Neutral && hash.BlockIndex < archive.Count)
+            {
+                return archive[(int)hash.BlockIndex].Flags & ~MpqFileFlags.Garbage;
+            }
+        }
+
+        return null;
+    }
+
+    // Opens the new archive at saving and compares it with the original, entry by entry in the hash table (so files
+    // with no known name count too): every entry of the original is there with the same flags and the same stored
+    // bytes (decompressed bytes for a file encrypted by its position, which moves), each written file holds its new
+    // bytes, the bytes before the MPQ header are the same, and there are no other entries. (listfile), (attributes)
+    // and (signature) are left out: War3Net writes them anew. Throws MapArchiveException on the first difference.
+    private void Check(
+        MpqArchive original,
+        Stream originalStream,
+        byte[] pre,
+        List<(string Name, byte[] Bytes)> written,
+        string saving)
+    {
+        using var stream = OpenRead(saving, FileShare.Read);
+        using var saved = MpqArchive.Open(stream, loadListFile: true);
+        saved.AddFileNames(KnownNames);
+        saved.AddFileNames(written.Select(file => file.Name));
+        for (var i = 0; i < original.Count; i++)
+        {
+            if (original[i].FileName is { } name)
+            {
+                saved.AddFileName(name);
+            }
+        }
+
+        if (!ReadPreArchive(stream).AsSpan().SequenceEqual(pre))
+        {
+            throw CheckFailed("the bytes before the MPQ header are not the same");
+        }
+
+        var specials = new[] { "(listfile)", "(attributes)", "(signature)" }
+            .Select(MpqHash.GetHashedFileName)
+            .ToHashSet();
+        var savedEntries = new Dictionary<(ulong, MpqLocale), MpqEntry>();
+        var savedCount = 0;
+        foreach (var hash in saved.EnumerateHashes().Where(hash => !specials.Contains(hash.Name)))
+        {
+            savedCount++;
+            savedEntries.TryAdd((hash.Name, hash.Locale), saved[(int)hash.BlockIndex]);
+        }
+
+        var writtenBytes = new Dictionary<ulong, (string Name, byte[] Bytes)>();
+        foreach (var file in written)
+        {
+            writtenBytes[MpqHash.GetHashedFileName(file.Name)] = file;
+        }
+
+        var expectedCount = 0;
+        foreach (var hash in original.EnumerateHashes())
+        {
+            // A hash entry that points at no block is no file; War3Net leaves it out.
+            if (specials.Contains(hash.Name) || hash.BlockIndex >= original.Count)
+            {
+                continue;
+            }
+
+            expectedCount++;
+            if (hash.Locale == MpqLocale.Neutral && writtenBytes.ContainsKey(hash.Name))
+            {
+                continue;   // checked below, with the written files
+            }
+
+            var old = original[(int)hash.BlockIndex];
+            var label = old.FileName ?? $"a file with no known name (hash {hash.Name:X16})";
+            if (!savedEntries.TryGetValue((hash.Name, hash.Locale), out var now))
+            {
+                throw CheckFailed($"{label} is missing from it");
+            }
+
+            if ((old.Flags & ~MpqFileFlags.Garbage) != (now.Flags & ~MpqFileFlags.Garbage))
+            {
+                throw CheckFailed($"{label} has other flags in it");
+            }
+
+            var same = old.Flags.HasFlag(MpqFileFlags.Encrypted | MpqFileFlags.BlockOffsetAdjustedKey)
+                ? Decompressed(original, old) is { } before && Decompressed(saved, now) is { } after
+                    && before.AsSpan().SequenceEqual(after)
+                : SameStored(originalStream, old, stream, now);
+            if (!same)
+            {
+                throw CheckFailed($"{label} is not the same in it");
+            }
+        }
+
+        foreach (var (hashed, (name, bytes)) in writtenBytes)
+        {
+            if (!OldFlags(original, name).HasValue)
+            {
+                expectedCount++;
+            }
+
+            if (!savedEntries.TryGetValue((hashed, MpqLocale.Neutral), out var now))
+            {
+                throw CheckFailed($"{name} is missing from it");
+            }
+
+            if (Decompressed(saved, now) is not { } after || !after.AsSpan().SequenceEqual(bytes))
+            {
+                throw CheckFailed($"{name} does not hold the bytes written");
+            }
+        }
+
+        if (savedCount != expectedCount)
+        {
+            throw CheckFailed($"it has {savedCount} files where {expectedCount} were expected");
+        }
+    }
+
+    private MapArchiveException CheckFailed(string reason) =>
+        MapArchiveException.NotSaved(Path, "the new archive did not pass the check after writing: " + reason);
+
+    // A file's bytes, decompressed; null when War3Net cannot read them.
+    private static byte[]? Decompressed(MpqArchive archive, MpqEntry entry)
+    {
+        try
+        {
+            using var stream = archive.OpenFile(entry);
+            if (!stream.CanRead)
+            {
+                return null;
+            }
+
+            var memory = new MemoryStream();
+            stream.CopyTo(memory);
+            return memory.ToArray();
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
+    // Whether two entries' stored bytes (their blocks as the files hold them) are the same, read a piece at a time.
+    private static bool SameStored(Stream oldStream, MpqEntry old, Stream newStream, MpqEntry now)
+    {
+        if (old.CompressedSize != now.CompressedSize)
+        {
+            return false;
+        }
+
+        var oldPiece = new byte[64 * 1024];
+        var newPiece = new byte[oldPiece.Length];
+        long left = old.CompressedSize;
+        long done = 0;
+        while (left > 0)
+        {
+            var size = (int)Math.Min(left, oldPiece.Length);
+            oldStream.Position = old.FilePosition + done;
+            oldStream.ReadExactly(oldPiece, 0, size);
+            newStream.Position = now.FilePosition + done;
+            newStream.ReadExactly(newPiece, 0, size);
+            if (!oldPiece.AsSpan(0, size).SequenceEqual(newPiece.AsSpan(0, size)))
+            {
+                return false;
+            }
+
+            done += size;
+            left -= size;
+        }
+
+        return true;
+    }
+
+    // Whether an exception says another program holds the file: a sharing or lock violation, a mapped view, or
+    // File.Replace unable to remove the map or put the new file in its place.
+    private static bool IsLocked(Exception e)
+    {
+        const int SharingViolation = 32, LockViolation = 33, CannotRemoveReplaced = 1175, CannotMoveReplacement = 1176,
+            UserMappedFile = 1224;
+        return e is IOException && (e.HResult & 0xFFFF) is SharingViolation or LockViolation or CannotRemoveReplaced
+            or CannotMoveReplacement or UserMappedFile;
+    }
+
+    // War3Net memory-maps an archive it is given as a FileStream, and a view it leaves behind (after a failed open, or
+    // a file it cannot read) keeps the map from other programs. Through a BufferedStream it reads the file plainly.
+    private static BufferedStream OpenRead(string path, FileShare share) =>
+        new(new FileStream(path, FileMode.Open, FileAccess.Read, share), 64 * 1024);
+
+    private static ushort ReadUInt16(Stream stream, long position)
+    {
+        var bytes = new byte[2];
+        stream.Position = position;
+        stream.ReadExactly(bytes);
+        return BitConverter.ToUInt16(bytes);
+    }
+
+    private static void WriteUInt32(Stream stream, long position, uint value)
+    {
+        stream.Position = position;
+        stream.Write(BitConverter.GetBytes(value));
+    }
+
     // Reads the archive at path: its stamp (taken first, so a change made while reading is seen later), the bytes
     // before the MPQ header, the names of its files, and the bytes of the files named (null for one it does not have).
     private static Contents Load(string path, IReadOnlyList<string> names)
     {
         var stamp = StampOf(path);
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var stream = OpenRead(path, FileShare.ReadWrite | FileShare.Delete);
         try
         {
             using var archive = MpqArchive.Open(stream, loadListFile: true);
@@ -143,19 +470,32 @@ public sealed class MapArchive : IMapStore
         }
     }
 
-    // A file's bytes, decompressed, or null when the archive has no file of that name.
+    // A file's bytes, decompressed, or null when the archive has no file of that name. A file War3Net cannot read
+    // throws an exception that names it.
     private static byte[]? ReadFile(MpqArchive archive, string name)
     {
-        if (!archive.TryOpenFile(name, out var stream))
+        try
         {
-            return null;
-        }
+            if (!archive.TryOpenFile(name, out var stream))
+            {
+                return null;
+            }
 
-        using (stream)
+            using (stream)
+            {
+                if (!stream.CanRead)
+                {
+                    throw new InvalidDataException("War3Net cannot decompress it");
+                }
+
+                var memory = new MemoryStream();
+                stream.CopyTo(memory);
+                return memory.ToArray();
+            }
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
-            var memory = new MemoryStream();
-            stream.CopyTo(memory);
-            return memory.ToArray();
+            throw new InvalidDataException($"its file {name} cannot be read ({e.Message})", e);
         }
     }
 
@@ -191,18 +531,31 @@ public sealed class MapArchive : IMapStore
 }
 
 /// <summary>
-/// A map archive the app cannot open: War3Net cannot read it (a damaged or protected map), or it is a protected map a
-/// save would damage. The message names the file and the reason.
+/// A map archive the app cannot open (War3Net cannot read it, a damaged or protected map, or it is a protected map a
+/// save would damage), or a save of one that failed and left the map as it was. The message says why.
 /// </summary>
 public sealed class MapArchiveException : Exception
 {
     /// <summary>The archive at <paramref name="path"/> cannot be opened, for <paramref name="reason"/>.</summary>
     public MapArchiveException(string path, string reason, Exception? inner = null)
-        : base($"The map archive {path} cannot be opened: {reason}", inner)
+        : this(path, inner, $"The map archive {path} cannot be opened: {reason}")
+    {
+    }
+
+    private MapArchiveException(string path, Exception? inner, string message)
+        : base(message, inner)
     {
         Path = path;
     }
 
     /// <summary>The archive file's path.</summary>
     public string Path { get; }
+
+    /// <summary>A save of the archive at <paramref name="path"/> failed, for <paramref name="reason"/>.</summary>
+    internal static MapArchiveException NotSaved(string path, string reason, Exception? inner = null) =>
+        new(path, inner, $"The map archive {path} was not saved, and is as it was: {reason}");
+
+    /// <summary>A save failed because another program holds the archive.</summary>
+    internal static MapArchiveException Locked(string path, Exception inner) =>
+        new(path, inner, "The map is open in another program (World Editor?): close it there and save again.");
 }
