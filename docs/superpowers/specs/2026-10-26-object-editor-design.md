@@ -248,7 +248,7 @@ screen: lists are virtualised and a search returns the top results.
 ### Projects and folders
 
 ```
-wc3-object-editor/
+moonwell-editor/
   ObjectEditor.slnx
   Directory.Build.props        net10.0, nullable, warnings as errors (as Moonwell)
   src/
