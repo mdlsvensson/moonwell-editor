@@ -387,6 +387,16 @@ public sealed class MapArchiveTests : IDisposable
         Assert.Equal(bytes, File.ReadAllBytes(path));
         Assert.False(File.Exists(path + ".saving"));
 
+        // Its time changed while the new archive was checked (the save holds the map from writes, not from that): the
+        // stamp is checked again just before the replace.
+        map.BeforeCheck = _ => File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(2));
+        bytes = File.ReadAllBytes(path);
+        problem = Assert.Throws<MapArchiveException>(() => map.Write([("war3map.w3u", [1, 2, 3])], map.Stamp()));
+        Assert.True(problem.ChangedOnDisk);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.False(File.Exists(path + ".saving"));
+        map.BeforeCheck = null;
+
         // With the stamp it has now, the save goes through.
         map.Write([("war3map.w3u", [1, 2, 3])], map.Stamp());
         Assert.Equal([1, 2, 3], War3NetReads(path, "war3map.w3u"));

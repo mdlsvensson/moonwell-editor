@@ -164,6 +164,14 @@ public sealed class MapArchive : IMapStore
             throw IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
         }
 
+        // Held while it was read, the map could still have its time set; and it is not held between the check and
+        // the replace. Its stamp is taken once more, just before.
+        if (stamp is not null && StampOf(Path) != stamp)
+        {
+            Delete(saving);
+            throw MapArchiveException.Changed(Path);
+        }
+
         Delete(replacing);
         try
         {
