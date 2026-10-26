@@ -74,20 +74,57 @@ export function selectAll(size: Size): Selection | null {
   return { anchor: { row: 0, col: 0 }, focus: { row: size.rows - 1, col: size.cols - 1 } };
 }
 
+/** A column's key: its field and level (`ugol:0`, `acdn:2`). */
+export function columnKey(column: Column): string {
+  return `${column.field}:${column.level}`;
+}
+
+/** A cell kept by its object and column (`columnKey`), with where it was when it was kept. */
+export type CellRef = { id: string; key: string; at: Cell };
+
+/** A selection kept by objects and columns, so it stays on them when the rows are sorted or fetched again. */
+export type SelectionRef = { anchor: CellRef; focus: CellRef };
+
+function cellRef(at: Cell, rows: TableRow[], columns: Column[]): CellRef {
+  const row = rows[at.row];
+  const column = columns[at.col];
+  return { id: row?.id ?? "", key: column ? columnKey(column) : "", at };
+}
+
+/** The selection as its objects and columns, to find again after the rows or columns change. */
+export function selectionRef(s: Selection, rows: TableRow[], columns: Column[]): SelectionRef {
+  return { anchor: cellRef(s.anchor, rows, columns), focus: cellRef(s.focus, rows, columns) };
+}
+
 /**
- * The selection pulled inside a table that changed size (fewer rows or columns after a fetch): a selection that fits
- * is kept as it is; an empty table selects nothing.
+ * Where a kept selection is in rows and columns that changed (sorted again, fetched again after an edit, a column
+ * added or removed): each end on its object's row and its column. An object or column that is gone falls back to the
+ * old place, pulled inside the table. Nothing kept, or an empty table, selects nothing.
  */
-export function clampSelection(s: Selection | null, size: Size): Selection | null {
-  if (!s || size.rows <= 0 || size.cols <= 0) return null;
-  const anchor = clampCell(s.anchor, size);
-  const focus = clampCell(s.focus, size);
-  const same =
-    anchor.row === s.anchor.row &&
-    anchor.col === s.anchor.col &&
-    focus.row === s.focus.row &&
-    focus.col === s.focus.col;
-  return same ? s : { anchor, focus };
+export function relocateSelection(
+  ref: SelectionRef | null,
+  rows: TableRow[],
+  columns: Column[],
+): Selection | null {
+  const size = { rows: rows.length, cols: columns.length };
+  if (!ref || size.rows <= 0 || size.cols <= 0) return null;
+  const find = (kept: CellRef): Cell => {
+    const row = rows.findIndex((item) => item.id === kept.id);
+    const col = columns.findIndex((column) => columnKey(column) === kept.key);
+    return clampCell({ row: row < 0 ? kept.at.row : row, col: col < 0 ? kept.at.col : col }, size);
+  };
+  return { anchor: find(ref.anchor), focus: find(ref.focus) };
+}
+
+/** True when two selections have the same anchor and focus (both none counts). */
+export function sameSelection(a: Selection | null, b: Selection | null): boolean {
+  if (!a || !b) return a === b;
+  return (
+    a.anchor.row === b.anchor.row &&
+    a.anchor.col === b.anchor.col &&
+    a.focus.row === b.focus.row &&
+    a.focus.col === b.focus.col
+  );
 }
 
 /**

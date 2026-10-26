@@ -9,7 +9,9 @@
  * Every change of cells is one `setCells` (`onedit`), one step of undo: a cell's editor, the bar that sets the
  * selected cells to a value or an expression, and the grid's Ctrl V (paste from the clipboard at the block's upper
  * left cell), Ctrl D (fill down) and Delete (reset). A refusal changes nothing and is said in the status bar (the bar's
- * also beside it). Ctrl C copies the selected values as tab-separated text.
+ * also beside it). Ctrl C copies the selected values as tab-separated text. A bulk change (and a copy) first waits for
+ * the edits on their way and the rows fetched after them, so it works from the values as they are; the selection is
+ * kept by objects and columns, so it stays on them when the rows are sorted or fetched again.
  */
 import { untrack } from "svelte";
 import {
@@ -30,12 +32,15 @@ import { type Lookup, listKinds } from "./fields.ts";
 import {
   blockSize,
   bulkEdits,
-  clampSelection,
   copyBlock,
   fillDownEdits,
   pasteEdits,
+  relocateSelection,
   resetEdits,
   type Selection,
+  type SelectionRef,
+  sameSelection,
+  selectionRef,
   topLeft,
 } from "./grid.ts";
 import TableGrid, { type BulkAction } from "./TableGrid.svelte";
@@ -51,6 +56,7 @@ import {
   readColumns,
   removeColumn,
   rowIds,
+  rowsReadiness,
   type Store,
   sortTable,
   type TableState,
@@ -125,6 +131,15 @@ let filterInput: HTMLInputElement | undefined = $state();
 let selection = $state.raw<Selection | null>(null);
 let bulkText = $state("");
 let bulkError = $state("");
+// The selection by objects and columns, to find again when the rows change.
+let kept: SelectionRef | null = null;
+// The edits from this view on their way; the map's state an edit changed, until the next state comes; and the state
+// the rows shown were fetched for.
+let editsOut = $state(0);
+let waitingFor = $state.raw<{ session: SessionState | null } | null>(null);
+let rowsFor = $state.raw<{ session: SessionState | null } | null>(null);
+// How long a bulk change waits for the rows before it gives up.
+const waitLimit = 10000;
 
 const store = (): Store | null => globalThis.localStorage ?? null;
 
@@ -157,12 +172,22 @@ $effect(() => {
   });
 });
 
-// The selection stays across a fetch of the rows (after an edit, undo or redo), pulled in when the table shrank.
+// A selection made (by the grid or here) is kept by its objects and columns.
 $effect(() => {
-  const size = { rows: rows.length, cols: shown?.columns.length ?? 0 };
+  const s = selection;
   untrack(() => {
-    const kept = clampSelection(selection, size);
-    if (kept !== selection) selection = kept;
+    kept = s && shown ? selectionRef(s, rows, shown.columns) : null;
+  });
+});
+
+// When the rows or columns change (a fetch after an edit, undo or redo, a sort, a column added or removed), the
+// selection moves with its objects and columns; one that is gone keeps its place, pulled inside the table.
+$effect(() => {
+  const list = rows;
+  const cols = shown?.columns ?? [];
+  untrack(() => {
+    const next = relocateSelection(kept, list, cols);
+    if (!sameSelection(next, selection)) selection = next;
   });
 });
 
@@ -222,11 +247,13 @@ $effect(() => {
 
 async function fetchRows(each: Kind, rowIdList: string[], cols: Column[]): Promise<void> {
   const mine = ++asked;
+  const forSession = session;
   loading = true;
   try {
     const found = await table(each, rowIdList, cols);
     if (mine !== asked) return;
     shown = { kind: each, columns: cols, rows: found };
+    rowsFor = { session: forSession };
     rowsError = "";
   } catch (error) {
     if (mine === asked) rowsError = message(error);
@@ -326,6 +353,56 @@ const selectedText = $derived.by(() => {
   return `${cellCount(size.rows * size.cols)} selected`;
 });
 
+// Bulk changes waiting for the rows to be as the map is.
+const waiters = new Set<(problem: string | null) => void>();
+
+const readiness = $derived(rowsReadiness({ editsOut, session, waitingFor, rowsFor, rowsError }));
+
+$effect(() => {
+  const state = readiness;
+  if (state === "wait") return;
+  untrack(() => {
+    for (const done of [...waiters]) done(state === "ready" ? null : state.error);
+  });
+});
+
+/**
+ * Waits until no edit from this view is on its way and the rows were fetched for the map as it is, so a bulk change
+ * works from the values as they are. Answers null then, or why it cannot: the fetch failed, or it took too long.
+ */
+function settled(): Promise<string | null> {
+  const now = readiness;
+  if (now === "ready") return Promise.resolve(null);
+  if (now !== "wait") return Promise.resolve(now.error);
+  return new Promise((resolve) => {
+    const done = (problem: string | null) => {
+      clearTimeout(timer);
+      waiters.delete(done);
+      resolve(problem);
+    };
+    const timer = setTimeout(() => done("Wait for the last change to finish."), waitLimit);
+    waiters.add(done);
+  });
+}
+
+/**
+ * Changes cells as one edit (`onedit`), counted while on its way. An edit that changed cells leaves the rows stale
+ * until the map's next state comes (if it has not come yet) and the rows are fetched for it.
+ */
+async function edit(each: Kind, edits: CellEdit[]): Promise<EditResult> {
+  const before = session;
+  editsOut++;
+  try {
+    const result = await onedit(each, edits);
+    if (!("error" in result) && result.changed > 0 && session === before) {
+      waitingFor = { session: before };
+    }
+    return result;
+  } finally {
+    editsOut--;
+  }
+}
+
 /** The fields of the kind the rows were fetched for. */
 function shownFields(): FieldInfo[] {
   return shown ? (fieldLists[shown.kind] ?? []) : [];
@@ -336,7 +413,7 @@ function shownFields(): FieldInfo[] {
  * nothing and says why. Answers with the refusal, or null.
  */
 async function change(each: Kind, edits: CellEdit[], done: string): Promise<string | null> {
-  const result = await onedit(each, edits);
+  const result = await edit(each, edits);
   if ("error" in result) {
     onnotice(result.error, true);
     return result.error;
@@ -353,7 +430,7 @@ async function change(each: Kind, edits: CellEdit[], done: string): Promise<stri
 async function setCell(row: TableRow, column: Column, value: string): Promise<string | null> {
   const each = shown?.kind;
   if (!each) return "The table is not shown.";
-  const result = await onedit(each, [
+  const result = await edit(each, [
     { id: row.id, field: column.field, level: column.level, value },
   ]);
   return "error" in result ? result.error : null;
@@ -393,7 +470,12 @@ async function paste(s: Selection): Promise<void> {
   await change(at.kind, edits, "Pasted");
 }
 
-function bulk(action: BulkAction): void {
+async function bulk(action: BulkAction): Promise<void> {
+  const problem = await settled();
+  if (problem) {
+    onnotice(problem, true);
+    return;
+  }
   const s = selection;
   const at = shown;
   if (!s || !at) return;
@@ -428,6 +510,11 @@ function bulk(action: BulkAction): void {
 
 /** The bar's Apply: the selected cells set to the value or expression typed. */
 async function apply(): Promise<void> {
+  const problem = await settled();
+  if (problem) {
+    bulkError = problem;
+    return;
+  }
   const s = selection;
   const at = shown;
   if (!s || !at) {

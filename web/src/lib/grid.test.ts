@@ -5,15 +5,17 @@ import {
   bulkEdits,
   cellField,
   cellsOf,
-  clampSelection,
   copyBlock,
   defaultColumns,
   editRefusal,
   fillDownEdits,
   moveSelection,
   pasteEdits,
+  relocateSelection,
   resetEdits,
+  sameSelection,
   selectAll,
+  selectionRef,
   sortRows,
   topLeft,
 } from "./grid.ts";
@@ -423,15 +425,43 @@ describe("selectAll", () => {
   });
 });
 
-describe("clampSelection", () => {
-  it("keeps a selection that fits, and pulls one in that no longer does", () => {
-    expect(clampSelection(sel(0, 1, 2, 2), { rows: 3, cols: 3 })).toEqual(sel(0, 1, 2, 2));
-    expect(clampSelection(sel(0, 1, 5, 6), { rows: 3, cols: 3 })).toEqual(sel(0, 1, 2, 2));
+describe("selectionRef and relocateSelection", () => {
+  // A block from h000 · ugol to h001 · uhpm, kept by object and column.
+  const ref = () => selectionRef(sel(0, 0, 1, 1), rows(), columns);
+  const reversed = () => [...rows()].reverse();
+
+  it("finds the same objects and columns after the rows are sorted again", () => {
+    expect(relocateSelection(ref(), reversed(), columns)).toEqual(sel(2, 0, 1, 1));
   });
 
-  it("drops the selection when the table is empty", () => {
-    expect(clampSelection(sel(0, 0, 0, 0), { rows: 0, cols: 3 })).toBeNull();
-    expect(clampSelection(null, { rows: 3, cols: 3 })).toBeNull();
+  it("finds the same columns after a column is added to the left", () => {
+    const wider: Column[] = [{ field: "ulum", level: 0 }, ...columns];
+    expect(relocateSelection(ref(), rows(), wider)).toEqual(sel(0, 1, 1, 2));
+  });
+
+  it("falls back to the old place, pulled inside the table, for a row that is gone", () => {
+    const fewer = rows().filter((item) => item.id !== "h001");
+    expect(relocateSelection(ref(), fewer, columns)).toEqual(sel(0, 0, 1, 1));
+    expect(relocateSelection(ref(), fewer.slice(0, 1), columns)).toEqual(sel(0, 0, 0, 1));
+  });
+
+  it("falls back to the old place, pulled inside the table, for a column that is gone", () => {
+    const fewer: Column[] = [columns[0] as Column, columns[2] as Column];
+    expect(relocateSelection(ref(), rows(), fewer)).toEqual(sel(0, 0, 1, 1));
+    expect(relocateSelection(ref(), rows(), fewer.slice(0, 1))).toEqual(sel(0, 0, 1, 0));
+  });
+
+  it("selects nothing with nothing kept or in an empty table", () => {
+    expect(relocateSelection(null, rows(), columns)).toBeNull();
+    expect(relocateSelection(ref(), [], columns)).toBeNull();
+    expect(relocateSelection(ref(), rows(), [])).toBeNull();
+  });
+
+  it("tells whether two selections cover the same cells the same way", () => {
+    expect(sameSelection(sel(0, 0, 1, 1), sel(0, 0, 1, 1))).toBe(true);
+    expect(sameSelection(sel(0, 0, 1, 1), sel(1, 1, 0, 0))).toBe(false);
+    expect(sameSelection(null, null)).toBe(true);
+    expect(sameSelection(sel(0, 0, 0, 0), null)).toBe(false);
   });
 });
 

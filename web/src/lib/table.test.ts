@@ -14,6 +14,7 @@ import {
   readColumns,
   removeColumn,
   rowIds,
+  rowsReadiness,
   type Store,
   searchFields,
   sortTable,
@@ -330,5 +331,41 @@ describe("sorting by a header", () => {
   it("keeps the order with no sort or a column that is not shown", () => {
     expect(sortTable(rows, null, columns)).toBe(rows);
     expect(sortTable(rows, { key: "uhpm:0", descending: false }, columns)).toBe(rows);
+  });
+});
+
+describe("rowsReadiness", () => {
+  const now = { dirty: true, changedObjects: 1 };
+  const before = { dirty: false, changedObjects: 0 };
+  const ready = {
+    editsOut: 0,
+    session: now,
+    waitingFor: null,
+    rowsFor: { session: now },
+    rowsError: "",
+  };
+
+  it("is ready when no edit is on its way and the rows were fetched for the map as it is", () => {
+    expect(rowsReadiness(ready)).toBe("ready");
+    expect(rowsReadiness({ ...ready, waitingFor: { session: before } })).toBe("ready");
+  });
+
+  it("waits while an edit is on its way", () => {
+    expect(rowsReadiness({ ...ready, editsOut: 1 })).toBe("wait");
+  });
+
+  it("waits for the map's new state after an edit that changed cells", () => {
+    expect(rowsReadiness({ ...ready, waitingFor: { session: now } })).toBe("wait");
+  });
+
+  it("waits for the rows of the map's new state, or for any rows at all", () => {
+    expect(rowsReadiness({ ...ready, rowsFor: { session: before } })).toBe("wait");
+    expect(rowsReadiness({ ...ready, rowsFor: null })).toBe("wait");
+  });
+
+  it("gives the reason when the rows could not be fetched", () => {
+    expect(rowsReadiness({ ...ready, editsOut: 1, rowsError: "No map." })).toEqual({
+      error: "No map.",
+    });
   });
 });

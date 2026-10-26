@@ -4,7 +4,7 @@
  */
 import type { Column, FieldInfo, Kind, TableRow, TreeEntry } from "./api.ts";
 import { categoryName } from "./fields.ts";
-import { defaultColumns, sortRows } from "./grid.ts";
+import { columnKey, defaultColumns, sortRows } from "./grid.ts";
 import { entryMatches, groupName, isCustom } from "./tree.ts";
 
 /** The group of the map's custom objects (their path is `["Custom"]`). */
@@ -94,10 +94,8 @@ export function rowIds(entries: TreeEntry[], chips: Chips, filter: string): stri
   return ids;
 }
 
-/** A column's key: its field and level (`ugol:0`, `acdn:2`). */
-export function columnKey(column: Column): string {
-  return `${column.field}:${column.level}`;
-}
+// A column's key lives with the grid, which keeps a selection by it; it is used here too.
+export { columnKey };
 
 /**
  * The columns that fit the kind's fields: a column of a field the kind lacks is dropped, as is one whose level does
@@ -240,4 +238,30 @@ export function sortTable(rows: TableRow[], sort: Sort | null, columns: Column[]
   }
   const col = columns.findIndex((column) => columnKey(column) === sort.key);
   return col < 0 ? rows : sortRows(rows, col, sort.descending);
+}
+
+/**
+ * Where the table's rows stand for a bulk change, which must be worked out from the values as they are: the edits
+ * from this view still on their way (`editsOut`), the map's state now (`session`, a new object for each change), the
+ * state an edit changed until the next one comes (`waitingFor`), the state the rows shown were fetched for
+ * (`rowsFor`), and why the last fetch failed (`rowsError`, "" when it did not).
+ */
+export type RowsFreshness = {
+  editsOut: number;
+  session: unknown;
+  waitingFor: { session: unknown } | null;
+  rowsFor: { session: unknown } | null;
+  rowsError: string;
+};
+
+/**
+ * Whether a bulk change can be worked out now: "ready" when no edit is on its way and the rows were fetched for the
+ * map as it is now; "wait" until then; or the reason the rows could not be fetched.
+ */
+export function rowsReadiness(f: RowsFreshness): "ready" | "wait" | { error: string } {
+  if (f.rowsError) return { error: f.rowsError };
+  if (f.editsOut > 0) return "wait";
+  if (f.waitingFor && f.waitingFor.session === f.session) return "wait";
+  if (!f.rowsFor || f.rowsFor.session !== f.session) return "wait";
+  return "ready";
 }
