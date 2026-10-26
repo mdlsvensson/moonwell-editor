@@ -136,12 +136,16 @@ internal static class Folders
         : standard.Building ? "Buildings"
         : "Units";
 
-    // The creeps' and the naga's abilities are Neutral Hostile; the rest (race "other", which World Editor names
-    // Special) are Special. Which abilities World Editor files under Neutral Passive is not in the data the app reads.
+    // As World Editor files them (Sven, 2026-10-27): the creeps' abilities are Neutral Hostile, the naga's Neutral
+    // Passive, and the rest (race "other", which World Editor names Special) Special.
     private static string AbilityRace(string race) =>
         Races.TryGetValue(race, out var name) ? name
-        : race is "creeps" or "naga" ? "Neutral Hostile"
-        : "Special";
+        : race switch
+        {
+            "creeps" => "Neutral Hostile",
+            "naga" => "Neutral Passive",
+            _ => "Special",
+        };
 
     private static string AbilityUse(string sort) => sort switch
     {

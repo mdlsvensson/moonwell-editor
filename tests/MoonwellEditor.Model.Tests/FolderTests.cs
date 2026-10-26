@@ -60,7 +60,7 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             ["Neutral Hostile", "Heroes"],
             Folders.Of(ObjectKind.Ability, Standard("ANsi", "creeps", category: "hero")));
         Assert.Equal(
-            ["Neutral Hostile", "Units"],
+            ["Neutral Passive", "Units"],
             Folders.Of(ObjectKind.Ability, Standard("ANen", "naga", category: "unit")));
         Assert.Equal(["Special", "Items"], Folders.Of(ObjectKind.Ability, Standard("AIat", "other", category: "item")));
         Assert.Equal(["Special", "Units"], Folders.Of(ObjectKind.Ability, Standard("Aatk", "other", category: "")));
@@ -103,7 +103,10 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             Groups(session.Tree(ObjectKind.Doodad), []));
 
         var abilities = session.Tree(ObjectKind.Ability);
-        Assert.Equal(["Human", "Orc", "Undead", "Night Elf", "Neutral Hostile", "Special"], Groups(abilities, []));
+        Assert.Equal(
+            ["Human", "Orc", "Undead", "Night Elf", "Neutral Hostile", "Neutral Passive", "Special"],
+            Groups(abilities, []));
+        Assert.Equal(11, abilities.Count(entry => entry.Path[0] == "Neutral Passive"));
         Assert.Equal(["Units", "Heroes", "Items"], Groups(abilities, ["Special"]));
 
         var buffs = session.Tree(ObjectKind.Buff);
