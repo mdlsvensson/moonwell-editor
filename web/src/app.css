@@ -1,0 +1,87 @@
+@import "tailwindcss";
+@import "@fontsource/google-sans/latin-400.css";
+@import "@fontsource/google-sans/latin-ext-400.css";
+@import "@fontsource/google-sans/latin-500.css";
+@import "@fontsource/google-sans/latin-ext-500.css";
+@import "@fontsource/google-sans/latin-700.css";
+@import "@fontsource/google-sans/latin-ext-700.css";
+@import "@fontsource-variable/nunito";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Vitesse Dark (github.com/antfu/vscode-theme-vitesse). */
+:root {
+  --bg: #121212;
+  --surface: #181818;
+  --raised: #1e1e1e;
+  --hover: #222222;
+  --border: #262626;
+  --fg: #dbd7ca;
+  --text: #bfbaaa;
+  --muted: #959da5;
+  --faint: #6b6f73;
+  --accent: #4d9375;
+  --accent-hi: #80a665;
+  --accent-lo: #144620;
+  --changed: #e6cc77;
+  --warn: #cb7676;
+  --warn-lo: #43242b;
+  --font-ui: "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Nunito Variable", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+}
+
+/* The colours and fonts as Tailwind utilities: bg-surface, text-fg, border-line, font-mono and so on. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-line: var(--border);
+  --color-fg: var(--fg);
+  --color-body: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hi: var(--accent-hi);
+  --color-accent-lo: var(--accent-lo);
+  --color-changed: var(--changed);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-ui);
+  --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px / 1.45 var(--font-ui);
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Scroll bars are a thin, see-through bar with no track and no arrows. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(219 215 202 / 0.16);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(219 215 202 / 0.32);
+}

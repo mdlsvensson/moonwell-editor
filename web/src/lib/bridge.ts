@@ -1,0 +1,65 @@
+/**
+ * The page's side of the bridge to the C# app. Requests are `{id, command, args}` strings posted to WebView2;
+ * replies are `{id, ok, result | error}` and events are `{event, payload}`, both coming back as strings.
+ */
+
+type Webview = NonNullable<NonNullable<Window["chrome"]>["webview"]>;
+type Reply = {
+  id: number;
+  ok: boolean;
+  result?: unknown;
+  error?: { code: string; message: string };
+};
+type Pending = { resolve: (value: never) => void; reject: (error: Error) => void };
+
+let nextId = 1;
+const pending = new Map<number, Pending>();
+const handlers = new Map<string, Set<(payload: unknown) => void>>();
+const listening = new WeakSet<Webview>();
+
+function webview(): Webview {
+  const found = window.chrome?.webview;
+  if (!found) throw new Error("The page is not running inside the Object Editor window.");
+  if (!listening.has(found)) {
+    listening.add(found);
+    found.addEventListener("message", (event) => receive(event.data));
+  }
+  return found;
+}
+
+function receive(data: unknown): void {
+  const message = typeof data === "string" ? JSON.parse(data) : data;
+  if (message && typeof message === "object" && "event" in message) {
+    for (const handler of handlers.get(String(message.event)) ?? []) {
+      handler((message as { payload: unknown }).payload);
+    }
+    return;
+  }
+  const reply = message as Reply;
+  const waiting = pending.get(reply.id);
+  if (!waiting) return;
+  pending.delete(reply.id);
+  if (reply.ok) waiting.resolve(reply.result as never);
+  else waiting.reject(new Error(reply.error?.message ?? "The app reported an error."));
+}
+
+/** Runs a command in the app. Rejects with the app's error message when the command fails. */
+export function call<T>(command: string, args: object = {}): Promise<T> {
+  const channel = webview();
+  const id = nextId++;
+  return new Promise<T>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (value: never) => void, reject });
+    channel.postMessage(JSON.stringify({ id, command, args }));
+  });
+}
+
+/** Listens to an event the app sends on its own. Returns a function that stops listening. */
+export function on(event: string, handler: (payload: unknown) => void): () => void {
+  webview();
+  const set = handlers.get(event) ?? new Set();
+  set.add(handler);
+  handlers.set(event, set);
+  return () => {
+    set.delete(handler);
+  };
+}

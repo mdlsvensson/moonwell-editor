@@ -1,0 +1,13 @@
+<Project>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The wc3-cs checkout next to this repository (Moonwell's generator sources are linked from it, read only). -->
+    <Wc3Cs Condition="'$(Wc3Cs)' == ''">$(MSBuildThisFileDirectory)..\wc3-cs</Wc3Cs>
+    <!-- The WebView2 package also ships a WPF assembly whose WindowsBase version clashes; nothing here uses WPF. -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+</Project>
