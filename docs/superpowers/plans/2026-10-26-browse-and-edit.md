@@ -2,433 +2,441 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A Tauri desktop app that opens a Warcraft III map folder, shows every object of the seven kinds against the
-game's standard data with fast search, and edits and saves the map's object files exactly.
+**Goal:** A Windows desktop app that opens a Warcraft III map folder, shows every object of the seven kinds against
+the game's standard data with fast search, and edits and saves the map's object files exactly.
 
-**Architecture:** A Cargo workspace of small crates: `objdata` (the binary object files and `war3map.wts`),
-`basedata` (the standard data bundle), `mapfile` (reading and writing a map's files), `model` (resolved values,
-edits, undo, save, search). `src-tauri` exposes `model` as Tauri commands; the Svelte front end in `src/` shows only
-what is on screen. A .NET tool makes the development bundle with Moonwell's generator; a second .NET tool dumps object
-files with War3Net as a test oracle.
+**Architecture:** C# libraries (`ObjectEditor.Files` on War3Net, `ObjectEditor.GameData` on Moonwell's generator,
+`ObjectEditor.Model`) under a WinForms window holding one WebView2 (`ObjectEditor.App`), whose `Bridge` turns JSON
+requests from the Svelte front end (`web/`) into model calls. Everything heavy happens in C#; the web side shows only
+what is on screen.
 
-**Tech Stack:** Rust 1.99 (edition 2024), Tauri 2, Svelte 5, TypeScript, Vite, Tailwind CSS 4, Lucide, fontsource
-(Google Sans, Nunito, JetBrains Mono), Biome, Vitest, .NET 10 for the two tools.
+**Tech Stack:** .NET 10, `Moonwell.War3Net.Build.Core` (Sven's War3Net fork), `Moonwell.Generator` (project
+reference into wc3-cs), `Microsoft.Web.WebView2`, xUnit; Svelte 5, TypeScript, Vite, Tailwind CSS 4, Lucide,
+fontsource, Biome, Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-10-26-object-editor-design.md`. Mockup: `docs/mockups/editor.html`.
 
 ## Global Constraints
 
 - No agent attribution anywhere (commits, files). Commit as the configured git identity. Never create or edit a
-  `README.md`.
-- Nothing is pushed and no GitHub repository is created; that is Sven's call, asked separately.
-- `C:\Users\mdlsvensson\Repo\wc3-cs` and everything under it is read only.
-- Blizzard's data is never committed: `base-data/` is git-ignored; fixtures hold only map files made by Sven or
-  Moonwell.
-- LF line ends (`.gitattributes` is in place; object files and `.wts` are binary / `-text`).
-- Pin exact versions in `package.json` (no `^`); front end formatted by Biome (2-space indent, 100 columns); Rust by
-  `rustfmt`, `cargo clippy --workspace -- -D warnings` clean.
-- An unchanged object or strings file is written back byte for byte; a field the user did not touch is never changed.
-- Object strings are raw bytes end to end in `objdata`; text is decoded as UTF-8 (lossy) only for display.
-- Theme: Vitesse Dark tokens (from the mockup's `:root`): background `#121212`, surface `#181818`, text `#bfbaaa`,
-  bright text `#dbd7ca`, muted `#959da5`, border `#262626`, accent `#4d9375` / `#80a665`, changed `#e6cc77`,
-  warning `#cb7676`. Fonts: Google Sans (UI), Nunito (headings), JetBrains Mono (ids, values). No pixel fonts.
-- Rust code stays small and plain (Sven is new to Rust): no macros of our own, no unsafe, `thiserror` for errors,
-  doc comments on public items.
+  `README.md`. Nothing is pushed and no GitHub repository is created.
+- `C:\Users\mdlsvensson\Repo\wc3-cs` and everything under it is read only (fixtures are copied out of it).
+- Blizzard's data is never committed or shipped; fixtures hold only map files made by Sven or Moonwell.
+- C#: .NET 10, `Nullable` enable, `TreatWarningsAsErrors` true, `ImplicitUsings` enable, file-scoped namespaces,
+  `///` summaries on public types and members, `.editorconfig` as Moonwell's (4 spaces, LF; fixtures exempt). Code
+  stays plain (Sven knows GDScript best and some C#): no reflection, no source generators, LINQ where it reads easier.
+- Front end: exact versions in `package.json`; Biome (2 spaces, 100 columns); no pixel fonts.
+- An unchanged object or strings file is written back byte for byte; a field the user did not touch is never changed;
+  a kind whose file War3Net cannot write back exactly is read only.
+- Theme (Vitesse Dark, from the mockup): background `#121212`, surface `#181818`, text `#bfbaaa`, bright text
+  `#dbd7ca`, muted `#959da5`, border `#262626`, accent `#4d9375` / `#80a665`, changed `#e6cc77`, warning `#cb7676`.
+  Fonts: Google Sans (UI), Nunito (headings), JetBrains Mono (ids, values).
+- Development paths: wc3-cs checkout `C:\Users\mdlsvensson\Repo\wc3-cs` (MSBuild property `Wc3Cs`, default
+  `$(MSBuildThisFileDirectory)..\wc3-cs` from the repo root); game data folder from the environment variable
+  `OBJECT_EDITOR_GAME_DATA` in tests (Sven's: `C:\Users\mdlsvensson\Downloads\Work\war3.w3mod`); tests that need it
+  print why and return when it is unset or missing.
 
 ## Review Focus
 
 1. A map folder with only some object files (no `.wts`, no skin files, one kind missing) opens, and saving creates
-   only the files that now have content. Test: `model` Task 7 `opens_partial_folder`, Task 9
-   `save_creates_missing_skin_file`.
-2. A truncated or corrupt object file is reported with the file name and offset, the other kinds still open, and the
-   damaged kind is read only. Test: `objdata` Task 2 `truncated_file_reports_offset`; `model` Task 7
-   `corrupt_kind_is_read_only`.
-3. The map changed on disk since it was opened (World Editor saved it): save refuses and says so. Test: Task 9
-   `save_refuses_when_changed_on_disk`.
-4. Floats: a value typed as `0.1` and the standard `0.100` compare equal, and an unedited float is written back with
-   its exact bits. Test: Task 8 `float_equal_to_base_removes_record`; Task 2 `float_bits_round_trip`.
-5. Non-UTF-8 bytes in a name round-trip unchanged and display with replacement marks. Test: Task 2
-   `non_utf8_string_round_trips`; Task 7 `non_utf8_name_displays`.
+   only the files that now have content. Tests: Task 6 `Opens_partial_folder`, Task 8
+   `Save_creates_missing_skin_file`.
+2. A truncated, corrupt or lossy object file makes only its kind read only, with the file named, and never crashes.
+   Tests: Task 2 `Truncated_file_is_a_problem`, `Trailing_table_is_a_problem`, `Non_utf8_name_is_a_problem`; Task 6
+   `Problem_kind_is_read_only`.
+3. The map changed on disk since it was opened: save refuses and offers reload. Test: Task 8
+   `Save_refuses_when_changed_on_disk`.
+4. Floats: `0.1` typed and a standard `0.100` compare equal; an unedited float keeps its exact bits (the guard).
+   Test: Task 7 `Float_equal_to_base_removes_record`.
+5. A command that throws in C# reaches the web side as an error message, and the window stays usable. Test: Task 10
+   `Command_exception_becomes_error_reply`.
 
 ---
 
 ## File Structure
 
 ```
-Cargo.toml                    workspace: crates/*, src-tauri
-package.json  vite.config.ts  svelte.config.js  tsconfig.json  biome.json  index.html
-crates/objdata/src/lib.rs        Kind, RawId, re-exports
-crates/objdata/src/objects.rs    ObjectFile read/write
-crates/objdata/src/strings.rs    Strings (.wts) read/get/set/write, trigstr()
-crates/objdata/tests/fixtures/we-3.0/      World Editor 3.0 fixture (from wc3-cs moonwell tests, WorldEditorObjects)
-crates/objdata/tests/fixtures/moonwell-mymap/  Moonwell's output (MyMap/build/MyMap object files and .wts)
-crates/objdata/tests/round_trip.rs, oracle.rs
-crates/basedata/src/lib.rs       BaseData, KindData, FieldDef, StdObject, Choice
-crates/mapfile/src/lib.rs        MapStore trait, FolderMap
-crates/model/src/lib.rs          Session
-crates/model/src/{resolve,edit,save,search,ids}.rs
-src-tauri/src/{main,commands}.rs
-src/lib/api.ts                   typed wrappers over invoke()
-src/lib/{Tree,Details,FieldEditor,LevelGrid,Palette,StatusBar}.svelte
-src/App.svelte  src/app.css
-tools/BaseData/  (BaseData.csproj, Program.cs)     writes base-data/<game>.json
-tools/Oracle/    (Oracle.csproj, Program.cs)       dumps an object file as JSON with War3Net
-tools/Directory.Build.props      Wc3Cs path property, default ..\..\wc3-cs relative to the repo
+ObjectEditor.slnx  Directory.Build.props  .editorconfig  global.json
+src/ObjectEditor.Files/      ObjectKind.cs  ObjectFile.cs  ObjectEntry.cs  FieldMod.cs  WtsFile.cs  MapFolder.cs
+src/ObjectEditor.GameData/   GameData.cs  KindData.cs  FieldInfo.cs  StandardObject.cs  ChoiceList.cs  GameDataCache.cs
+src/ObjectEditor.Model/      Session.cs  Views.cs  Resolver.cs  Edits.cs  History.cs  NewIds.cs  Saver.cs  Search.cs
+src/ObjectEditor.App/        Program.cs  MainForm.cs  Bridge.cs  Commands.cs  Settings.cs
+web/                         package.json  vite.config.ts  index.html  src/{main.ts,App.svelte,app.css}  src/lib/*
+tests/ObjectEditor.*.Tests/  one test project per library and the App
+tests/fixtures/we-3.0/          World Editor 3.0 output (copied from wc3-cs WorldEditorObjects, with SOURCE.md)
+tests/fixtures/moonwell-mymap/  Moonwell's output (MyMap/build/MyMap object files and .wts, with SOURCE.md)
 ```
 
 ---
 
-### Task 1: Project skeleton that opens a window
+### Task 1: Solution, window and web skeleton
 
 **Files:**
-- Create: `Cargo.toml`, `src-tauri/` (Tauri 2 app: `Cargo.toml`, `tauri.conf.json`, `build.rs`, `src/main.rs`,
-  `capabilities/default.json`, icons), `package.json`, `vite.config.ts`, `svelte.config.js`, `tsconfig.json`,
-  `biome.json`, `index.html`, `src/main.ts`, `src/App.svelte`, `src/app.css`, empty crates `crates/objdata`,
-  `crates/basedata`, `crates/mapfile`, `crates/model` (each `Cargo.toml` + `src/lib.rs`), `src/lib/theme.test.ts`.
-- Modify: `.gitignore` (add `base-data/`).
-
-**Interfaces:**
-- Produces: `npm run dev` (= `tauri dev`), `npm run check` (`biome check . && svelte-check && cargo clippy --workspace
-  -- -D warnings`), `npm test` (`vitest run && cargo test --workspace`), `npm run format`.
-
-- [ ] **Step 1:** Scaffold with `npm create tauri-app@latest` choices TypeScript / npm / Svelte into a scratch folder,
-  then move its files in (keeping our `.gitattributes`, `.gitignore`, `docs/`). Product name "Object Editor",
-  identifier `dev.wc3.objecteditor`, window 1400×900, min 1000×640, title "Object Editor".
-- [ ] **Step 2:** Add Tailwind 4 (`@tailwindcss/vite`), Biome (config as steam2fiddy's `biome.json`, ignoring
-  `docs/**/*.html`), Vitest, `@lucide/svelte`, `@fontsource/google-sans`, `@fontsource-variable/nunito`,
-  `@fontsource-variable/jetbrains-mono`; pin every version exactly.
-- [ ] **Step 3:** Write `src/lib/theme.test.ts`: reads `src/app.css` and asserts it defines `--bg: #121212`,
-  `--accent: #4d9375`, `--changed: #e6cc77`, `--warn: #cb7676`, and that no `font-family` names a pixel font
-  (`/pixel|press start|silkscreen/i`). Run `npx vitest run`; expect FAIL.
-- [ ] **Step 4:** Write `src/app.css` with the tokens from the mockup and the fonts; `App.svelte` shows the empty
-  layout: top bar ("Open map…" button), left tree pane, details pane, right pane, status bar (as the mockup).
-- [ ] **Step 5:** `npm test` and `npm run check` pass. `npm run dev` opens the window; take a screenshot and compare
-  with the mockup's colours and fonts.
-- [ ] **Step 6:** Commit `Project skeleton: Tauri 2, Svelte 5, Tailwind 4, Biome, Vitest`.
-
-### Task 2: Object files (`objdata`)
-
-**Files:**
-- Create: `crates/objdata/src/{lib,objects}.rs`, `crates/objdata/tests/round_trip.rs`, fixtures (copy unchanged:
-  `C:\Users\mdlsvensson\Repo\wc3-cs\moonwell\tests\Moonwell.Build.Tests\Fixtures\WorldEditorObjects\*` except
-  `README.md` into `tests/fixtures/we-3.0/`, plus a `SOURCE.md` saying where they came from; the `war3map*.w3?` and
-  `war3map.wts` files of `C:\Users\mdlsvensson\Repo\MyMap\build\MyMap\` into `tests/fixtures/moonwell-mymap/`).
+- Create: `ObjectEditor.slnx`, `Directory.Build.props`, `.editorconfig` (Moonwell's, with `tests/fixtures/**`
+  exempt), `global.json` (SDK 10), `src/ObjectEditor.App/{ObjectEditor.App.csproj,Program.cs,MainForm.cs,Bridge.cs}`,
+  `tests/ObjectEditor.App.Tests/{ObjectEditor.App.Tests.csproj,BridgeTests.cs}`, `web/` (Vite + Svelte 5 + TS +
+  Tailwind 4 + Biome + Vitest + fontsource + Lucide), `web/src/lib/theme.test.ts`, `web/src/lib/bridge.ts`,
+  `web/src/lib/bridge.test.ts`.
+- Modify: `.gitignore` (add `bin/`, `obj/`, `web/node_modules/`, `web/dist/`; remove the Rust lines).
 
 **Interfaces:**
 - Produces:
-  ```rust
-  pub struct RawId(pub [u8; 4]);           // Display/FromStr as 4 ASCII chars; RawId::NONE = [0; 4]
-  pub enum Kind { Unit, Item, Destructable, Doodad, Ability, Buff, Upgrade }
-  impl Kind { pub const ALL: [Kind; 7]; pub fn extension(self) -> &'static str;   // "w3u", "w3t", "w3b", "w3d", "w3a", "w3h", "w3q"
-              pub fn has_levels(self) -> bool; pub fn key(self) -> &'static str }  // has_levels: Doodad, Ability, Upgrade; key: "unit", "item", ...
-  pub enum Value { Int(i32), Real(f32), Unreal(f32), Str(Vec<u8>) }               // file types 0, 1, 2, 3
-  pub struct Modification { pub field: RawId, pub level: i32, pub pointer: i32, pub value: Value, pub end: [u8; 4] }
-  pub struct ObjectRecord { pub base: RawId, pub id: RawId, pub sets: Vec<i32>, pub mods: Vec<Modification> }
-  pub struct ObjectFile { pub version: i32, pub original: Vec<ObjectRecord>, pub custom: Vec<ObjectRecord>, pub trailing: Vec<u8> }
-  pub fn read(kind: Kind, bytes: &[u8]) -> Result<ObjectFile, ReadError>;
-  pub fn write(kind: Kind, file: &ObjectFile) -> Vec<u8>;
-  pub enum ReadError { Truncated { offset: usize }, Version(i32), ValueType { offset: usize, value_type: i32 } }
-  ```
-  `level` and `pointer` are 0 and not written for kinds without levels. `sets` is empty for versions 1 and 2; for
-  version 3 it is the set flags (the count is `sets.len()`), read as War3Net does. `id` is kept as stored, also in
-  the original table (normally `RawId::NONE` there).
-
-- [ ] **Step 1:** Tests in `round_trip.rs`: `every_fixture_file_round_trips` (each `.w3?` in both fixture folders:
-  `write(read(b)) == b`); `we_fixture_values` (`war3mapSkin.w3a`: version 3, one custom record base `ANab` id `A000`,
-  sets `[0]`, one mod `anam` level 0 pointer 0 value `Str(b"TRIGSTR_016")`; `war3mapSkin.w3q`'s `gnam` has level 1);
-  `float_bits_round_trip` (a hand-built `.w3u` with `Real(f32::from_bits(0x3dcccccd))` and a NaN payload writes the
-  same bits); `non_utf8_string_round_trips` (a `Str(vec![0xff, 0x41])`); `trailing_bytes_kept` (fixture bytes + `0u32`
-  round-trip); `truncated_file_reports_offset` (each fixture cut at every length gives `Err(Truncated { offset })`
-  with `offset <= len`, never a panic); `old_value_types_rejected` (type 4 gives `ValueType { value_type: 4, .. }`).
-- [ ] **Step 2:** `cargo test -p objdata`; expect FAIL (not defined).
-- [ ] **Step 3:** Implement with a small cursor over `&[u8]` (`i32::from_le_bytes`), no parsing crates.
-- [ ] **Step 4:** `cargo test -p objdata`; expect PASS.
-- [ ] **Step 5:** Commit `objdata: read and write object files`.
-
-### Task 3: Strings file (`war3map.wts`)
-
-**Files:** Create `crates/objdata/src/strings.rs`, tests in `crates/objdata/tests/strings.rs`.
-
-**Interfaces:**
-- Produces:
-  ```rust
-  pub struct Strings { /* the file as pieces, so untouched bytes are written back as read */ }
-  impl Strings {
-      pub fn read(bytes: &[u8]) -> Result<Strings, StringsError>;
-      pub fn get(&self, number: u32) -> Option<&str>;
-      pub fn set(&mut self, number: u32, text: &str) -> bool;   // false when no such entry
-      pub fn write(&self) -> Vec<u8>;
+  ```csharp
+  // ObjectEditor.App
+  public sealed class Bridge
+  {
+      public Bridge(Func<string, JsonElement, Task<object?>> run);   // run(command, args) -> result (serialised camelCase)
+      public Task<string> Handle(string requestJson);                 // {"id","command","args"} -> {"id","ok":true,"result"} | {"id","ok":false,"error":{"code","message"}}
+      public static string Event(string name, object payload);       // {"event","payload"}
   }
-  pub fn trigstr(value: &[u8]) -> Option<u32>;   // b"TRIGSTR_016" -> Some(16); case-sensitive prefix, digits only
   ```
-- [ ] **Step 1:** Tests: `wts_round_trips` (both fixtures byte-identical); `reads_entries` (we-3.0: `get(16)` is the
-  ability's name from the fixture, read the file to pin the text); `set_keeps_bom_and_crlf` (after `set(16, "Line
-  one\nLine two")` the output still starts `EF BB BF`, every line end is CRLF, the new text's lines are CRLF-joined,
-  and every other byte is unchanged); `comments_and_padding_kept`; `trigstr_parses` (`TRIGSTR_016` 16, `TRIGSTR_`
-  None, `trigstr_016` None).
-- [ ] **Step 2:** Run; expect FAIL. **Step 3:** Implement (line-based; an entry is `STRING n`, optional `//` lines,
-  `{`, text, `}`; detect CRLF vs LF from the first line end; a file with no line ends uses CRLF). **Step 4:** Run;
-  expect PASS.
-- [ ] **Step 5:** Commit `objdata: war3map.wts`.
-
-### Task 4: War3Net oracle
-
-**Files:** Create `tools/Directory.Build.props` (`<Wc3Cs Condition="'$(Wc3Cs)' == ''">$(MSBuildThisFileDirectory)..\..\wc3-cs</Wc3Cs>`),
-`tools/Oracle/Oracle.csproj` (net10.0, `ProjectReference` to `$(Wc3Cs)\war3net\src\War3Net.Build.Core\War3Net.Build.Core.csproj`),
-`tools/Oracle/Program.cs`; `crates/objdata/tests/oracle.rs`; a `dump` function in the test (not the crate).
-
-**Interfaces:**
-- Produces: `dotnet run --project tools/Oracle -- <kind> <file>` prints `{"version":3,"original":[...],"custom":[...]}`;
-  a record is `{"base":"ANab","id":"A000","sets":[0],"mods":[{"field":"anam","type":3,"level":0,"pointer":0,"value":"TRIGSTR_016"}]}`;
-  floats printed with `"R"` round-trip format, strings as UTF-8 text.
-
-- [ ] **Step 1:** Test `oracle_agrees_on_every_fixture`: for every fixture object file, the Rust reader's dump (same
-  JSON shape, built in the test with `serde_json`) equals the oracle's. If `dotnet` is not on PATH or the wc3-cs
-  checkout is missing, the test prints why and returns (it is the only test allowed to skip).
-- [ ] **Step 2:** Run; expect FAIL (no tool). **Step 3:** Write the tool (read the file with War3Net's
-  `BinaryReader` extension for the kind, e.g. `ReadUnitObjectData(fromCampaign: false)`, ability with
-  `ReadAbilityObjectData`; serialise with `System.Text.Json`). **Step 4:** Run; expect PASS.
-- [ ] **Step 5:** Commit `Oracle: War3Net dump of object files for tests`.
-
-### Task 5: Standard data bundle (`tools/BaseData`)
-
-**Files:** Create `tools/BaseData/BaseData.csproj` (net10.0, `ProjectReference` to
-`$(Wc3Cs)\moonwell\generator\Moonwell.Generator\Moonwell.Generator.csproj`; copy the NuGet source for
-`Moonwell.War3Net.IO.Slk` from moonwell's `nuget.config` if restore needs it), `tools/BaseData/Program.cs`.
-
-**Interfaces:**
-- Consumes: `ExportTables.Read`, `Fields.Of`, `Fields.WithStandardNegatives`, `StandardObjects.Of`, `Choices.All`,
-  `ExportTables.Meta` (for `category`, `sort`, `notSpecific`, use flags), `ExportTables.Objects` (for per-mode keys).
-- Produces: `dotnet run --project tools/BaseData -- <war3.w3mod folder> <game version> <out file>` writes:
-  ```json
-  { "game": "3.0.1.24370",
-    "choices": { "attackType": { "flags": false, "store": "string",
-                 "entries": [ { "value": "normal", "label": "Normal" } ] } },
-    "kinds": { "unit": { "levelField": null, "fields": [ ... ], "objects": [ ... ] }, "ability": { "levelField": "alev", ... } } }
+  ```ts
+  // web/src/lib/bridge.ts
+  export function call<T>(command: string, args?: object): Promise<T>;   // rejects with Error(message) when ok is false
+  export function on(event: string, handler: (payload: unknown) => void): () => void;
   ```
-  field: `{ "id", "label", "category", "sort", "type", "store", "listOf", "perLevel", "pointer", "skin", "specific",
-  "notSpecific", "unit", "hero", "building", "min", "max", "maxLength", "maxEntries", "required", "noNegative",
-  "canBeEmpty", "choice" }` (`type` lower camel of `FieldType`; `choice` the metadata type name or null).
-  object: `{ "id", "name", "suffix", "race", "campaign", "hero", "building", "special", "code", "values", "modes",
-  "sets", "missingFrom" }`; `values` keyed `fid` or `fid:level` as `StandardObject.Values`; `modes` only for keys
-  whose column has `:sd`/`:hd`/`:de` values that differ: `{ "umdl": { "sd": "...", "hd": "...", "de": "..." } }`.
-  Kind keys as `Kind::key`. The level field: the field named `LevelCount` (`alev`, `glvl`).
-- [ ] **Step 1:** Run it on `C:\Users\mdlsvensson\Downloads\Work\war3.w3mod` with game `3.0.1.24370` into
-  `base-data/3.0.1.24370.json`. Check by hand: `hfoo` has `uhpm` `420`; `Amls` has `acdn:1` `30`; `Hpal` has `ustr`,
-  `hfoo` has not; `attackType` has `normal`. Note the file size in the commit message.
-- [ ] **Step 2:** Commit `BaseData: the standard data bundle from Moonwell's generator` (the tool, not the bundle).
+  `MainForm` hosts one `WebView2`; in Debug with `OBJECT_EDITOR_DEV_URL` set it navigates there (Vite,
+  `http://localhost:5173`), otherwise it maps the published `wwwroot` folder (the `web/dist` output copied on build)
+  to `https://app.objecteditor/` with `SetVirtualHostNameToFolderMapping`. Messages: `WebMessageReceived` →
+  `Bridge.Handle` on a background task (one at a time, `SemaphoreSlim`) → `PostWebMessageAsString` on the UI thread.
+  For now `run` knows one command, `ping`, returning `"pong"`.
+  Scripts: `npm run dev` (Vite), `npm run build`, `npm test` (Vitest), `npm run check` (Biome + svelte-check); from
+  the root, `dotnet build` and `dotnet test`.
 
-### Task 6: Load the bundle (`basedata`)
+- [ ] **Step 1:** Tests: `BridgeTests.Ping_round_trips`, `BridgeTests.Unknown_command_is_an_error` (`ok` false,
+  `code` `"unknownCommand"`), `BridgeTests.Command_exception_becomes_error_reply` (a `run` that throws gives `ok`
+  false with the exception's message, and the next request still works); `theme.test.ts` (`app.css` defines `--bg:
+  #121212`, `--accent: #4d9375`, `--changed: #e6cc77`, `--warn: #cb7676`; no font matches
+  `/pixel|press start|silkscreen/i`); `bridge.test.ts` (with a fake `window.chrome.webview`: `call` resolves with
+  `result`, rejects on `ok: false`, matches replies by `id` out of order; `on` receives events and unsubscribes).
+- [ ] **Step 2:** Run `dotnet test` and `npm test` in `web/`; expect FAIL.
+- [ ] **Step 3:** Implement. `App.svelte` shows the mockup's empty layout (top bar with "Open map…", left, middle and
+  right panes, status bar) and the reply of `call("ping")` in the status bar.
+- [ ] **Step 4:** Tests PASS; `npm run check` clean; `dotnet build` with no warnings. Start the app with the Vite dev
+  server and confirm the window opens and shows "pong" (the controller takes the screenshot).
+- [ ] **Step 5:** Commit `Skeleton: WinForms + WebView2 window, bridge, Svelte front end`.
 
-**Files:** Create `crates/basedata/src/lib.rs`, `crates/basedata/tests/load.rs`.
+### Task 2: Object files through War3Net, with the round-trip guard
 
-**Interfaces:**
-- Consumes: `objdata::{Kind, RawId}`; the bundle from Task 5.
-- Produces:
-  ```rust
-  pub struct BaseData { pub game: String, pub choices: HashMap<String, ChoiceType>, /* kinds */ }
-  impl BaseData { pub fn load(path: &Path) -> Result<BaseData, LoadError>; pub fn kind(&self, kind: Kind) -> &KindData;
-                  pub fn dev_bundle() -> Option<PathBuf> }   // newest base-data/*.json beside the workspace, or $OBJECT_EDITOR_BASE_DATA
-  pub struct KindData { pub level_field: Option<RawId>, pub fields: Vec<FieldDef>, pub objects: Vec<StdObject> }
-  impl KindData { pub fn field(&self, id: RawId) -> Option<&FieldDef>; pub fn object(&self, id: RawId) -> Option<&StdObject>;
-                  pub fn applies(&self, field: &FieldDef, object: &StdObject) -> bool; pub fn levels(&self, object: &StdObject) -> u32 }
-  pub struct FieldDef { /* the bundle's field, ids as RawId */ }
-  pub struct StdObject { /* the bundle's object */ pub fn value(&self, field: RawId, level: u32) -> Option<&str> }
-  ```
-  `applies`: units by `building` / `hero` / `unit` flags (`Field.Applies` in Moonwell's `StandardObjects`), abilities
-  by `specific` / `notSpecific` against `code`, every other kind true.
-- [ ] **Step 1:** Tests (skip with a message when `dev_bundle()` is None): `known_values` (the four checks of Task 5);
-  `counts` (each kind has more than 0 objects and fields; units more than 400); `hero_fields_only_on_heroes`
-  (`ustr` applies to `Hpal`, not `hfoo`); `ability_levels` (`levels(AHhb) == 3`); `loads_fast` (under 1.5 s in
-  release, `cargo test --release`).
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement with `serde` + `serde_json`. **Step 4:** PASS.
-- [ ] **Step 5:** Commit `basedata: load the standard data bundle`.
-
-### Task 7: Open a map folder and resolve values (`mapfile`, `model`)
-
-**Files:** Create `crates/mapfile/src/lib.rs`, `crates/model/src/{lib,resolve}.rs`, `crates/model/tests/open.rs`.
+**Files:**
+- Create: `src/ObjectEditor.Files/{ObjectEditor.Files.csproj,ObjectKind.cs,ObjectFile.cs,ObjectEntry.cs,FieldMod.cs,MapFolder.cs}`,
+  `tests/ObjectEditor.Files.Tests/{ObjectEditor.Files.Tests.csproj,ObjectFileTests.cs,Fixtures.cs}`, the fixtures
+  (copy unchanged: every file of `C:\Users\mdlsvensson\Repo\wc3-cs\moonwell\tests\Moonwell.Build.Tests\Fixtures\WorldEditorObjects\`
+  except `README.md` into `tests/fixtures/we-3.0/`; the `war3map*.w3?` files and `war3map.wts` of
+  `C:\Users\mdlsvensson\Repo\MyMap\build\MyMap\` into `tests/fixtures/moonwell-mymap/`; a `SOURCE.md` in each).
 
 **Interfaces:**
 - Produces:
-  ```rust
-  // mapfile
-  pub trait MapStore { fn read(&self, name: &str) -> io::Result<Option<Vec<u8>>>;
-                       fn write(&mut self, files: &[(String, Option<Vec<u8>>)]) -> io::Result<()>;   // None deletes
-                       fn stamp(&self) -> io::Result<u64>; fn describe(&self) -> String; }        // stamp: newest mtime of the object files and .wts
-  pub struct FolderMap; impl FolderMap { pub fn open(path: &Path) -> io::Result<FolderMap> }
-  // model
-  pub struct Session; impl Session { pub fn open(store: Box<dyn MapStore>, base: Arc<BaseData>) -> Session }
-  pub fn tree(&self, kind: Kind) -> Vec<TreeEntry>;      // TreeEntry { id, base: Option<String>, name, suffix, path: Vec<String>, changed: bool }
-  pub fn object(&self, kind: Kind, id: &str) -> Option<ObjectView>;
-  // ObjectView { kind, id, base: Option<String>, name, chain: Vec<(String, String)>, levels: u32, read_only: Option<String>, fields: Vec<FieldView> }
-  // FieldView { id, label, category, sort, field_type, choice: Option<String>, level: u32, value: String, base: String,
-  //             changed: bool, skin: bool, warning: Option<String>, modes: Option<BTreeMap<String, String>> }
-  pub fn problems(&self) -> Vec<String>;                  // files that failed to read, per kind; and the build-output note
+  ```csharp
+  public enum ObjectKind { Unit, Item, Destructable, Doodad, Ability, Buff, Upgrade }
+  public static class ObjectKinds
+  {
+      public static string Extension(ObjectKind kind);   // "w3u" "w3t" "w3b" "w3d" "w3a" "w3h" "w3q"
+      public static bool HasLevels(ObjectKind kind);      // Doodad, Ability, Upgrade
+      public static string Key(ObjectKind kind);          // "unit" "item" "destructable" "doodad" "ability" "buff" "upgrade"
+      public static ObjectKind? FromKey(string key);
+  }
+  public sealed class ObjectFile        // one main or skin file of one kind, wrapping War3Net's object
+  {
+      public static ObjectFile Read(ObjectKind kind, byte[] bytes);   // throws ObjectFileException (message names the problem)
+      public static ObjectFile Empty(ObjectKind kind);                 // version 3, no records
+      public ObjectKind Kind { get; }
+      public IReadOnlyList<ObjectEntry> Original { get; }              // changes to standard objects
+      public IReadOnlyList<ObjectEntry> Custom { get; }
+      public ObjectEntry AddCustom(string baseId, string id);          // set flags [0] in version 3
+      public ObjectEntry AddOriginal(string id);
+      public void Remove(ObjectEntry entry);
+      public byte[] ToBytes();
+  }
+  public sealed class ObjectEntry { public string BaseId; public string Id; public int SetCount;   // Id "" for original-table entries
+      public IReadOnlyList<FieldMod> Mods { get; }
+      public FieldMod? Find(string field, int level);
+      public FieldMod Set(string field, int level, int pointer, FieldValue value);   // replaces in place or appends
+      public void Remove(FieldMod mod); }
+  public sealed class FieldMod { public string Field; public int Level; public int Pointer; public FieldValue Value; }
+  public abstract record FieldValue { Int(int), Real(float), Unreal(float), Text(string) }   // nested records
+  public sealed class ObjectFileException : Exception { }
   ```
-  When the folder is a Moonwell build output (its parent is `build/` and the folder above has a `.csproj`),
-  `problems()` includes "This is Moonwell's build output, rewritten by every build: edit the project's map/ folder".
-  Tree paths: custom objects `["Custom"]`; standard units `[race, "Melee" | "Campaign", "Units" | "Buildings" |
-  "Heroes" | "Special"]`; other kinds `[race]` when the race is set, else `["Other"]`. Values: map record, else
-  standard (for a custom object, its standard base; never the map's change to the base). A `TRIGSTR_n` value shows
-  the `.wts` text. Floats show with Rust's shortest `{}` form. A kind whose file failed to read, or an object whose
-  `sets.len() != 1` in a version 3 file, is read only with the reason in `read_only`.
-- [ ] **Step 1:** Tests on copies of the fixtures in a temp folder: `custom_unit_from_we` (we-3.0 `h000`: base
-  `hpea`, name from `.wts`, `uhpm` equals the standard `hpea` value, not changed); `standard_object_unchanged`
-  (`hfoo` not in the map: every value is the standard one, `changed` false); `custom_inherits_standard_base_not_map_change`
-  (a hand-written `war3map.w3u` changing `hfoo` `uhpm` to 500 and adding `h001` based on `hfoo`: `h001` shows 420);
-  `opens_partial_folder` (only `war3map.w3u`); `corrupt_kind_is_read_only` (a 5-byte `war3map.w3a`: abilities read
-  only, `problems()` names the file, units still open); `non_utf8_name_displays` (a `unam` of `[0xff, 0x41]` shows
-  `"\u{fffd}A"`); `moonwell_mymap_opens` (every custom object of the MyMap fixture has a name and a chain);
-  `moonwell_build_output_warns` (a temp `proj/App.csproj` + `proj/build/Map/` folder).
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement. **Step 4:** PASS.
-- [ ] **Step 5:** Commit `model: open a map folder and resolve values`.
+  `ObjectFile.Read` reads with War3Net (`reader.ReadUnitObjectData()` and the other six), then **the guard**:
+  `ToBytes()` must equal the input, else `ObjectFileException("War3Net cannot write war3map.w3a back exactly: ...")`
+  naming the first differing offset. War3Net's own exceptions (end of stream, bad UTF-8) become
+  `ObjectFileException` with the file's name and War3Net's message. The wrappers edit War3Net's objects in place
+  (its internal end marker is kept as read; new records get 0). Level and pointer are 0 for kinds without levels.
+  `MapFolder`: `Open(string path)`, `byte[]? Read(string name)`, `void Write(IReadOnlyList<(string Name, byte[]? Bytes)>)`
+  (null deletes), `DateTime Stamp()` (newest write time of the object files and `.wts`), `string Path`.
 
-### Task 8: Edits and undo (`model`)
+- [ ] **Step 1:** Tests: `Every_fixture_file_round_trips` (every `.w3?` of both fixtures reads, `ToBytes()` equals
+  the file); `We_fixture_values` (`war3mapSkin.w3a`: one custom entry base `ANab`, id `A000`, set count 1, one mod
+  `anam` level 0 pointer 0 `Text("TRIGSTR_016")`; `war3mapSkin.w3q`'s `gnam` at level 1); `Truncated_file_is_a_problem`
+  (every fixture cut at every shorter length throws `ObjectFileException`, never another exception);
+  `Trailing_table_is_a_problem` (a fixture plus 4 zero bytes throws, message says "exactly");
+  `Non_utf8_name_is_a_problem` (a fixture's string bytes patched to `0xFF`); `Edit_then_reread` (set `uhpm` on a
+  custom unit, `ToBytes()`, read again: the mod is there, every other mod unchanged); `Skin_split_matches_fixture`
+  (record for the controller: list which file each fixture mod is in; assert `unam`, `anam`, `gnam`, `fnam`, `bnam`
+  are in skin files and `dnam` in the main file, as the fixture README says).
+- [ ] **Step 2:** `dotnet test tests/ObjectEditor.Files.Tests`; expect FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** PASS.
+- [ ] **Step 5:** Commit `Files: object files through War3Net with a round-trip guard`.
 
-**Files:** Create `crates/model/src/{edit,ids}.rs`, `crates/model/tests/edit.rs`.
+### Task 3: The strings file (`WtsFile`)
+
+**Files:** Create `src/ObjectEditor.Files/WtsFile.cs`, `tests/ObjectEditor.Files.Tests/WtsFileTests.cs`.
 
 **Interfaces:**
 - Produces:
-  ```rust
-  pub fn set(&mut self, kind: Kind, id: &str, field: &str, level: u32, value: &str) -> Result<(), EditError>;
-  pub fn reset(&mut self, kind: Kind, id: &str, field: &str, level: u32) -> Result<(), EditError>;
-  pub fn create(&mut self, kind: Kind, base: &str, id: Option<&str>) -> Result<String, EditError>;   // returns the new id
-  pub fn copy(&mut self, kind: Kind, from: &str, id: Option<&str>) -> Result<String, EditError>;     // custom copy keeps the base and the records
-  pub fn delete(&mut self, kind: Kind, id: &str) -> Result<(), EditError>;
-  pub fn undo(&mut self) -> bool; pub fn redo(&mut self) -> bool; pub fn dirty(&self) -> bool;
-  pub enum EditError { NoObject, NoField, NotNumber(String), IdTaken(String), IdInvalid(String), ReadOnly(String) }
+  ```csharp
+  public sealed class WtsFile
+  {
+      public static WtsFile Read(byte[] bytes);      // keeps the file as pieces: untouched bytes are written back as read
+      public string? Get(int number);
+      public bool Set(int number, string text);      // false when there is no such entry
+      public byte[] ToBytes();
+      public static int? TriggerString(string value); // "TRIGSTR_016" -> 16; "TRIGSTR_" and "trigstr_016" -> null
+  }
   ```
-  A value is parsed by the field's `store`: `int` as i32 (yes/no fields send `"1"`/`"0"`), `real`/`unreal` as f32,
-  `string` as bytes. A record goes to the skin file when the field's `skin` is true, else the main file; a new object
-  gets a record (possibly empty) in both files, as World Editor writes. Setting a value equal to the base (numbers
-  compared as numbers) removes the record unless the field has `modes` whose values differ. Editing a string whose
-  record holds `TRIGSTR_n` changes the `.wts` entry and keeps the reference; any other string is written inline.
-  New ids: World Editor's letters (unit `h`, hero `H`, item `I`, destructable `B`, doodad `D`, ability `A`, buff `B`,
-  upgrade `R`) followed by the lowest free three characters counting `0-9` then `A-Z` from `000`, free among this
-  kind's standard and custom ids. Warnings: the field's rules give `FieldView.warning` text ("Above World Editor's
-  limit of 99999.", "Below World Editor's limit of 0.", "Longer than World Editor's limit of 32 characters.", "More
-  than World Editor's limit of 4 entries.", "May not be empty."), never an error.
-- [ ] **Step 1:** Tests: `set_and_read_back`; `set_goes_to_skin_file` (`unam` → skin, `uhpm` → main);
-  `float_equal_to_base_removes_record` (`ua1c` of `hfoo` set to `"1.35"` after `"2"` leaves no record);
-  `mode_values_keep_record`; `trigstr_edit_updates_wts`; `new_ids_follow_world_editor` (`create(Unit, "hfoo", None)`
-  on the we-3.0 map gives `h001`; a hero base gives `H000`; `create(Ability, "AHhb", Some("A000"))` is `IdTaken`);
-  `undo_redo_every_edit` (each operation, undone, leaves `object()` as before; redo restores); `past_limit_warns_not_fails`
-  (`uhpm` `600000` sets, with the warning); `text_in_number_field_refused` (`NotNumber`); `read_only_kind_refuses`.
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement (each operation stores what it needs to invert itself). **Step 4:**
+- [ ] **Step 1:** Tests: `Round_trips_both_fixtures`; `Reads_entries` (we-3.0 `Get(16)` is the ability's name; read
+  the file to pin the text); `Set_keeps_bom_and_crlf` (after `Set(16, "Line one\nLine two")` the bytes still start
+  `EF BB BF`, every line end is CRLF, the text's lines are joined with CRLF, every other byte unchanged);
+  `Comments_and_padding_kept`; `Trigger_string_parses`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement (line-based: `STRING n`, optional `//` lines, `{`, text, `}`; the line
+  end of the first line is the file's; a file with none uses CRLF). **Step 4:** PASS.
+- [ ] **Step 5:** Commit `Files: war3map.wts reader and writer`.
+
+### Task 4: The game's standard data (`ObjectEditor.GameData`)
+
+**Files:** Create `src/ObjectEditor.GameData/*.cs` and `.csproj` (`ProjectReference` to
+`$(Wc3Cs)\moonwell\generator\Moonwell.Generator\Moonwell.Generator.csproj`; add moonwell's NuGet source if restore
+needs it), `tests/ObjectEditor.GameData.Tests/GameDataTests.cs`.
+
+**Interfaces:**
+- Consumes: `ExportTables.Read`, `Choices.All(tables, null)`, `Fields.Of(tables, kind)`, `StandardObjects.Of`,
+  `Fields.WithStandardNegatives`, `ExportTables.Meta(kind)` (`category`, `sort`, `notSpecific`, use flags),
+  `ExportTables.Objects(kind, null)` (the `:sd`/`:hd`/`:de` keys), `ExportTables.Label`.
+- Produces:
+  ```csharp
+  public sealed class GameData
+  {
+      public static GameData Load(string folder, string cacheFolder);   // builds with Moonwell's generator, or reads the cache when the folder's files are unchanged
+      public string Source { get; }                                     // the folder
+      public KindData Kind(ObjectKind kind);
+      public IReadOnlyDictionary<string, ChoiceList> Choices { get; }   // by metadata type: attackType, targetList, ...
+  }
+  public sealed class KindData
+  {
+      public string? LevelField { get; }                                // "alev" for abilities, "glvl" for upgrades
+      public IReadOnlyList<FieldInfo> Fields { get; }
+      public IReadOnlyList<StandardObject> Objects { get; }
+      public FieldInfo? Field(string id); public StandardObject? Object(string id);
+      public bool Applies(FieldInfo field, StandardObject obj);         // Moonwell's FieldPlan.Applies rules
+      public int Levels(StandardObject obj);                            // 0 for kinds without levels
+  }
+  public sealed record FieldInfo(string Id, string Label, string Category, string Sort, string Type, string Store,
+      string? ListOf, bool PerLevel, int Pointer, bool Skin, IReadOnlyList<string> Specific,
+      IReadOnlyList<string> NotSpecific, bool ForUnit, bool ForHero, bool ForBuilding, double? Min, double? Max,
+      int? MaxLength, int? MaxEntries, bool Required, bool NoNegative, string? Choice);
+  public sealed record StandardObject(string Id, string Name, string Suffix, string Race, bool Campaign, bool Hero,
+      bool Building, bool Special, string? Code, IReadOnlyDictionary<string, string> Values,
+      IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes);   // Values keyed "fid" or "fid:level"; Modes: key -> {"sd","hd","de"} only where they differ
+  public sealed record ChoiceList(bool Flags, string Store, IReadOnlyList<ChoiceEntry> Entries);
+  public sealed record ChoiceEntry(string Value, string Label);
+  ```
+  `Type` is the lower camel case of Moonwell's `FieldType` (`int`, `float`, `bool`, `string`, `objectList`,
+  `objectRef`, `choice`). Cache: `cacheFolder\<hash of folder path>.json` with the newest file time of the folder; the
+  app passes `%LOCALAPPDATA%\ObjectEditor\gamedata`.
+- [ ] **Step 1:** Tests (skip with a message when `OBJECT_EDITOR_GAME_DATA` is unset or missing): `Known_values`
+  (`hfoo` `uhpm` `420`; `Amls` `acdn:1` `30`; `attackType` has `normal`); `Hero_fields_only_on_heroes` (`ustr`
+  applies to `Hpal`, not `hfoo`); `Ability_levels` (`Levels(AHhb)` 3); `Counts` (every kind has objects and fields;
+  units more than 400); `Cache_is_used_second_time` (second `Load` with the same cache folder is at least 5 times
+  faster and gives equal data); `Cached_load_is_fast` (under 1.5 s).
+- [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS; note the first and cached load times in the report.
+- [ ] **Step 5:** Commit `GameData: the standard data from Moonwell's generator, cached`.
+
+### Task 5: Settings and the first real command
+
+**Files:** Create `src/ObjectEditor.App/{Settings.cs,Commands.cs}`, `tests/ObjectEditor.App.Tests/SettingsTests.cs`;
+modify `MainForm.cs`, `Bridge` wiring.
+
+**Interfaces:**
+- Produces: `Settings` (`GameDataFolder`, `RecentMaps`), stored as JSON in `%LOCALAPPDATA%\ObjectEditor\settings.json`
+  (a constructor taking the folder, for tests). Commands: `gameData()` → `{ source, loaded, error }`;
+  `chooseGameData()` opens a folder dialog (UI thread), loads, saves the setting. The game data loads on a background
+  task at start; until it is loaded, commands that need it return error code `"gameDataLoading"`; with no setting,
+  `"gameDataMissing"`.
+- [ ] **Step 1:** Tests: `Settings_round_trip`, `Missing_settings_file_gives_defaults`, `Corrupt_settings_file_gives_defaults`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement; the web side shows a first-start screen ("Choose the game data
+  folder…") when `gameDataMissing`. **Step 4:** PASS.
+- [ ] **Step 5:** Commit `App: settings and the game data folder`.
+
+### Task 6: Open a map folder and resolve values (`ObjectEditor.Model`)
+
+**Files:** Create `src/ObjectEditor.Model/{Session.cs,Views.cs,Resolver.cs}`, `tests/ObjectEditor.Model.Tests/OpenTests.cs`.
+
+**Interfaces:**
+- Consumes: `ObjectFile`, `WtsFile`, `MapFolder`, `GameData`.
+- Produces:
+  ```csharp
+  public sealed class Session
+  {
+      public static Session Open(MapFolder map, GameData game);
+      public IReadOnlyList<string> Problems { get; }                    // per file, and the Moonwell build-output note
+      public IReadOnlyList<TreeEntry> Tree(ObjectKind kind);
+      public ObjectView? Object(ObjectKind kind, string id);
+  }
+  public sealed record TreeEntry(string Id, string? BaseId, string Name, string Suffix, IReadOnlyList<string> Path, bool Changed);
+  public sealed record ObjectView(string Kind, string Id, string? BaseId, string Name, IReadOnlyList<ChainLink> Chain,
+      int Levels, string? ReadOnly, IReadOnlyList<FieldView> Fields);
+  public sealed record ChainLink(string Name, string Id);
+  public sealed record FieldView(string Id, string Label, string Category, string Sort, string Type, string? Choice,
+      int Level, string Value, string Base, bool Changed, bool Skin, string? Warning, IReadOnlyDictionary<string, string>? Modes);
+  ```
+  Tree paths: custom `["Custom"]`; standard units `[race, "Melee" | "Campaign", "Units" | "Buildings" | "Heroes" |
+  "Special"]`; other kinds `[race]` when set, else `["Other"]`. Values: the map's record, else the standard value
+  (a custom object's own standard base, never the map's change to the base). A `TRIGSTR_n` value shows the `.wts`
+  text. Floats show with `float.ToString("R", CultureInfo.InvariantCulture)`. A kind whose file is a problem, or an
+  entry with a set count other than 1, is read only with the reason in `ReadOnly`. A folder whose parent is `build`
+  with a `.csproj` beside it gets the problem "This is Moonwell's build output, rewritten by every build: edit the
+  project's map/ folder".
+- [ ] **Step 1:** Tests on temp copies of the fixtures (game data as in Task 4): `Custom_unit_from_we` (`h000`: base
+  `hpea`, name from `.wts`, `uhpm` equals the standard `hpea` value, not changed); `Standard_object_unchanged`;
+  `Custom_inherits_standard_base_not_map_change` (a written `war3map.w3u` changing `hfoo` `uhpm` to 500 and adding
+  `h001` based on `hfoo`: `h001` shows 420); `Opens_partial_folder` (only `war3map.w3u`); `Problem_kind_is_read_only`
+  (a 5-byte `war3map.w3a`: abilities read only, `Problems` names the file, units open); `Moonwell_mymap_opens` (every
+  custom object has a name and a chain); `Moonwell_build_output_warns`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS.
+- [ ] **Step 5:** Commit `Model: open a map folder and resolve values`.
+
+### Task 7: Edits and undo
+
+**Files:** Create `src/ObjectEditor.Model/{Edits.cs,History.cs,NewIds.cs}`, `tests/ObjectEditor.Model.Tests/EditTests.cs`.
+
+**Interfaces:**
+- Produces on `Session`:
+  ```csharp
+  public void Set(ObjectKind kind, string id, string field, int level, string value);   // throws EditException(code, message)
+  public void Reset(ObjectKind kind, string id, string field, int level);
+  public string Create(ObjectKind kind, string baseId, string? id);    // the new id
+  public string Copy(ObjectKind kind, string fromId, string? id);
+  public void Delete(ObjectKind kind, string id);
+  public bool Undo(); public bool Redo(); public bool Dirty { get; }
+  ```
+  `EditException.Code`: `noObject`, `noField`, `notNumber`, `idTaken`, `idInvalid`, `readOnly`. A value is parsed by
+  the field's `Store`: `int` (yes/no fields send `"1"`/`"0"`), `real`/`unreal` as float (invariant culture),
+  `string` as text. A mod goes to the skin file when the field's `Skin` is true, else the main file; a new object gets
+  an entry in both files. Setting a value equal to the base (numbers compared as numbers) removes the mod unless the
+  field has `Modes` that differ. Editing a string whose mod holds `TRIGSTR_n` changes the `.wts` entry and keeps the
+  reference; other strings are written inline. New ids: `h` (unit), `H` (hero base), `I`, `B` (destructable), `D`,
+  `A`, `B` (buff), `R`, then the lowest free three characters counting `0-9` then `A-Z` from `000`, free among the
+  kind's standard and custom ids. Warnings in `FieldView.Warning`: "Above World Editor's limit of {max}.", "Below
+  World Editor's limit of {min}.", "Longer than World Editor's limit of {n} characters.", "More than World Editor's
+  limit of {n} entries.", "May not be empty.".
+- [ ] **Step 1:** Tests: `Set_and_read_back`; `Set_goes_to_skin_file` (`unam` skin, `uhpm` main);
+  `Float_equal_to_base_removes_record` (`ua1c` of `hfoo` set `"2"` then `"1.35"`: no mod);
+  `Mode_values_keep_record`; `Trigstr_edit_updates_wts`; `New_ids_follow_world_editor` (on we-3.0: `Create(Unit,
+  "hfoo", null)` is `h001`; a hero base gives `H000`; `Create(Ability, "AHhb", "A000")` throws `idTaken`);
+  `Undo_redo_every_edit`; `Past_limit_warns_not_fails` (`uhpm` `600000`); `Text_in_number_field_refused`;
+  `Read_only_kind_refuses`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement (each operation records what it needs to undo itself). **Step 4:** PASS.
+- [ ] **Step 5:** Commit `Model: edits, new objects, undo and redo`.
+
+### Task 8: Save
+
+**Files:** Create `src/ObjectEditor.Model/Saver.cs`, `tests/ObjectEditor.Model.Tests/SaveTests.cs`.
+
+**Interfaces:**
+- Produces on `Session`: `SaveReport Save()` (`SaveReport(IReadOnlyList<string> Written, string Backup)`), throws
+  `ChangedOnDiskException`; `void Reload()`. Writes only files whose bytes changed, after copying their previous
+  bytes to `<map folder>.backup\<yyyy-MM-dd HH-mm-ss>\`, keeping the newest 10 backup folders.
+- [ ] **Step 1:** Tests: `Save_writes_only_changed_files` (other files' bytes and write times untouched);
+  `Saved_edit_reads_back` (reopen: new value, every other mod equal); `Save_creates_missing_skin_file`;
+  `Backup_keeps_ten`; `Save_refuses_when_changed_on_disk`; `Dirty_clears_after_save`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS.
+- [ ] **Step 5:** Commit `Model: save with backups`.
+
+### Task 9: Search
+
+**Files:** Create `src/ObjectEditor.Model/Search.cs`, `tests/ObjectEditor.Model.Tests/SearchTests.cs`.
+
+**Interfaces:**
+- Produces on `Session`: `IReadOnlyList<Hit> Search(string query, int limit)`, `Hit(string Kind, string Id, string
+  Name, string Detail, string? Field)`. Every word must match (ignoring case) the name, suffix or id, a field's label
+  or id (then `Field` is set), or a value of a custom or changed object. Order: exact id, name prefix, name contains,
+  field matches; custom before standard at equal rank.
+- [ ] **Step 1:** Tests: `Id_exact_first`; `Words_all_match` (`foot hum`); `Finds_field_labels` (`hit points`);
+  `Finds_custom_values` (`champ` finds a custom unit named "Champion"); `Fast_enough` (any 3-letter query under 30 ms
+  in Release on the full game data).
+- [ ] **Step 2:** FAIL. **Step 3:** Implement (a lowercase index per kind, updated for the edited object). **Step 4:**
   PASS.
-- [ ] **Step 5:** Commit `model: edits, new objects, undo and redo`.
+- [ ] **Step 5:** Commit `Model: search`.
 
-### Task 9: Save (`model`)
+### Task 10: Commands for the model
 
-**Files:** Create `crates/model/src/save.rs`, `crates/model/tests/save.rs`.
-
-**Interfaces:**
-- Produces: `pub fn save(&mut self) -> Result<SaveReport, SaveError>` with `SaveReport { written: Vec<String>,
-  backup: PathBuf }`, `SaveError::ChangedOnDisk`, `SaveError::Io(io::Error)`; `pub fn reload(&mut self)`.
-  Writes only files whose bytes changed; copies their previous bytes first to `<map folder>.backup/<YYYY-MM-DD
-  HH-MM-SS>/` beside the map, keeping the newest 10 backup folders.
-- [ ] **Step 1:** Tests: `save_writes_only_changed_files` (edit one unit field: only that kind's file changes, all
-  other files' bytes and mtimes untouched); `saved_edit_reads_back_in_war3net` (after saving, the oracle's dump of the
-  edited file shows the new value and every other record as before; skips like Task 4); `save_creates_missing_skin_file`;
-  `backup_keeps_ten`; `save_refuses_when_changed_on_disk` (touch a file after open: `ChangedOnDisk`, nothing written);
-  `dirty_clears_after_save`.
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement. **Step 4:** PASS.
-- [ ] **Step 5:** Commit `model: save with backups`.
-
-### Task 10: Search (`model`)
-
-**Files:** Create `crates/model/src/search.rs`, `crates/model/tests/search.rs`.
+**Files:** Modify `src/ObjectEditor.App/Commands.cs`; create `tests/ObjectEditor.App.Tests/CommandTests.cs`,
+`web/src/lib/api.ts`, `web/src/lib/api.test.ts`.
 
 **Interfaces:**
-- Produces: `pub fn search(&self, query: &str, limit: usize) -> Vec<Hit>`, `Hit { kind: Kind, id: String, name:
-  String, detail: String, field: Option<String> }`. Every word of the query must match (case-insensitive) one of: the
-  object's name, suffix, id; a field's label or id (then `field` is set and `detail` names the field); a field value
-  of a custom or changed object. Ranking: exact id, then name prefix, then name contains, then field matches; custom
-  objects before standard ones at equal rank.
-- [ ] **Step 1:** Tests: `id_exact_first` (`hfoo` first for `hfoo`); `words_all_match` (`foot hum` finds the Footman);
-  `finds_field_labels` (`hit points` gives the unit field); `finds_custom_values` (a custom unit with `unam` "Champion"
-  found by `champ`); `fast_enough` (any 3-letter query under 30 ms in release on the full bundle).
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement (prebuilt lowercase index per kind, rebuilt on edit for the touched
-  object). **Step 4:** PASS.
-- [ ] **Step 5:** Commit `model: search`.
+- Produces commands (camelCase JSON; `kind` is `ObjectKinds.Key`): `openMap({ path? })` (no path: folder dialog) →
+  `{ name, path, problems, counts }`; `tree({ kind })`; `object({ kind, id })`; `setField({ kind, id, field, level,
+  value })` → `ObjectView`; `resetField(...)` → `ObjectView`; `createObject({ kind, baseId, id? })` → id;
+  `copyObject`; `deleteObject`; `undo()`; `redo()`; `save()` → `SaveReport`; `reload()`; `search({ query, limit })`;
+  `choices()`. Errors: `{ code, message }` with `EditException` codes, `changedOnDisk`, `noMap`. Event
+  `sessionChanged` `{ dirty, changedObjects }` after every edit, undo, redo, save and reload. `api.ts`: one typed
+  function per command and `onSessionChanged(handler)`.
+- [ ] **Step 1:** Tests: `CommandTests` drive the `Bridge` with JSON over a fixture copy and the game data
+  (`Open_tree_object_set_undo_save` in one flow; `Edit_error_has_code`); `api.test.ts` checks each wrapper's command
+  name and argument names against a mocked `call`.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement. **Step 4:** PASS.
+- [ ] **Step 5:** Commit `App: model commands and the typed web API`.
 
-### Task 11: Commands and the front end's API
+### Task 11: Browse UI (milestone 1)
 
-**Files:** Create `src-tauri/src/commands.rs`, modify `src-tauri/src/main.rs`; create `src/lib/api.ts`,
-`src/lib/api.test.ts`.
-
-**Interfaces:**
-- Consumes: `Session` (Tasks 7-10), `BaseData::dev_bundle`.
-- Produces commands (state `Mutex<Option<Session>>`, base data loaded once at start): `open_map(path) -> MapSummary
-  { name, path, problems, counts }`, `tree(kind)`, `object(kind, id)`, `set_field(kind, id, field, level, value) ->
-  ObjectView`, `reset_field(...) -> ObjectView`, `create_object(kind, base, id?) -> String`, `copy_object`,
-  `delete_object`, `undo() -> bool`, `redo() -> bool`, `save() -> SaveReport`, `reload()`, `search(query, limit)`,
-  `choices() -> map`, `game_version() -> String`. Errors return `{ code, message }`. Event `session-changed`
-  `{ dirty: bool, changed_objects: u32 }` after every edit, undo, redo, save. `api.ts` exports one typed function per
-  command and `onSessionChanged(cb)`.
-- [ ] **Step 1:** `api.test.ts` with `@tauri-apps/api/mocks` `mockIPC`: each wrapper sends the command name and
-  argument names the Rust side expects (camelCase as Tauri converts them), and `onSessionChanged` receives the event.
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement both sides; a missing dev bundle shows a clear error in the window
-  ("No standard data: run tools/BaseData", with the command). **Step 4:** PASS; `npm run check` clean.
-- [ ] **Step 5:** Commit `Commands and the typed front-end API`.
-
-### Task 12: Browse UI (milestone 1)
-
-**Files:** Create `src/lib/{Tree,Details,LevelGrid,Palette,StatusBar}.svelte`, `src/lib/fields.ts`,
-`src/lib/fields.test.ts`; modify `src/App.svelte`.
+**Files:** Create `web/src/lib/{Tree,Details,LevelGrid,Palette,StatusBar}.svelte`, `web/src/lib/fields.ts`,
+`web/src/lib/fields.test.ts`; modify `web/src/App.svelte`.
 
 **Interfaces:**
-- Consumes: `api.ts`.
-- Produces: `fields.ts` `groupFields(fields: FieldView[], filter: string, changedOnly: boolean): Category[]`
-  (categories in World Editor's order, fields by `sort`; per-level fields collected into one grid row per field).
-
-- [ ] **Step 1:** `fields.test.ts`: filter matches label, id and value; `changedOnly`; per-level fields become one
-  grid row with levels in order; category order `stats, combat, abil, art, move, path, sound, tech, text, editor,
-  data` *(agent's call; unknown categories last, by name)*.
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement `groupFields`, then the components as the mockup: kind buttons,
-  virtualised tree with filter; details header with chain and "N fields changed"; field filter (Ctrl F), "Changed
-  only", "Field ids" (Ctrl D); categories collapsible; per-level grid; side panel with the abilities of a unit
-  (click opens them) and placeholders for "Used by" and the tooltip (milestone 6); Ctrl K palette over `search`;
-  status bar with game version and dirty state; Alt ←/→ history. "Open map…" uses the dialog plugin to pick a folder.
-- [ ] **Step 4:** PASS. Run `npm run dev`, open `crates/objdata/tests/fixtures/we-3.0` (copied to a temp folder) and
-  Moonwell's MyMap fixture; screenshot the tree, a custom unit, an ability's level grid and the palette; check against
-  the mockup. Opening a map and jumping to an object both feel instant (note the times).
+- Produces: `groupFields(fields: FieldView[], filter: string, changedOnly: boolean): Category[]` (categories in the
+  order `stats, combat, abil, art, move, path, sound, tech, text, editor, data` *(agent's call)*, unknown ones last by
+  name; fields by `sort`; per-level fields collected into one grid row per field).
+- [ ] **Step 1:** `fields.test.ts`: filter matches label, id and value; changed only; per-level rows; category order.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement as the mockup: kind buttons; virtualised tree with filter; details
+  header with chain and "N fields changed"; field filter (Ctrl F), "Changed only", "Field ids" (Ctrl D);
+  collapsible categories; per-level grid; side panel with a unit's abilities (click opens them) and placeholders for
+  "Used by" and the tooltip; Ctrl K palette over `search`; status bar with the game data source, problems and dirty
+  state; Alt ←/→ history; "Open map…".
+- [ ] **Step 4:** PASS. Run the app on copies of both fixtures; the controller screenshots the tree, a custom unit,
+  an ability's level grid and the palette against the mockup. Note how long opening and jumping take.
 - [ ] **Step 5:** Commit `Browse: tree, details, levels, search`. **Milestone 1 done; show Sven.**
 
-### Task 13: Edit UI (milestone 2)
+### Task 12: Edit UI (milestone 2)
 
-**Files:** Create `src/lib/FieldEditor.svelte`, `src/lib/values.ts`, `src/lib/values.test.ts`; modify
-`Details.svelte`, `LevelGrid.svelte`, `Tree.svelte`, `App.svelte`.
+**Files:** Create `web/src/lib/{FieldEditor.svelte,values.ts,values.test.ts}`; modify `Details.svelte`,
+`LevelGrid.svelte`, `Tree.svelte`, `App.svelte`.
 
 **Interfaces:**
-- Produces: `values.ts` `editorFor(field: FieldView, choices): Editor` (`number` for int/float, `toggle` for bool,
-  `select` for one choice, `flags` for a flags choice, `ids` for object lists and refs, `text` otherwise) and
-  `formatChoice` / `parseFlags` (comma lists as the data spells them).
-- [ ] **Step 1:** `values.test.ts`: the editor per type; flags `air,enemies` ↔ two ticked entries; an int field
-  rejects `1.5` before sending.
-- [ ] **Step 2:** Run; FAIL. **Step 3:** Implement: inline editors in the details panel and the level grid (Enter
-  commits, Esc cancels, Tab to next field); the yellow mark and ↺ reset; red warning text; object-list picker with
-  search; new object (Ctrl Shift N, asks for an id with the next free one filled in), copy, delete (with a
-  confirmation), F2 to change a name; Ctrl Z / Ctrl Y; Ctrl S save with the report in the status bar and the
-  "saving is tested only on small maps" warning in the save button's tooltip until Task 14 passes; on
-  `ChangedOnDisk`, a dialog offering Reload.
-- [ ] **Step 4:** PASS. In `npm run dev`: edit a copy of the MyMap fixture (change a unit's life, add a unit from
-  `hfoo`, change an ability's level 2 value, rename via a `TRIGSTR` name in the we-3.0 copy), save, reopen; the
-  values are there. Screenshots.
+- Produces: `editorFor(field: FieldView, choices): "number" | "toggle" | "select" | "flags" | "ids" | "text"`;
+  `parseFlags` / `formatFlags` (comma lists as the data spells them).
+- [ ] **Step 1:** `values.test.ts`: the editor per type; `air,enemies` ↔ two ticked entries; an int field rejects
+  `1.5` before sending.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement: inline editors in the details panel and the level grid (Enter commits,
+  Esc cancels, Tab moves on); the yellow mark and ↺ reset; red warning text; object-list picker with search; new
+  object (Ctrl Shift N, the next free id filled in), copy, delete (with a confirmation), F2 for the name; Ctrl Z /
+  Ctrl Y; Ctrl S with the report in the status bar and the warning "Saving is tested only on small maps" until Task
+  13 passes; on `changedOnDisk`, a dialog offering Reload.
+- [ ] **Step 4:** PASS. In the app, on a copy of the MyMap fixture: change a unit's life, add a unit from `hfoo`,
+  change an ability's level 2 value; on a copy of we-3.0 change a `TRIGSTR` name; save, reopen, values there. The
+  controller screenshots.
 - [ ] **Step 5:** Commit `Edit: field editors, new objects, undo, save`.
 
-### Task 14: World Editor and game check (closes milestone 2)
+### Task 13: World Editor and game check (closes milestone 2)
 
-Needs Sven's World Editor test map (spec: every tab, abilities with levels, doodad variations, edited standard units).
+Needs Sven's World Editor test map.
 
-- [ ] **Step 1:** Copy his map's object files and `.wts` into `crates/objdata/tests/fixtures/we-heavy/` (with
-  `SOURCE.md`); the round-trip and oracle tests now cover it; also check every record against the main/skin rule
-  (a field with `skin` true only in the skin file) and record what does not fit in the spec.
-- [ ] **Step 2:** Run `cargo test --workspace`; fix until PASS; commit `Fixtures: Sven's World Editor test map`.
-- [ ] **Step 3:** With the app, on a copy of the map: change a standard unit, add a custom unit, an ability with
-  three levels changed, a doodad variation, an upgrade level, and a `TRIGSTR` name; save.
+- [ ] **Step 1:** Copy its object files and `.wts` into `tests/fixtures/we-heavy/` (with `SOURCE.md`); the guard and
+  `WtsFile` tests now cover it; check every mod against the skin rule and record in the spec what does not fit.
+- [ ] **Step 2:** `dotnet test`; fix until PASS; commit `Fixtures: Sven's World Editor test map`.
+- [ ] **Step 3:** With the app, on a copy: change a standard unit, add a custom unit, change an ability's three
+  levels, a doodad variation, an upgrade level and a `TRIGSTR` name; save.
 - [ ] **Step 4:** Hand over with the wc3-cs `test-map` skill: Sven opens the saved map in World Editor (each change
-  shows; nothing else changed in the Object Editor) and plays it (the changes act in the game). Record the result in
-  `docs/checks.md` with the game version.
+  shows, nothing else changed) and plays it. Record the result in `docs/checks.md` with the game version.
 - [ ] **Step 5:** Remove the "small maps" warning; commit `Saving checked in World Editor and the game`.
   **Milestone 2 done.**
