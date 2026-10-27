@@ -42,11 +42,14 @@ public sealed class AssetNameTests(GameDataFixture fixture, ITestOutputHelper ou
         Assert.Equal(
             ["Holy Light <Normal>", "Holy Light <Research>"],
             Named("icon", @"ReplaceableTextures\CommandButtons\BTNHolyBolt.blp").Take(2));
-        // (World Editor goes on with Command Aura, whose strings the export files under [Boac], not BOac; Moonwell's
-        // reader matches sections by case, so the buff has no name here.)
+        // Command Aura's strings are under [Boac], not BOac: Moonwell.GameData reads them whatever the case from
+        // 0.3.0-preview.2, as World Editor does.
         Assert.Equal(
-            ["Brilliance Aura <Target>", "Devotion Aura <Target>", "War Drums <Target>"],
-            Named("model", @"Abilities\Spells\Other\GeneralAuraTarget\GeneralAuraTarget.mdl").Take(3));
+            [
+                "Brilliance Aura <Target>", "Devotion Aura <Target>", "War Drums <Target>", "Command Aura <Target>",
+                "Endurance Aura <Target>",
+            ],
+            Named("model", @"Abilities\Spells\Other\GeneralAuraTarget\GeneralAuraTarget.mdl").Take(5));
         Assert.Equal(
             ["Ashenvale Tree Wall <Base>", "Felwood Tree Wall <Base>", "Icecrown Tree Wall <Base>"],
             Named("model", @"Doodads\Terrain\AshenTree\AshenTree"));

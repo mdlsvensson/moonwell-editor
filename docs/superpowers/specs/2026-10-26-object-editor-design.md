@@ -480,10 +480,11 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
       Steel Sword's icon is shared by seventy of them, which World Editor did not list), and the 128.
     - **Differences that stay**: the editor groups fields by category in World Editor's metadata order, where World
       Editor lists them in one alphabetical list ("Art - Model File"); Caster Upgrade Tips show as the data writes them
-      (`"- Purge","- Purge|n- Lightning Shield"`, where World Editor drops the quotes); an object whose strings the
-      export files under another case (`[Boac]` for the Command Aura buff `BOac`) has no name, since Moonwell's
-      reader matches sections by case where World Editor does not; and World Editor names a few objects the export
-      lacks (Holy Light (Item) with a Research icon), so the end of a long list of names can differ.
+      (`"- Purge","- Purge|n- Lightning Shield"`, where World Editor drops the quotes); and World Editor names a few
+      objects the export lacks (Holy Light (Item) with a Research icon), so the end of a long list of names can
+      differ. An object whose strings the export files under another case (`[Boac]` for the Command Aura buff `BOac`)
+      had no name until Moonwell.GameData 0.3.0-preview.2 (Sven, 2026-10-27: merged and published), which reads them
+      whatever the case, as World Editor does.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
@@ -534,7 +535,7 @@ anti-goals hold.
 
 1. Licence and repository for the public release (a GitHub repository, pushing and publishing are each his call).
 2. ~~Publishing `Moonwell.GameData` to nuget.org.~~ Done: 0.3.0-preview.1, by Moonwell's v0.3.0-preview.1 release
-   (2026-10-27).
+   (2026-10-27); the editor uses 0.3.0-preview.2 (text sections whatever their case).
 3. What annoys him most in the Object Editor, if anything beyond the goals above.
 
 ## Calls to check
