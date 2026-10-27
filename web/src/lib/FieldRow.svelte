@@ -11,6 +11,7 @@ import FieldEditor from "./FieldEditor.svelte";
 import { type ButtonPair, type Lookup, listIds, namesOf, shownValue } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
 import { t } from "./text.ts";
+import { isExtendedTooltip } from "./values.ts";
 
 type Props = {
   field: FieldView;
@@ -35,6 +36,10 @@ type Props = {
   kindIcons?: string[];
   /** Sets the pair's X and Y as one edit; answers with why it was refused, or null. */
   onpair?: (pair: ButtonPair, x: number, y: number) => Promise<string | null>;
+  /** The game's interface icon to show before the value (gold for a gold cost), as a game path; undefined for none. */
+  icon?: string;
+  /** Indents the row under a group's row (a damage's base, dice and sides). */
+  nested?: boolean;
 };
 
 let {
@@ -53,6 +58,8 @@ let {
   onpair,
   objectKind = "",
   kindIcons = [],
+  icon,
+  nested = false,
 }: Props = $props();
 
 let error = $state("");
@@ -65,8 +72,9 @@ const objects = $derived(
 );
 const standard = $derived(shownValue({ ...field, value: field.base }, choices, nameOf));
 const title = $derived(titleOf(field));
-// A text of several lines gets a box as wide as the row; any other value a box as wide as itself.
-const multiline = $derived(field.value.includes("\n"));
+// A text of several lines, or an extended tooltip, gets a box as wide as the row; any other value a box as wide as
+// itself.
+const multiline = $derived(isExtendedTooltip(field) || field.value.includes("\n"));
 
 function titleOf(view: FieldView): string {
   const lines = [shown];
@@ -104,7 +112,7 @@ async function reset(): Promise<void> {
   <span class="h-[18px] w-1 justify-self-center rounded-sm {field.changed ? 'bg-changed' : ''}"></span>
   <button
     type="button"
-    class="cursor-default py-1 pr-2 text-left focus:outline-none"
+    class="cursor-default py-1 pr-2 text-left focus:outline-none {nested ? 'pl-5 text-muted' : ''}"
     title={editable && field.modes ? title : undefined}
     onclick={() => onselect(field)}
   >
@@ -113,6 +121,16 @@ async function reset(): Promise<void> {
   </button>
   <!-- The value starts right after the names, with ↺ after it, as World Editor lays them out (Sven, 2026-10-27). -->
   <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
+    {#if icon}
+      <!-- The game's own icon for what the field holds (Sven, 2026-10-27). -->
+      <img
+        src={iconUrl(icon, graphics.mode)}
+        alt=""
+        class="size-5 shrink-0"
+        draggable="false"
+        onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+      />
+    {/if}
     {#if field.asset === "icon" && field.value.trim()}
       <!-- The icon the field names (Sven, 2026-10-27). -->
       <img

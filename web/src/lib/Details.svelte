@@ -18,6 +18,8 @@ import Trash from "@lucide/svelte/icons/trash-2";
 import { type Component, tick } from "svelte";
 import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import type { MenuItem } from "./ContextMenu.svelte";
+import DiceRow from "./DiceRow.svelte";
+import { diceGroups, withTotals } from "./dice.ts";
 import FieldRow from "./FieldRow.svelte";
 import { copiedField, copyField, fits } from "./fieldClip.ts";
 import {
@@ -30,6 +32,7 @@ import {
   type Row,
   shownValue,
 } from "./fields.ts";
+import { fieldIcon } from "./gameIcons.ts";
 import LevelGrid from "./LevelGrid.svelte";
 import { labelColumnWidth } from "./measure.ts";
 import { t, tCount } from "./text.ts";
@@ -210,6 +213,9 @@ $effect(() => {
 });
 // Categories the user closed, by key; they stay closed from object to object.
 let closed = $state<Record<string, boolean>>({});
+// The totals of dice whose base, dice and sides the user hid, by the total's row id; they stay so from object to
+// object.
+let hiddenParts = $state<Record<string, boolean>>({});
 
 const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const categories = $derived(
@@ -230,8 +236,14 @@ const labelWidth = $derived.by(() => {
       .filter((row) => row.levels === null)
       .map((row) => ({ label: row.label, id: row.id })),
   );
-  return labelColumnWidth(labels, showIds);
+  // A total's base, dice and sides are set in under it.
+  const indent = view.fields.some((field) => diceGroups.some((group) => group.base === field.id))
+    ? 20
+    : 0;
+  return labelColumnWidth(labels, showIds) + indent;
 });
+
+const iconOf = (field: FieldView) => fieldIcon(field, view.fields);
 
 const editable = $derived(view.readOnly === null);
 const custom = $derived(view.baseId !== null);
@@ -409,9 +421,30 @@ function clearOnEscape(event: KeyboardEvent): void {
                   {selected}
                   onselect={select}
                   onmenu={fieldMenu}
+                  {iconOf}
                 />
               {:else}
-                {#each run.rows as row (row.id)}
+                {#each withTotals(run.rows, view.fields) as row (row.id)}
+                  {#if row.dice}
+                    <DiceRow
+                      label={row.label}
+                      fields={row.dice}
+                      {showIds}
+                      {choices}
+                      {lookup}
+                      {editable}
+                      {onset}
+                      {onreset}
+                      {onopen}
+                      {onfields}
+                      {selected}
+                      onselect={select}
+                      onmenu={fieldMenu}
+                      icon={iconOf}
+                      open={!hiddenParts[row.id]}
+                      ontoggle={() => (hiddenParts[row.id] = !hiddenParts[row.id])}
+                    />
+                  {:else}
                   <FieldRow
                     field={row.field}
                     {showIds}
@@ -428,7 +461,9 @@ function clearOnEscape(event: KeyboardEvent): void {
                     objectKind={view.kind}
                     {kindIcons}
                     onpair={setPair}
+                    icon={iconOf(row.field)}
                   />
+                  {/if}
                 {/each}
               {/if}
             {/each}

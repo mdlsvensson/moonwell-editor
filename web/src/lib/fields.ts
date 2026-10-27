@@ -262,6 +262,19 @@ export function assetText(field: Pick<FieldView, "meta" | "value">): string | un
   return names && names.length > 0 ? namesText(names) : undefined;
 }
 
+// The metadata types that are text in the data but which World Editor offers as a list, the app's list of the same
+// name: a ground texture (UberSplatData's splats) and a building's or destructable's shadow (Sven, 2026-10-27).
+const metaLists = new Set(["uberSplat", "shadowTexture"]);
+
+/** The list a field's value is one of: its choice list, or the list World Editor offers for its type; else none. */
+export function listFor(
+  field: Pick<FieldView, "choice" | "meta">,
+  choices: Record<string, ChoiceList> | null,
+): ChoiceList | undefined {
+  if (field.choice) return choices?.[field.choice];
+  return field.meta && metaLists.has(field.meta) ? choices?.[field.meta] : undefined;
+}
+
 /**
  * What World Editor shows for a field that holds nothing (Sven, 2026-10-27): 0 for a whole number, 0.000 for a real,
  * False for a true-or-false field, None for one value of a list or a file, sound or order, and nothing for text, flags
@@ -299,6 +312,9 @@ export function shownValue(
   nameOf: NameOf,
 ): string {
   if (field.value.trim() === "") return emptyText(field, choices);
+  const offered = field.type === "choice" ? undefined : listFor(field, choices);
+  const entry = offered && entryOf(offered, field.value);
+  if (entry) return entry.label;
   const named = assetText(field);
   if (named !== undefined) return named;
   if (field.type === "choice") {

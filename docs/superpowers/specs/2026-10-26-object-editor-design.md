@@ -485,6 +485,33 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
       differ. An object whose strings the export files under another case (`[Boac]` for the Command Aura buff `BOac`)
       had no name until Moonwell.GameData 0.3.0-preview.2 (Sven, 2026-10-27: merged and published), which reads them
       whatever the case, as World Editor does.
+  - The fields' editors (later the same day): a value's box has a background and border of its own; a whole number
+    or a real is a number box with the browser's arrows (they send the value once they stop; the wheel scrolls the
+    panel, never steps a box); an extended tooltip is a box of several lines. A dropdown is the editor's own, as wide
+    as its widest choice, its choices with the game's icons where they have one (armor and attack types, hero
+    attributes); a flags field is a box as wide as its widest single choice that says None when nothing is ticked.
+    The UI scale has 80, 100 and 120% for now.
+  - The game's interface icons (the Human interface's, from the install) beside what they stand for: gold, lumber,
+    food and mana on the fields that hold them (found by the words in their labels) and on the tooltip's cost line;
+    the unit's own armor and attack type on its defense and damage fields.
+  - Dice totals: a unit's Attack 1 and Attack 2 damage and its gold and lumber bounties show as the range the game
+    rolls (Attack 1 - Damage 12 - 13: base + dice to base + dice × sides), with the base, number of dice and sides per
+    die under it. A range typed in sets the three as one edit, keeping the number of dice when it splits the range
+    evenly, else the most that do; one number is dice of 1 side. *(Agent's call: World Editor has no such row; the
+    rule for the dice is the agent's.)*
+  - Ground Texture is a dropdown of the install's splats (`Splats\UberSplatData.slk`) by World Editor's names for
+    them (`WESTRING_UBERSPLAT_<code>`), by name, after None. Shadow Texture (Building) and a destructable's shadow are
+    a dropdown of the shadows the standard buildings and destructables use, under Buildings and Destructibles, each
+    named by the objects that use it. *(Agent's calls, not seen in World Editor: the order, and naming a shadow by its
+    objects.)*
+  - Ctrl and the wheel move the model up and down; the side panel's model has a list of its animations.
+  - The tooltip editor (an object's context menu, or Edit by the tooltip preview): the tooltip as the game shows it,
+    its texts edited in place (coloured text in its colour, a placeholder such as `<AHhb,Dur1>` as a chip named for
+    the value with the value it has), each naming its field when hovered. A toolbar colours the selection (a colour
+    picker, six of the game's colours, no colour) and puts in an ability's values at the level shown (a percentage
+    as `,%`). The icon, hotkey and costs show but are edited in their fields. Save sends the changed texts as one
+    edit, a colour as `|cAARRGGBB ... |r` and a line break as the text already breaks its lines (`|n` when it has
+    none). An ability's turned-off tooltip shows only when it has one.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

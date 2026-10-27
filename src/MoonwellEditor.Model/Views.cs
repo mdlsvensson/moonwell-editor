@@ -99,6 +99,10 @@ public sealed record ChainLink(string Name, string Id);
 /// The metadata's type as written (<c>model</c>, <c>soundLabel</c>), which says how World Editor shows the field; null
 /// when not known.
 /// </param>
+/// <param name="Data">
+/// An ability's data field letter as a number (<c>DataA</c> is 1), which its tooltips name it by
+/// (<c>&lt;AHbz,DataA1&gt;</c>); 0 for any other field.
+/// </param>
 public sealed record FieldView(
     string Id,
     string Label,
@@ -115,4 +119,5 @@ public sealed record FieldView(
     string? Warning,
     IReadOnlyDictionary<string, string>? Modes,
     string? Asset = null,
-    string? Meta = null);
+    string? Meta = null,
+    int Data = 0);

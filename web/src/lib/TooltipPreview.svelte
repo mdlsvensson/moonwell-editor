@@ -8,6 +8,7 @@
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { iconUrl, type ObjectView } from "./api.ts";
+import { uiIcons } from "./gameIcons.ts";
 import { graphics } from "./graphics.svelte.ts";
 import { t } from "./text.ts";
 import { type Cost, tooltipLines, tooltipOf } from "./tooltip.ts";
@@ -45,7 +46,15 @@ let broken = $state("");
   {#if costs.length > 0}
     <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
       {#each costs as cost (cost.label)}
-        <span><span class="text-[#a0a0a0]">{cost.label}</span> <span class="text-white">{cost.value}</span></span>
+        <!-- With the game's icon for gold, lumber, food and mana, as its tooltips show them (Sven, 2026-10-27). -->
+        <span class="inline-flex items-center gap-1" title={cost.label}>
+          {#if cost.icon}
+            <img src={iconUrl(uiIcons[cost.icon], graphics.mode)} alt={cost.label} class="size-4" draggable="false" />
+          {:else}
+            <span class="text-[#a0a0a0]">{cost.label}</span>
+          {/if}
+          <span class="text-white">{cost.value}</span>
+        </span>
       {/each}
     </div>
   {/if}

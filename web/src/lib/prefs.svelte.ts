@@ -9,7 +9,7 @@ const storageKey = "moonwell-editor.prefs";
 type Prefs = { iconFrames: boolean; confirmReload: boolean; uiScale: number };
 
 /** The UI scales the settings offer, in percent, as the app takes them. */
-export const uiScales = [80, 90, 100, 110, 125, 150, 175, 200];
+export const uiScales = [80, 100, 120];
 
 function saved(): Prefs {
   try {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MoonwellEditor.Files;
 using MoonwellEditor.Model;
+using ChoiceList = MoonwellEditor.GameData.ChoiceList;
 using Data = MoonwellEditor.GameData.GameData;
 
 namespace MoonwellEditor.App;
@@ -114,6 +115,7 @@ public sealed class Commands
 
     // The names World Editor shows files by, made once per game data.
     private (Data Data, Dictionary<string, Dictionary<string, List<string>>> Names)? _assetNames;
+    private (Data Data, IReadOnlyDictionary<string, ChoiceList> Lists)? _choices;
     private string? _error;
     private int _generation;
     private int _version;
@@ -194,8 +196,11 @@ public sealed class Commands
     /// </summary>
     public event Action<string, string>? FrameColorsChanged;
 
-    /// <summary>The steps the page can be scaled to, in percent (the <c>uiScale</c> command; Sven, 2026-10-27).</summary>
-    public static readonly int[] UiScales = [80, 90, 100, 110, 125, 150, 175, 200];
+    /// <summary>
+    /// The steps the page can be scaled to, in percent (the <c>uiScale</c> command; Sven, 2026-10-27: 80, 100 and 120
+    /// for now).
+    /// </summary>
+    public static readonly int[] UiScales = [80, 100, 120];
 
     /// <summary>Raised when the page asks for another scale (the <c>uiScale</c> command), in percent.</summary>
     public event Action<int>? UiScaleChanged;
@@ -264,6 +269,12 @@ public sealed class Commands
     /// </exception>
     public Task<object?> Run(string command, JsonElement args)
     {
+        // The lists World Editor offers from the install's files (ground textures) wait for the install to open.
+        if (command == "choices" && Assets is { Ready: false, Error: null } assets)
+        {
+            return assets.Loading.ContinueWith(_ => Run(command, args), TaskScheduler.Default).Unwrap();
+        }
+
         try
         {
             return Task.FromResult(RunNow(command, args));
@@ -305,7 +316,7 @@ public sealed class Commands
             "save" => Changed(Map().Save()),
             "reload" => Reload(Flag(args, "discard")),
             "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
-            "choices" => NeedGameData().Choices,
+            "choices" => ChoicesOf(NeedGameData()),
             "assetNames" => AssetNamesOf(NeedGameData()),
             "fields" => Fields(Kind(args)),
             "table" => TableOf(args),
@@ -434,6 +445,49 @@ public sealed class Commands
         var id = Text(args, "id");
         session.Reset(kind, id, Text(args, "field"), Number(args, "level"));
         return Changed(ObjectOf(kind, id));
+    }
+
+    /// <summary>
+    /// The game data's lists, with the lists World Editor offers for fields the data keeps as text (the <c>choices</c>
+    /// command): <c>shadowTexture</c> from the standard objects, and <c>uberSplat</c> from the install's splat table
+    /// and World Editor's strings, when the install is open (Sven, 2026-10-27).
+    /// </summary>
+    private IReadOnlyDictionary<string, ChoiceList> ChoicesOf(Data data)
+    {
+        lock (_lock)
+        {
+            if (_choices is { } made && ReferenceEquals(made.Data, data))
+            {
+                return made.Lists;
+            }
+        }
+
+        var lists = new Dictionary<string, ChoiceList>(data.Choices, StringComparer.Ordinal)
+        {
+            ["shadowTexture"] = OfferedLists.Shadows(data),
+        };
+        var assets = Assets;
+        if (assets is { Ready: true })
+        {
+            var splats = OfferedLists.Splats(
+                assets.File(@"Splats\UberSplatData.slk", "sd"),
+                OfferedLists.Strings(assets.File(@"UI\WorldEditStrings.txt", "sd")));
+            if (splats != null)
+            {
+                lists["uberSplat"] = splats;
+            }
+        }
+
+        lock (_lock)
+        {
+            // Without the install the splats are asked for again next time.
+            if (assets is not { Ready: false })
+            {
+                _choices = (data, lists);
+            }
+        }
+
+        return lists;
     }
 
     // The kind's fields in World Editor's order: by category, then by sort key, then by id.

@@ -7,6 +7,7 @@
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import PencilLine from "@lucide/svelte/icons/pencil-line";
 import { fileUrl, type ObjectView, type Reference, usedBy } from "./api.ts";
 import { type Lookup, uses } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
@@ -19,9 +20,11 @@ type Props = {
   view: ObjectView;
   lookup: Lookup;
   onopen: (kind: Reference["kind"], id: string) => void;
+  /** Opens the tooltip editor; absent when the object's tooltip cannot be edited. */
+  onedittooltip?: () => void;
 };
 
-let { view, lookup, onopen }: Props = $props();
+let { view, lookup, onopen, onedittooltip }: Props = $props();
 
 const used = $derived(uses(view, lookup));
 
@@ -119,6 +122,7 @@ $effect(() => {
         size={Math.max(160, width)}
         bind:teamColor
         picker
+        animations
       />
     {:else}
       <p class="text-[12.5px] text-faint">{t("side.noModel")}</p>
@@ -126,7 +130,20 @@ $effect(() => {
   {/if}
 </div>
 
-{@render heading("tooltip", t("side.tooltip"), null, "mt-5")}
+<div class="relative">
+  {@render heading("tooltip", t("side.tooltip"), null, "mt-5")}
+  {#if onedittooltip}
+    <button
+      type="button"
+      class="absolute top-0 right-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-muted hover:bg-hover hover:text-fg"
+      title={t("side.editTooltip")}
+      onclick={onedittooltip}
+    >
+      <PencilLine size={12} />
+      {t("side.edit")}
+    </button>
+  {/if}
+</div>
 {#if !closed.tooltip}
   <TooltipPreview {view} bind:level />
 {/if}

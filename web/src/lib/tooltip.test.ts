@@ -6,6 +6,7 @@ import {
   fillData,
   formatNumber,
   parseColors,
+  textKey,
   tooltipLines,
   tooltipOf,
   withHotkey,
@@ -132,8 +133,8 @@ describe("tooltipOf", () => {
       title: "Train Footman (|cffffcc00F|r)",
       text: "Versatile foot soldier.",
       costs: [
-        { label: t("tooltip.gold"), value: "135" },
-        { label: t("tooltip.food"), value: "2" },
+        { label: t("tooltip.gold"), value: "135", icon: "gold" },
+        { label: t("tooltip.food"), value: "2", icon: "food" },
       ],
       hotkey: "F",
       learn: null,
@@ -171,7 +172,7 @@ describe("tooltipOf", () => {
     expect(tip?.title).toBe("Holy Light - [|cffffcc00Level 2|r] (|cffffcc00T|r)");
     expect(tip?.text).toBe("Cools 4.5, heals <AHhb,DataA2>.");
     expect(tip?.costs).toEqual([
-      { label: t("tooltip.mana"), value: "70" },
+      { label: t("tooltip.mana"), value: "70", icon: "mana" },
       { label: t("tooltip.cooldown"), value: "4.5" },
     ]);
     expect(tip?.learn).toEqual({
@@ -194,7 +195,7 @@ describe("tooltipOf", () => {
       }),
       3,
     );
-    expect(tip?.costs).toEqual([{ label: t("tooltip.gold"), value: "250" }]);
+    expect(tip?.costs).toEqual([{ label: t("tooltip.gold"), value: "250", icon: "gold" }]);
     expect(tooltipOf(view({ kind: "doodad", fields: [] }))).toBeNull();
   });
 
@@ -208,5 +209,14 @@ describe("tooltipOf", () => {
       ),
     ).toEqual({ Dur1: "3" });
     expect(withHotkey("", "F")).toBe("");
+  });
+});
+
+describe("textKey", () => {
+  it("names an ability's data field by its letter and its other fields by the game's key", () => {
+    expect(textKey({ id: "Hbz1", data: 1 })).toBe("DataA");
+    expect(textKey({ id: "Hbz3", data: 3 })).toBe("DataC");
+    expect(textKey({ id: "adur", data: 0 })).toBe("Dur");
+    expect(textKey({ id: "anam" })).toBeUndefined();
   });
 });

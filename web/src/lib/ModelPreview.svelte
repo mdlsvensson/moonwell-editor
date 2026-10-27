@@ -6,7 +6,8 @@
  * Reforged (HD) and Definitive Edition models are drawn with war3-model's HD shader (the diffuse, normal and ORM maps,
  * lit, with the team colour), once their skins are read again (see `readSkins`); their emissive maps, reflections and
  * popcorn particles are not drawn. The team colour and hero glow take a player's colour, and a row of the 24 colours
- * can pick it (Sven, 2026-10-27).
+ * can pick it (Sven, 2026-10-27). The side panel's preview can play any of the model's animations, picked from a list
+ * (Sven, 2026-10-27).
  */
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import { decodeDds, parseHeaders } from "dds-parser";
@@ -26,6 +27,7 @@ import {
   stripChunks,
   unreadChunks,
 } from "./mdx.ts";
+import Select from "./Select.svelte";
 import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
 import { t, tCount } from "./text.ts";
 
@@ -40,9 +42,22 @@ type Props = {
   teamColor?: number;
   /** Whether to show the 24 player colours under the model; a click sets `teamColor`. */
   picker?: boolean;
+  /** Whether to show the model's animations to pick from. */
+  animations?: boolean;
 };
 
-let { path, fileUrl, size = 240, teamColor = $bindable(0), picker = false }: Props = $props();
+let {
+  path,
+  fileUrl,
+  size = 240,
+  teamColor = $bindable(0),
+  picker = false,
+  animations = false,
+}: Props = $props();
+
+/** The model's animations by name, in its order, once it is loaded; and the one playing. */
+let sequences = $state<string[]>([]);
+let playing = $state(-1);
 
 let host: HTMLDivElement | undefined = $state();
 let status: "loading" | "ready" | "error" = $state("loading");
@@ -109,6 +124,8 @@ function show(
   status = "loading";
   error = "";
   missing = [];
+  sequences = [];
+  playing = -1;
   const abort = new AbortController();
   let stopped = false;
   let frameId = 0;
@@ -159,11 +176,15 @@ function show(
   canvas.addEventListener("pointermove", move);
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
-  // The wheel zooms while the pointer is over the model (Sven, 2026-10-27), within limits that keep it in view.
+  // The wheel zooms while the pointer is over the model, and with Ctrl held moves the model up and down (Sven,
+  // 2026-10-27), within limits that keep it in view. `lift` is how far the camera's target is raised, in the model's
+  // radius.
   let zoom = 1;
+  let lift = 0;
   const wheel = (event: WheelEvent) => {
     event.preventDefault();
-    zoom = Math.min(3.5, Math.max(0.25, zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12)));
+    if (event.ctrlKey) lift = Math.min(1.5, Math.max(-1.5, lift + (event.deltaY > 0 ? -0.1 : 0.1)));
+    else zoom = Math.min(3.5, Math.max(0.25, zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12)));
     turning = false;
   };
   canvas.addEventListener("wheel", wheel, { passive: false });
@@ -196,6 +217,8 @@ function show(
     }
     const sequence = standSequence(model.Sequences.map((s) => s.Name));
     if (sequence >= 0) renderer.setSequence(sequence);
+    sequences = model.Sequences.map((each) => each.Name);
+    playing = sequence;
     const pose = skinnedPose(model, renderer);
 
     const images = [
@@ -300,6 +323,7 @@ function show(
       const delta = Math.min(100, now - last);
       last = now;
       if (!dragging && turning) yaw += (turnSpeed * delta) / 1000;
+      vec3.set(target, centre[0], centre[1], centre[2] + lift * radius);
       vec3.set(
         toEye,
         Math.cos(pitch) * Math.cos(yaw),
@@ -335,6 +359,13 @@ function show(
   });
 
   return {
+    /** Plays the model's animation at `index` (in its order), from its start. */
+    play(index: number): void {
+      if (renderer && index >= 0 && index < sequences.length) {
+        renderer.setSequence(index);
+        playing = index;
+      }
+    },
     /** Sets the team colour to player `player`'s; the next frame draws it. */
     tint(player: number): void {
       vec3.set(colour, ...teamRgb(player));
@@ -514,6 +545,16 @@ function message(e: unknown): string {
       </button>
     {/if}
   </div>
+  {#if animations && sequences.length > 0}
+    <Select
+      options={sequences.map((name, index) => ({ value: String(index), label: name || t("model.unnamed", { index }) }))}
+      value={String(playing)}
+      label={t("model.animation")}
+      tone="border-line bg-raised text-fg hover:border-muted"
+      compact
+      onpick={(value) => current?.play(Number(value))}
+    />
+  {/if}
   {#if picker}
     <div class="grid grid-cols-12 gap-0.5" role="radiogroup" aria-label={t("model.teamColour")}>
       {#each teamColors as colour, index (colour.name)}

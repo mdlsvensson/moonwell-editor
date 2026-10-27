@@ -118,6 +118,8 @@ export type FieldView = {
   asset?: "icon" | "model" | "texture" | null;
   /** The metadata's type as written (`model`, `soundLabel`), which says how World Editor shows it; absent when not known. */
   meta?: string | null;
+  /** An ability's data field letter as a number (`DataA` is 1), which its tooltips name it by; 0 or absent for others. */
+  data?: number;
 };
 
 /** One object with every field that applies to it. */
@@ -150,6 +152,8 @@ export type ChoiceEntry = {
   label: string;
   /** The other spellings the game's data uses for the value (`aliv` for `alive`); left out or empty when none. */
   alternates?: string[];
+  /** The heading the value is listed under (a building's shadow under Buildings); absent or null for none. */
+  group?: string | null;
 };
 
 /** The values World Editor offers for one type of field. */

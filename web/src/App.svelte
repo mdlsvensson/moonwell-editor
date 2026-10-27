@@ -63,6 +63,7 @@ import {
 } from "./lib/settle.ts";
 import TableView, { type EditResult } from "./lib/TableView.svelte";
 import TitleBar, { type Visit } from "./lib/TitleBar.svelte";
+import TooltipEditor from "./lib/TooltipEditor.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
 import { t, tCount, tParts } from "./lib/text.ts";
@@ -178,6 +179,8 @@ let diskChanged = $state("");
 let creating = $state<Creating | null>(null);
 let clipboard = $state.raw<Clip | null>(null);
 let menu = $state.raw<{ x: number; y: number; items: MenuItem[] } | null>(null);
+// The tooltip editor is open on the object shown (Sven, 2026-10-27).
+let editingTooltip = $state(false);
 let deleting = $state.raw<Deleting | null>(null);
 let closing = false;
 // The app's commands that change the map run one after another, in the order asked (a save after the edit typed).
@@ -662,6 +665,11 @@ async function resetObject(each: Kind, id: string): Promise<void> {
   }
 }
 
+/** True for a kind whose objects have a tooltip the tooltip editor edits. */
+function hasTooltip(each: Kind): boolean {
+  return each !== "destructable" && each !== "doodad";
+}
+
 /** The context menu of an object in the tree; the object is shown first, so every entry acts on it. */
 async function objectMenu(each: Kind, id: string, x: number, y: number): Promise<void> {
   const entry = entryOf(each, id);
@@ -690,6 +698,11 @@ async function objectMenu(each: Kind, id: string, x: number, y: number): Promise
         label: t("menu.reset"),
         disabled: !entry.changed && !custom,
         run: () => resetObject(each, id),
+      },
+      {
+        label: t("menu.editTooltip"),
+        disabled: !hasTooltip(each),
+        run: () => (editingTooltip = true),
       },
       { separator: true },
       { label: t("menu.newBased"), shortcut: "Ctrl Shift N", run: startNew },
@@ -1261,7 +1274,14 @@ onMount(() => {
         aria-label={t("main.side")}
       >
         {#if current}
-          <SidePanel view={shown ?? current} {lookup} onopen={(each, id) => show(each, id)} />
+          <SidePanel
+            view={shown ?? current}
+            {lookup}
+            onopen={(each, id) => show(each, id)}
+            onedittooltip={hasTooltip(current.kind) && current.readOnly === null
+              ? () => (editingTooltip = true)
+              : undefined}
+          />
         {/if}
       </aside>
     </main>
@@ -1296,6 +1316,10 @@ onMount(() => {
 
 {#if menu}
   <ContextMenu {...menu} onclose={() => (menu = null)} />
+{/if}
+
+{#if editingTooltip && current}
+  <TooltipEditor view={shown ?? current} onfields={editFields} onclose={() => (editingTooltip = false)} />
 {/if}
 
 {#if creating}

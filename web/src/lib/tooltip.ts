@@ -3,6 +3,7 @@
  * coloured runs, and the `<id,Field>` placeholders an ability's text names filled from its own fields.
  */
 import type { FieldView, Kind, ObjectView } from "./api.ts";
+import type { UiIcon } from "./gameIcons.ts";
 import { t } from "./text.ts";
 
 /** A stretch of tooltip text in one colour; `placeholder` marks a `<id,Field>` the preview cannot fill. */
@@ -125,10 +126,9 @@ export function tooltipLines(text: string): Line[] {
 }
 
 /**
- * The ability fields an ability's text can name, by the game's text key. The Data keys (`DataA1`) are left out: a
- * field does not say which data slot it is, so those placeholders stay as written.
+ * The ability fields an ability's text can name, by the game's text key; its data fields go by their letter (`DataA`).
  */
-const abilityKeys: Record<string, string> = {
+export const abilityKeys: Record<string, string> = {
   adur: "Dur",
   ahdu: "HeroDur",
   acdn: "Cool",
@@ -137,18 +137,24 @@ const abilityKeys: Record<string, string> = {
   aare: "Area",
 };
 
-/** The values an ability's text can name, keyed by the game's text key with its level (`Dur1`, `Cool3`). */
+/** The game's text key of an ability's field (`Dur`, `DataA`); undefined for a field its text cannot name. */
+export function textKey(field: Pick<FieldView, "id" | "data">): string | undefined {
+  if (field.data && field.data >= 1 && field.data <= 9) return `Data${"ABCDEFGHI"[field.data - 1]}`;
+  return abilityKeys[field.id];
+}
+
+/** The values an ability's text can name, keyed by the game's text key with its level (`Dur1`, `Cool3`, `DataA2`). */
 export function abilityTextValues(view: ObjectView): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of view.fields) {
-    const key = abilityKeys[field.id];
+    const key = textKey(field);
     if (key && field.level > 0) values[`${key}${field.level}`] = field.value;
   }
   return values;
 }
 
-/** One cost of the tooltip's cost line. */
-export type Cost = { label: string; value: string };
+/** One cost of the tooltip's cost line, with the game's icon for it (none for a cooldown, which shows its label). */
+export type Cost = { label: string; value: string; icon?: UiIcon };
 
 /** What the preview shows: the icon's path, the title and text as markup (placeholders filled), the costs. */
 export type Tooltip = {
@@ -172,7 +178,7 @@ type Recipe = {
   title: string;
   text: string;
   hotkey: string;
-  costs: { label: string; ids: string[]; step?: string }[];
+  costs: { label: string; ids: string[]; step?: string; icon?: UiIcon }[];
 };
 
 const recipes: Partial<Record<Kind, Recipe>> = {
@@ -182,9 +188,9 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "utub",
     hotkey: "uhot",
     costs: [
-      { label: t("tooltip.gold"), ids: ["ugol"] },
-      { label: t("tooltip.lumber"), ids: ["ulum"] },
-      { label: t("tooltip.food"), ids: ["ufoo"] },
+      { label: t("tooltip.gold"), ids: ["ugol"], icon: "gold" },
+      { label: t("tooltip.lumber"), ids: ["ulum"], icon: "lumber" },
+      { label: t("tooltip.food"), ids: ["ufoo"], icon: "food" },
     ],
   },
   item: {
@@ -193,8 +199,8 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "utub",
     hotkey: "uhot",
     costs: [
-      { label: t("tooltip.gold"), ids: ["igol", "ugol"] },
-      { label: t("tooltip.lumber"), ids: ["ilum", "ulum"] },
+      { label: t("tooltip.gold"), ids: ["igol", "ugol"], icon: "gold" },
+      { label: t("tooltip.lumber"), ids: ["ilum", "ulum"], icon: "lumber" },
     ],
   },
   ability: {
@@ -203,7 +209,7 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "aub1",
     hotkey: "ahky",
     costs: [
-      { label: t("tooltip.mana"), ids: ["amcs"] },
+      { label: t("tooltip.mana"), ids: ["amcs"], icon: "mana" },
       { label: t("tooltip.cooldown"), ids: ["acdn"] },
     ],
   },
@@ -214,8 +220,8 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "gub1",
     hotkey: "ghk1",
     costs: [
-      { label: t("tooltip.gold"), ids: ["gglb"], step: "gglm" },
-      { label: t("tooltip.lumber"), ids: ["glmb"], step: "glmm" },
+      { label: t("tooltip.gold"), ids: ["gglb"], step: "gglm", icon: "gold" },
+      { label: t("tooltip.lumber"), ids: ["glmb"], step: "glmm", icon: "lumber" },
     ],
   },
 };
@@ -264,7 +270,7 @@ export function tooltipOf(view: ObjectView, level = 1): Tooltip | null {
     if (cost.step && level > 1)
       number += Number(valueAt(view, cost.step, level) || 0) * (level - 1);
     if (Number.isFinite(number) && number !== 0) {
-      costs.push({ label: cost.label, value: formatNumber(String(number)) });
+      costs.push({ label: cost.label, value: formatNumber(String(number)), icon: cost.icon });
     }
   }
 

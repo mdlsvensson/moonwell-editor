@@ -3,18 +3,19 @@
  * data spells it, and what is checked before a value is sent to the app.
  */
 import type { ChoiceList, FieldView, Kind, ObjectView, SaveReport } from "./api.ts";
-import { entryOf, listIds, listKinds } from "./fields.ts";
+import { entryOf, listFor, listIds, listKinds } from "./fields.ts";
 import { t, tCount } from "./text.ts";
 
 /** The editors a field can get. */
 export type Editor = "number" | "toggle" | "select" | "flags" | "ids" | "text";
 
 /**
- * The editor for a field: a number box, a toggle (true or false), a select (one value of a list), checkboxes (any
- * values of a list), chips with a picker (an object list), or a text box for anything else, also a choice whose list
- * is not known.
+ * The editor for a field: a number box, a toggle (true or false), a select (one value of a list, also a text field
+ * World Editor offers a list for), checkboxes (any values of a list), chips with a picker (an object list), or a text
+ * box for anything else, also a choice whose list is not known.
  */
 export function editorFor(field: FieldView, choices: Record<string, ChoiceList> | null): Editor {
+  if (field.type === "string" && listFor(field, choices)) return "select";
   switch (field.type) {
     case "int":
     case "float":
@@ -32,6 +33,15 @@ export function editorFor(field: FieldView, choices: Record<string, ChoiceList> 
     default:
       return "text";
   }
+}
+
+// The extended tooltips (a unit's or item's, an ability's normal, turned-off and learn ones, an upgrade's, a buff's),
+// which get a box of several lines (Sven, 2026-10-27).
+const extendedTooltips = new Set(["utub", "aub1", "auu1", "arut", "gub1", "fube"]);
+
+/** True for an extended tooltip field. */
+export function isExtendedTooltip(field: Pick<FieldView, "id">): boolean {
+  return extendedTooltips.has(field.id);
 }
 
 /**

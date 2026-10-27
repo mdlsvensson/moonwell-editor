@@ -236,7 +236,8 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
             mapValue == null ? null : Warning(field, mapValue),
             modes,
             field.Asset,
-            field.Meta);
+            field.Meta,
+            field.Pointer);
     }
 
     /// <summary>

@@ -10,6 +10,8 @@
 
 /* Vitesse Dark (github.com/antfu/vscode-theme-vitesse). */
 :root {
+  /* Every theme is dark: the number boxes' arrows and the scroll bars follow it. */
+  color-scheme: dark;
   --bg: #121212;
   --surface: #181818;
   --raised: #1e1e1e;

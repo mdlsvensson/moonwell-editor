@@ -12,4 +12,5 @@ public sealed record ChoiceList(bool Flags, string Store, IReadOnlyList<ChoiceEn
 /// <param name="Alternates">
 /// The other spellings the game's data uses for the value (<c>aliv</c> for <c>alive</c>); empty when none.
 /// </param>
-public sealed record ChoiceEntry(string Value, string Label, IReadOnlyList<string> Alternates);
+/// <param name="Group">The heading the value is listed under (a building's shadow under Buildings); null for none.</param>
+public sealed record ChoiceEntry(string Value, string Label, IReadOnlyList<string> Alternates, string? Group = null);
