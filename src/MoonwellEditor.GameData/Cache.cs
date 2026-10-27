@@ -12,16 +12,18 @@ namespace MoonwellEditor.GameData;
 /// </summary>
 internal static class Cache
 {
-    // Raised whenever what is cached changes (these records, or what Moonwell's generator makes), so an older cache is
+    // Raised whenever what is cached changes (these records, or what Moonwell's reader makes), so an older cache is
     // built again.
     private const int Format = 2;
 
     /// <summary>
-    /// The version of the code that builds the data: this assembly's module id, which a deterministic build changes
-    /// whenever its code does, Moonwell's linked generator files and embedded field names included. A cache another
-    /// build of the code wrote is built again, so a changed generator never serves stale values.
+    /// The version of the code that builds the data: the module ids of this assembly and of Moonwell's reader
+    /// (<c>Moonwell.GameData</c>, with its embedded field names), which a deterministic build changes whenever its
+    /// code does. A cache another build of either wrote is built again, so a new reader never serves stale values.
     /// </summary>
-    public static string CodeVersion { get; } = typeof(Cache).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+    public static string CodeVersion { get; } =
+        typeof(Cache).Assembly.ManifestModule.ModuleVersionId.ToString("N")
+        + typeof(Moonwell.GameData.ExportTables).Assembly.ManifestModule.ModuleVersionId.ToString("N");
 
     /// <summary>The cache's file for a game data folder.</summary>
     public static string PathOf(string folder, string cacheFolder)

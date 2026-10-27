@@ -4,7 +4,7 @@ namespace MoonwellEditor.GameData;
 
 /// <summary>
 /// The game's standard data: every kind's fields and standard objects and the values World Editor offers for its
-/// choice types, worked out by Moonwell's generator from a game data folder (a <c>war3.w3mod</c> export).
+/// choice types, worked out by Moonwell's game-data reader from a game data folder (a <c>war3.w3mod</c> export).
 /// </summary>
 public sealed class GameData
 {
@@ -27,8 +27,8 @@ public sealed class GameData
     public IReadOnlyDictionary<string, ChoiceList> Choices { get; }
 
     /// <summary>
-    /// Reads the game data folder with Moonwell's generator, or reads the cache in <paramref name="cacheFolder"/> when
-    /// the folder's files are unchanged since the cache was written (the app passes
+    /// Reads the game data folder with Moonwell's game-data reader, or reads the cache in
+    /// <paramref name="cacheFolder"/> when the folder's files are unchanged since the cache was written (the app passes
     /// <c>%LOCALAPPDATA%\MoonwellEditor\gamedata</c>). A build writes the cache.
     /// </summary>
     /// <exception cref="DirectoryNotFoundException">The folder does not exist.</exception>

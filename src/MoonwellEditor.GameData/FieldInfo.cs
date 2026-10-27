@@ -1,6 +1,6 @@
 namespace MoonwellEditor.GameData;
 
-/// <summary>One field of one kind of object, as World Editor's metadata and Moonwell's generator describe it.</summary>
+/// <summary>One field of one kind of object, as World Editor's metadata and Moonwell's game-data reader give it.</summary>
 /// <param name="Id">The field id (<c>uhpm</c>).</param>
 /// <param name="Label">
 /// World Editor's English label (<c>Hit Points Maximum (Base)</c>), or the field's Moonwell name when the export has

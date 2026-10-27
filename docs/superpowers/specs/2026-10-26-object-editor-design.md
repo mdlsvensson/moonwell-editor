@@ -258,7 +258,7 @@ moonwell-editor/
   Directory.Build.props        net10.0, nullable, warnings as errors (as Moonwell)
   src/
     ObjectEditor.Files/        object files through War3Net with the round-trip guard; WtsFile; MapFolder
-    ObjectEditor.GameData/     the game's standard data, made by Moonwell's generator, cached
+    ObjectEditor.GameData/     the game's standard data, read by Moonwell.GameData, cached
     ObjectEditor.Model/        the edit model: resolved values, edits, undo, save, search
     ObjectEditor.App/          the window (WinForms + WebView2) and the Bridge
   web/                         the Svelte front end (Vite)
@@ -290,9 +290,9 @@ so later starts are fast. Nothing of Blizzard's is shipped or committed.
 - **Milestone 5** reads the same files from the user's Warcraft III install (CASC storage), so modders need no export.
   `War3Net.IO.Casc` is empty; the milestone starts with a spike of the C# CASC readers (for example CASCLib from
   CASCExplorer), checking that one reads Warcraft III Reforged.
-- **Referencing the generator:** during development a project reference into the wc3-cs checkout
-  (`Moonwell.Generator` is not a package today, `IsPackable` false). Before a public release it must be a package
-  others can restore; publishing it is Sven's call, asked then.
+- **Referencing the generator:** Sven, 2026-10-27: the editor is independent of Moonwell. The reading part of the
+  generator is its own package, `Moonwell.GameData` (from 0.3.0-preview.1), which Moonwell's generator and the editor
+  both use; the editor no longer compiles anything from the wc3-cs checkout.
 
 Base values for a map's balance set (`melee_v0`, `custom_v0`, `custom_v1`): milestones 1 and 2 show the base tables
 (the status bar says so); a switch, and reading the map's own setting from `war3map.w3i`, come later. *(Agent's call.)*
@@ -433,7 +433,7 @@ anti-goals hold.
 ## Open questions (Sven's, not blocking the first plan)
 
 1. Licence and repository for the public release (a GitHub repository, pushing and publishing are each his call).
-2. Publishing `Moonwell.Generator` as a package, needed before a public release.
+2. Publishing `Moonwell.GameData` to nuget.org (packed, not pushed yet), needed before a plain clone builds.
 3. What annoys him most in the Object Editor, if anything beyond the goals above.
 
 ## Calls to check

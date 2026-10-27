@@ -1,12 +1,13 @@
-using Moonwell.Generator.Objects;
+using Moonwell.GameData;
 using MoonwellEditor.Files;
-using MoonwellObject = Moonwell.Generator.Objects.StandardObject;
+using MoonwellObject = Moonwell.GameData.StandardObject;
 
 namespace MoonwellEditor.GameData;
 
 /// <summary>
-/// Makes the game data with Moonwell's generator, calling it in the order its <c>GeneratedObjects.Make</c> does, and
-/// adds what the editor needs that the generator's records lack.
+/// Makes the game data with Moonwell's game-data reader (the <c>Moonwell.GameData</c> package), calling it in the order
+/// Moonwell's generator does (its <c>GeneratedObjects.Make</c>), and adds what the editor needs that the reader's
+/// records lack.
 /// </summary>
 internal static class Builder
 {
