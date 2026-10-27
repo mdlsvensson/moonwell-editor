@@ -180,7 +180,7 @@ let startupAsked = false;
 
 const view = $derived(data ? viewOf(data) : null);
 
-// Names by kind and id, from the trees fetched so far.
+// Names by kind and id, from the trees fetched so far; and the names alone, without their suffixes.
 const names = $derived.by(() => {
   const result: Partial<Record<Kind, Map<string, string>>> = {};
   for (const [each, entries] of Object.entries(trees) as [Kind, TreeEntry[]][]) {
@@ -193,11 +193,18 @@ const names = $derived.by(() => {
   }
   return result;
 });
+const bareNames = $derived.by(() => {
+  const result: Partial<Record<Kind, Map<string, string>>> = {};
+  for (const [each, entries] of Object.entries(trees) as [Kind, TreeEntry[]][]) {
+    result[each] = new Map(entries.map((entry) => [entry.id, entry.name]));
+  }
+  return result;
+});
 
 const lookup: Lookup = (listOf, id) => {
   for (const each of listKinds(listOf)) {
     const name = names[each]?.get(id);
-    if (name !== undefined) return { kind: each, name };
+    if (name !== undefined) return { kind: each, name, bare: bareNames[each]?.get(id) };
   }
   return undefined;
 };

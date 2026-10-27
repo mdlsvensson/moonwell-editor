@@ -14,12 +14,14 @@ public sealed class KindData
         ObjectKind kind,
         string? levelField,
         IReadOnlyList<FieldInfo> fields,
-        IReadOnlyList<StandardObject> objects)
+        IReadOnlyList<StandardObject> objects,
+        IReadOnlyDictionary<string, IReadOnlyList<UpgradeEffectField>>? effects = null)
     {
         _kind = kind;
         LevelField = levelField;
         Fields = fields;
         Objects = objects;
+        Effects = effects ?? new Dictionary<string, IReadOnlyList<UpgradeEffectField>>();
         _fields = fields.ToDictionary(field => field.Id, StringComparer.Ordinal);
         _objects = objects.ToDictionary(obj => obj.Id, StringComparer.Ordinal);
     }
@@ -35,6 +37,11 @@ public sealed class KindData
 
     /// <summary>The kind's standard objects, ordered by id.</summary>
     public IReadOnlyList<StandardObject> Objects { get; }
+
+    /// <summary>
+    /// For upgrades, the fields each effect (<c>ratd</c>) uses, in the metadata's order; empty for other kinds.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<UpgradeEffectField>> Effects { get; }
 
     /// <summary>The field with this id, or null when the kind has none.</summary>
     public FieldInfo? Field(string id) => _fields.GetValueOrDefault(id);

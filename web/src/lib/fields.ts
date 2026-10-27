@@ -2,7 +2,14 @@
  * How the details panel lays out an object's fields: in categories, in World Editor's order, with a per-level field
  * gathered into one row that holds every level (shown as a grid, levels across).
  */
-import { type ChoiceList, type FieldView, type Kind, kinds, type ObjectView } from "./api.ts";
+import {
+  type ChoiceEntry,
+  type ChoiceList,
+  type FieldView,
+  type Kind,
+  kinds,
+  type ObjectView,
+} from "./api.ts";
 
 /** One row of the details panel: a field, or a per-level field with all its levels. */
 export type Row = {
@@ -146,11 +153,62 @@ function categoryRank(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Finds an object's name by what a list holds (a `FieldView`'s `listOf`) and its id; undefined when unknown. */
-export type NameOf = (listOf: string, id: string) => string | undefined;
+/**
+ * Finds an object's name by what a list holds (a `FieldView`'s `listOf`) and its id; undefined when unknown. `bare`
+ * asks for the name without its suffix.
+ */
+export type NameOf = (listOf: string, id: string, bare?: boolean) => string | undefined;
 
-/** Finds the object an id in a list stands for: its kind and name; undefined when it is not known. */
-export type Lookup = (listOf: string, id: string) => { kind: Kind; name: string } | undefined;
+/**
+ * Finds the object an id in a list stands for: its kind, its name (with its suffix, as the tree shows it) and its name
+ * alone (`bare`, the name when absent); undefined when it is not known.
+ */
+export type Lookup = (
+  listOf: string,
+  id: string,
+) => { kind: Kind; name: string; bare?: string } | undefined;
+
+/** A `NameOf` that asks `lookup`. */
+export function namesOf(lookup: Lookup): NameOf {
+  return (listOf, id, bare) => {
+    const found = lookup(listOf, id);
+    return bare ? (found?.bare ?? found?.name) : found?.name;
+  };
+}
+
+// The metadata types World Editor shows as None when they hold nothing: a file, a sound, an order (its screens,
+// 2026-10-27). A list of models (an ability's Target art) shows nothing instead.
+const noneTypes = new Set([
+  "model",
+  "icon",
+  "texture",
+  "soundLabel",
+  "unitSound",
+  "orderString",
+  "pathingTexture",
+  "shadowTexture",
+  "uberSplat",
+  "lightningEffect",
+]);
+
+/**
+ * What World Editor shows for a field that holds nothing (Sven, 2026-10-27): 0 for a whole number, 0.000 for a real,
+ * False for a true-or-false field, None for one value of a list or a file, sound or order, and nothing for text, flags
+ * and object lists.
+ */
+export function emptyText(
+  field: Pick<FieldView, "type" | "choice" | "meta">,
+  choices: Record<string, ChoiceList> | null,
+): string {
+  if (field.type === "int") return "0";
+  if (field.type === "float") return "0.000";
+  if (field.type === "bool") return "False";
+  if (field.type === "choice") {
+    const list = field.choice ? choices?.[field.choice] : undefined;
+    return list?.flags ? "" : "None";
+  }
+  return noneTypes.has(field.meta ?? "") ? "None" : "";
+}
 
 /**
  * The text shown for a field's value: a choice's label (or the labels of the values a list or bits hold), a list's
@@ -165,20 +223,22 @@ export function realText(value: string): string {
 }
 
 export function shownValue(
-  field: Pick<FieldView, "type" | "choice" | "listOf" | "value">,
+  field: Pick<FieldView, "type" | "choice" | "listOf" | "value" | "meta">,
   choices: Record<string, ChoiceList> | null,
   nameOf: NameOf,
 ): string {
+  if (field.value.trim() === "") return emptyText(field, choices);
   if (field.type === "choice") {
     const list = field.choice ? choices?.[field.choice] : undefined;
     return list ? choiceText(list, field.value) : field.value;
   }
-  // As World Editor shows them (Sven, 2026-10-27): a list by its objects' names (an unknown id as it is), True or
-  // False, and a real number with three decimals.
+  // As World Editor shows them (Sven, 2026-10-27): a list by its objects' names (an unknown id as it is; a skin list
+  // by the names alone, without their suffixes), True or False, and a real number with three decimals.
   if (field.type === "objectList" || field.type === "objectRef") {
     const listOf = field.listOf ?? "";
+    const bare = field.meta === "abilitySkinList";
     return listIds(field.value)
-      .map((id) => nameOf(listOf, id) || id)
+      .map((id) => nameOf(listOf, id, bare) || id)
       .join(", ");
   }
   if (field.type === "bool") {
@@ -189,11 +249,23 @@ export function shownValue(
   return field.value;
 }
 
+/**
+ * The entry of a list a value stands for: by its value or one of its other spellings (`invu` for `invulnerable`),
+ * ignoring case; undefined when the list does not know it.
+ */
+export function entryOf(list: ChoiceList, text: string): ChoiceEntry | undefined {
+  const wanted = text.toLowerCase();
+  return list.entries.find(
+    (entry) =>
+      entry.value.toLowerCase() === wanted ||
+      (entry.alternates ?? []).some((other) => other.toLowerCase() === wanted),
+  );
+}
+
 // One value's label; a comma list's labels; or, for a list stored as a number, the labels of its bits (value n of the
 // list is bit n).
 function choiceText(list: ChoiceList, value: string): string {
-  const label = (text: string) =>
-    list.entries.find((entry) => entry.value.toLowerCase() === text.toLowerCase())?.label ?? text;
+  const label = (text: string) => entryOf(list, text)?.label ?? text;
   if (!list.flags) return label(value);
   if (list.store === "int") {
     const number = Number.parseInt(value, 10);

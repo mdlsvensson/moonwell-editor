@@ -26,6 +26,7 @@ import {
   groupFields,
   isChanged,
   type Lookup,
+  namesOf,
   type Row,
   shownValue,
 } from "./fields.ts";
@@ -204,7 +205,7 @@ $effect(() => {
 // Categories the user closed, by key; they stay closed from object to object.
 let closed = $state<Record<string, boolean>>({});
 
-const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const categories = $derived(
   groupFields(view.fields, filter, changedOnly, (field) => shownValue(field, choices, nameOf)),
 );

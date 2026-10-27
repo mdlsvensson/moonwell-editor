@@ -116,6 +116,8 @@ export type FieldView = {
   modes: Record<string, string> | null;
   /** What game file the field names: `icon`, `model` or `texture`; absent or null for none. */
   asset?: "icon" | "model" | "texture" | null;
+  /** The metadata's type as written (`model`, `soundLabel`), which says how World Editor shows it; absent when not known. */
+  meta?: string | null;
 };
 
 /** One object with every field that applies to it. */
@@ -179,6 +181,8 @@ export type FieldInfo = {
   choice: string | null;
   /** For an `objectList` or `objectRef` field, what it holds; null for other types. */
   listOf: string | null;
+  /** The metadata's type as written (`model`, `soundLabel`), which says how World Editor shows it. */
+  meta?: string;
 };
 
 /** One column of the table: a field, at a level (from 1) for a per-level field, else 0. */

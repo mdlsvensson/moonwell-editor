@@ -226,6 +226,7 @@ describe("the value shown", () => {
       entries: [
         { value: "air", label: "Air" },
         { value: "ground", label: "Ground" },
+        { value: "invulnerable", label: "Invulnerable", alternates: ["invu"] },
       ],
     },
     defenseTypeBits: {
@@ -238,8 +239,15 @@ describe("the value shown", () => {
       ],
     },
   };
-  const names: Record<string, string> = { AHhb: "Holy Light", AHds: "Divine Shield" };
-  const nameOf = (listOf: string, id: string) => (listOf === "Ability" ? names[id] : undefined);
+  const names: Record<string, string> = {
+    AHhb: "Holy Light",
+    AHds: "Divine Shield",
+    AInv: "Inventory (Hero)",
+  };
+  const nameOf = (listOf: string, id: string, bare?: boolean) => {
+    const name = listOf === "Ability" ? names[id] : undefined;
+    return bare ? name?.replace(/ \(.*\)$/, "") : name;
+  };
   const show = (over: Partial<FieldView>) =>
     shownValue(field({ id: "f", ...over }), choices, nameOf);
 
@@ -254,8 +262,12 @@ describe("the value shown", () => {
     expect(shownValue(field1, null, nameOf)).toBe("hero");
   });
 
-  it("lists the labels of a comma list of choices", () => {
+  it("lists the labels of a comma list of choices, a value by its other spelling too", () => {
     expect(show({ type: "choice", choice: "targetList", value: "ground,air" })).toBe("Ground, Air");
+    // The game's data spells Invulnerable invu, which World Editor shows by its label (2026-10-27).
+    expect(show({ type: "choice", choice: "targetList", value: "air,invu" })).toBe(
+      "Air, Invulnerable",
+    );
   });
 
   it("lists the labels of the bits a number holds", () => {
@@ -270,12 +282,31 @@ describe("the value shown", () => {
     expect(show({ type: "objectRef", listOf: "Ability", value: "AHds" })).toBe("Divine Shield");
   });
 
+  it("names a skin list's abilities without their suffixes, as World Editor does", () => {
+    const skins = { type: "objectList", listOf: "Ability", meta: "abilitySkinList" };
+    expect(show({ ...skins, value: "AHhb,AInv" })).toBe("Holy Light, Inventory");
+    expect(show({ type: "objectList", listOf: "Ability", value: "AInv" })).toBe("Inventory (Hero)");
+  });
+
+  it("is what World Editor shows for a field that holds nothing", () => {
+    expect(show({ type: "int", value: "" })).toBe("0");
+    expect(show({ type: "float", value: "" })).toBe("0.000");
+    expect(show({ type: "bool", value: "" })).toBe("False");
+    expect(show({ type: "choice", choice: "attackType", value: "" })).toBe("None");
+    expect(show({ type: "choice", choice: "targetList", value: "" })).toBe("");
+    expect(show({ type: "string", meta: "model", value: "" })).toBe("None");
+    expect(show({ type: "string", meta: "soundLabel", value: "" })).toBe("None");
+    expect(show({ type: "string", meta: "orderString", value: "" })).toBe("None");
+    expect(show({ type: "string", meta: "modelList", value: "" })).toBe("");
+    expect(show({ type: "string", meta: "string", value: "" })).toBe("");
+    expect(show({ type: "objectList", listOf: "Ability", value: "" })).toBe("");
+  });
+
   it("says True or False for a true-or-false field, and a real with three decimals, as World Editor does", () => {
     expect(show({ type: "bool", value: "1" })).toBe("True");
     expect(show({ type: "bool", value: "0" })).toBe("False");
     expect(show({ type: "float", value: "0.15" })).toBe("0.150");
     expect(show({ type: "float", value: "190" })).toBe("190.000");
-    expect(show({ type: "float", value: "" })).toBe("");
   });
 
   it("is the value for any other field", () => {

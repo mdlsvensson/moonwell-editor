@@ -18,7 +18,7 @@ import X from "@lucide/svelte/icons/x";
 import { tick } from "svelte";
 import type { ChoiceList, Column, FieldInfo, Kind, TableCell, TableRow } from "./api.ts";
 import FieldEditor from "./FieldEditor.svelte";
-import { type Lookup, shownValue } from "./fields.ts";
+import { type Lookup, namesOf, shownValue } from "./fields.ts";
 import {
   type Cell,
   cellField,
@@ -100,7 +100,7 @@ const last = $derived(
 );
 const visible = $derived(rows.slice(first, last).map((row, at) => ({ row, index: first + at })));
 
-const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 
 // The selected block's edges, for drawing.
 const block = $derived(

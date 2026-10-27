@@ -38,7 +38,7 @@ const targets: ChoiceList = {
   entries: [
     { value: "ground", label: "Ground" },
     { value: "air", label: "Air" },
-    { value: "enemies", label: "Enemy" },
+    { value: "enemies", label: "Enemy", alternates: ["enemy"] },
     { value: "friend", label: "Friend" },
   ],
 };
@@ -112,9 +112,13 @@ describe("flags", () => {
     expect(parseFlags("Air, ENEMIES", targets)).toEqual(["air", "enemies"]);
   });
 
+  it("ticks an entry the data spells another way (enemy for enemies), as the list spells it", () => {
+    expect(parseFlags("air,enemy", targets)).toEqual(["air", "enemies"]);
+  });
+
   it("keeps a value the list does not know, after the known ones", () => {
-    expect(parseFlags("enemy,air", targets)).toEqual(["enemy", "air"]);
-    expect(formatFlags(["enemy", "air"], targets)).toBe("air,enemy");
+    expect(parseFlags("hostile,air", targets)).toEqual(["hostile", "air"]);
+    expect(formatFlags(["hostile", "air"], targets)).toBe("air,hostile");
   });
 
   it("reads and writes nothing ticked as empty", () => {

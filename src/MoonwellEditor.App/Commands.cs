@@ -65,6 +65,7 @@ public sealed record CurrentMap(MapInfo Map, SessionState Session);
 /// <param name="PerLevel">True when the field has a value for each level.</param>
 /// <param name="Choice">For a <c>choice</c> field, the key of its list in <c>choices</c>; null for other types.</param>
 /// <param name="ListOf">For an object list or reference, what it holds; null for other types.</param>
+/// <param name="Meta">The metadata's type as written (<c>model</c>), which says how World Editor shows the field.</param>
 public sealed record FieldDescription(
     string Id,
     string Label,
@@ -73,7 +74,8 @@ public sealed record FieldDescription(
     string Type,
     bool PerLevel,
     string? Choice,
-    string? ListOf);
+    string? ListOf,
+    string Meta = "");
 
 /// <summary>The game's files of a kind, for the icon and model pickers (the <c>assetList</c> command).</summary>
 /// <param name="Ready">True once the Warcraft III install is open.</param>
@@ -430,7 +432,15 @@ public sealed class Commands
         foreach (var field in NeedGameData().Kind(kind).Fields)
         {
             fields.Add(new FieldDescription(
-                field.Id, field.Label, field.Category, field.Sort, field.Type, field.PerLevel, field.Choice, field.ListOf));
+                field.Id,
+                field.Label,
+                field.Category,
+                field.Sort,
+                field.Type,
+                field.PerLevel,
+                field.Choice,
+                field.ListOf,
+                field.Meta));
         }
 
         fields.Sort((a, b) =>

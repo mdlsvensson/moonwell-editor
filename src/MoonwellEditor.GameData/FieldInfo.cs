@@ -41,6 +41,10 @@ namespace MoonwellEditor.GameData;
 /// For a field that names a game file, what it names, from the metadata's type: <c>icon</c>, <c>model</c> (a model or
 /// a list of them) or <c>texture</c>; null for any other field.
 /// </param>
+/// <param name="Meta">
+/// The metadata's <c>type</c> as written (<c>int</c>, <c>model</c>, <c>soundLabel</c>, <c>abilitySkinList</c>), which
+/// says how World Editor shows the field, an empty one included.
+/// </param>
 public sealed record FieldInfo(
     string Id,
     string Label,
@@ -64,4 +68,16 @@ public sealed record FieldInfo(
     bool Required,
     bool NoNegative,
     string? Choice,
-    string? Asset = null);
+    string? Asset = null,
+    string Meta = "");
+
+/// <summary>
+/// One value an upgrade effect uses, from <c>units/upgradeeffectmetadata.slk</c>: World Editor shows an upgrade's
+/// Effect N - Base, Mod and Code fields by the effect the upgrade's Effect N names, and only those its effect has.
+/// </summary>
+/// <param name="DataType">Which of the effect's fields it is: <c>Base</c>, <c>Mod</c> or <c>Code</c>.</param>
+/// <param name="Label">World Editor's label (<c>Attack Dice Bonus - Base</c>).</param>
+/// <param name="Type">How it is shown and typed: <c>int</c>, <c>float</c>, <c>choice</c> or <c>objectRef</c>.</param>
+/// <param name="Choice">For a <c>choice</c>, the key of its list; null for other types.</param>
+/// <param name="ListOf">For an <c>objectRef</c>, what it holds (<c>Ability</c>, <c>Unit</c>); null for others.</param>
+public sealed record UpgradeEffectField(string DataType, string Label, string Type, string? Choice, string? ListOf);

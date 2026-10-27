@@ -95,6 +95,10 @@ public sealed record ChainLink(string Name, string Id);
 /// The standard values per graphics mode (<c>sd</c>, <c>hd</c>, <c>de</c>) when they differ; null when they do not.
 /// </param>
 /// <param name="Asset">What game file the field names (<c>icon</c>, <c>model</c>, <c>texture</c>); null for none.</param>
+/// <param name="Meta">
+/// The metadata's type as written (<c>model</c>, <c>soundLabel</c>), which says how World Editor shows the field; null
+/// when not known.
+/// </param>
 public sealed record FieldView(
     string Id,
     string Label,
@@ -110,4 +114,5 @@ public sealed record FieldView(
     bool Skin,
     string? Warning,
     IReadOnlyDictionary<string, string>? Modes,
-    string? Asset = null);
+    string? Asset = null,
+    string? Meta = null);

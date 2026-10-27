@@ -109,6 +109,11 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
         }
 
         chain.Add(new ChainLink(name, id));
+        if (kind == ObjectKind.Upgrade)
+        {
+            fields = WithEffects(fields);
+        }
+
         return new ObjectView(
             ObjectKinds.Key(kind),
             id,
@@ -230,8 +235,65 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
             field.Skin,
             mapValue == null ? null : Warning(field, mapValue),
             modes,
-            field.Asset);
+            field.Asset,
+            field.Meta);
     }
+
+    /// <summary>
+    /// An upgrade's effect fields as World Editor shows them: Effect N's Base, Mod and Code take the label and type of
+    /// the effect Effect N names (<c>Effect 1 - Attack Dice Bonus - Base</c>, a whole number), and those the effect
+    /// does not use are left out, unless the map changes them. Any other field is kept as it is.
+    /// </summary>
+    private List<FieldView> WithEffects(List<FieldView> fields)
+    {
+        if (data.Effects.Count == 0)
+        {
+            return fields;
+        }
+
+        var effects = fields.Where(field => EffectNumber(field.Id, "gef") != null)
+            .ToDictionary(field => EffectNumber(field.Id, "gef")!, field => field.Value, StringComparer.Ordinal);
+        var result = new List<FieldView>(fields.Count);
+        foreach (var field in fields)
+        {
+            var (number, dataType) = EffectNumber(field.Id, "gba") is { } baseNumber ? (baseNumber, "Base")
+                : EffectNumber(field.Id, "gmo") is { } modNumber ? (modNumber, "Mod")
+                : EffectNumber(field.Id, "gco") is { } codeNumber ? (codeNumber, "Code")
+                : (null, "");
+            if (number == null)
+            {
+                result.Add(field);
+                continue;
+            }
+
+            var used = data.Effects.GetValueOrDefault(effects.GetValueOrDefault(number, ""))
+                ?.FirstOrDefault(each => each.DataType == dataType);
+            if (used == null)
+            {
+                if (field.Changed)
+                {
+                    result.Add(field);
+                }
+
+                continue;
+            }
+
+            result.Add(field with
+            {
+                Label = $"Effect {number} - {used.Label}",
+                Type = used.Type,
+                Choice = used.Choice,
+                ListOf = used.ListOf,
+                Meta = used.Type,
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>The effect number of an upgrade field <c>prefix</c>N (<c>gba1</c> is 1); null for any other field.</summary>
+    private static string? EffectNumber(string id, string prefix) =>
+        id.Length == 4 && id.StartsWith(prefix, StringComparison.Ordinal) && char.IsAsciiDigit(id[3]) ? id[3..] : null;
 
     /// <summary>
     /// What is wrong with a value the map sets, by the field's rules (World Editor's limits); null when nothing is. A

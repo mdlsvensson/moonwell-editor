@@ -3,7 +3,7 @@
  * data spells it, and what is checked before a value is sent to the app.
  */
 import type { ChoiceList, FieldView, Kind, ObjectView, SaveReport } from "./api.ts";
-import { listIds, listKinds } from "./fields.ts";
+import { entryOf, listIds, listKinds } from "./fields.ts";
 
 /** The editors a field can get. */
 export type Editor = "number" | "toggle" | "select" | "flags" | "ids" | "text";
@@ -47,10 +47,7 @@ export function parseFlags(value: string, list: ChoiceList): string[] {
     }
     return bits;
   }
-  return listIds(value).map(
-    (text) =>
-      list.entries.find((entry) => entry.value.toLowerCase() === text.toLowerCase())?.value ?? text,
-  );
+  return listIds(value).map((text) => entryOf(list, text)?.value ?? text);
 }
 
 /**

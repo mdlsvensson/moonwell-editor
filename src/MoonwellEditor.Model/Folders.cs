@@ -20,7 +20,13 @@ internal static class Folders
 
     private static readonly string[] RaceOrder = ["Human", "Orc", "Undead", "Night Elf"];
 
-    // The abilities World Editor does not show get a folder of their own, after its folders (Sven, 2026-10-27).
+    // A unit of no playable race: the naga's folder, then by hostilePal (World Editor's screens, 2026-10-27).
+    private const string NagaFolder = "Neutral - Naga";
+    private const string HostileFolder = "Neutral Hostile";
+    private const string PassiveFolder = "Neutral Passive";
+
+    // The abilities and units World Editor does not show get a folder of their own, after its folders (Sven,
+    // 2026-10-27).
     private const string HiddenFolder = "Hidden in World Editor";
 
     private static readonly Dictionary<string, string> ItemClasses = new(StringComparer.Ordinal)
@@ -37,7 +43,7 @@ internal static class Folders
 
     private static readonly Dictionary<string, string> DestructableCategories = new(StringComparer.Ordinal)
     {
-        ["D"] = "Trees/Destructables",
+        ["D"] = "Trees/Destructibles",
         ["P"] = "Pathing Blockers",
         ["B"] = "Bridges/Ramps",
     };
@@ -58,7 +64,12 @@ internal static class Folders
     /// </summary>
     private static readonly Dictionary<ObjectKind, string[][]> Order = new()
     {
-        [ObjectKind.Unit] = [RaceOrder, ["Melee", "Campaign"], ["Units", "Buildings", "Heroes", "Special"]],
+        [ObjectKind.Unit] =
+        [
+            [.. RaceOrder, NagaFolder, HostileFolder, PassiveFolder, HiddenFolder],
+            ["Melee", "Campaign"],
+            ["Units", "Buildings", "Heroes", "Special"],
+        ],
         [ObjectKind.Item] = [[.. ItemClasses.Values]],
         [ObjectKind.Destructable] = [[.. DestructableCategories.Values]],
         [ObjectKind.Doodad] = [[.. DoodadCategories.Values]],
@@ -67,21 +78,22 @@ internal static class Folders
             [.. RaceOrder, "Neutral Hostile", "Neutral Passive", "Special", HiddenFolder],
             ["Units", "Heroes", "Items"],
         ],
-        [ObjectKind.Buff] = [[.. RaceOrder, "Special"], ["Buffs", "Effects"]],
+        [ObjectKind.Buff] = [[.. RaceOrder, "Special"], ["Buff", "Effect"]],
         [ObjectKind.Upgrade] = [[.. RaceOrder, "Special"]],
     };
 
     /// <summary>The folders a standard object sits in, broadest first; see <see cref="TreeEntry.Path"/>.</summary>
     public static IReadOnlyList<string> Of(ObjectKind kind, StandardObject standard) => kind switch
     {
-        ObjectKind.Unit => [UnitRace(standard.Race), standard.Campaign ? "Campaign" : "Melee", UnitType(standard)],
+        ObjectKind.Unit when standard.Hidden => [HiddenFolder],
+        ObjectKind.Unit => [UnitRace(standard), standard.Campaign ? "Campaign" : "Melee", UnitType(standard)],
         ObjectKind.Item => [ItemClasses.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Destructable =>
             [DestructableCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Doodad => [DoodadCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Ability when standard.Hidden => [HiddenFolder],
         ObjectKind.Ability => [AbilityRace(standard.Race), AbilityUse(standard.Category)],
-        ObjectKind.Buff => [RaceOrSpecial(standard.Race), standard.Category == "1" ? "Effects" : "Buffs"],
+        ObjectKind.Buff => [RaceOrSpecial(standard.Race), standard.Category == "1" ? "Effect" : "Buff"],
         ObjectKind.Upgrade => [RaceOrSpecial(standard.Race)],
         _ => [Other(standard.Race)],
     };
@@ -90,8 +102,9 @@ internal static class Folders
     /// The standard objects in tree order: by their folders' places in <see cref="Order"/>, level by level, and in
     /// the data's order among folders it does not list. Within a folder, units go by their <c>unitClass</c>
     /// (<see cref="StandardObject.Category"/>: <c>HUnit01</c>, <c>HUnit02</c>...), as World Editor lists them, those
-    /// without one after, and units of one class (or none) by name and suffix (Sven, 2026-10-27); any other object in
-    /// the data's order.
+    /// without one after, and units of one class (or none) by name and suffix (Sven, 2026-10-27); any other object by
+    /// its <see cref="StandardObject.Sort"/>, then by name and suffix, compared as written (World Editor lists Call To
+    /// Arms (Town Hall) before Call to Arms (Peasant)).
     /// </summary>
     public static List<StandardObject> Sorted(ObjectKind kind, IEnumerable<StandardObject> standards)
     {
@@ -128,6 +141,25 @@ internal static class Folders
                 }
             }
 
+            if (kind != ObjectKind.Unit && a.Path.SequenceEqual(b.Path))
+            {
+                var byName = string.CompareOrdinal(a.Standard.Sort, b.Standard.Sort);
+                if (byName == 0)
+                {
+                    byName = string.CompareOrdinal(a.Standard.Name, b.Standard.Name);
+                }
+
+                if (byName == 0)
+                {
+                    byName = string.CompareOrdinal(a.Standard.Suffix, b.Standard.Suffix);
+                }
+
+                if (byName != 0)
+                {
+                    return byName;
+                }
+            }
+
             if (kind == ObjectKind.Unit && a.Path.SequenceEqual(b.Path))
             {
                 var byClass = (a.Standard.Category.Length == 0).CompareTo(b.Standard.Category.Length == 0);
@@ -159,7 +191,11 @@ internal static class Folders
 
     private static string Key(IReadOnlyList<string> path, int depth) => string.Join("/", path.Take(depth + 1));
 
-    private static string UnitRace(string race) => Races.GetValueOrDefault(race, Other(race));
+    private static string UnitRace(StandardObject standard) =>
+        Races.TryGetValue(standard.Race, out var name) ? name
+        : standard.Race == "naga" ? NagaFolder
+        : standard.Hostile ? HostileFolder
+        : PassiveFolder;
 
     private static string UnitType(StandardObject standard) =>
         standard.Special ? "Special"

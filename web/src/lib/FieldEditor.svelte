@@ -8,7 +8,7 @@
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
-import { type Lookup, realText, shownValue } from "./fields.ts";
+import { emptyText, entryOf, type Lookup, namesOf, realText, shownValue } from "./fields.ts";
 import IdsEditor from "./IdsEditor.svelte";
 import { typing } from "./typing.ts";
 import { checkValue, editorFor } from "./values.ts";
@@ -81,7 +81,7 @@ function setDraft(text: string | null): void {
 
 onDestroy(() => stopTyping?.());
 
-const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const editor = $derived(editorFor(field, choices));
 const list = $derived(field.choice ? choices?.[field.choice] : undefined);
 const shown = $derived(shownValue(field, choices, nameOf));
@@ -194,14 +194,13 @@ function oninput(event: Event): void {
   {:else if editor === "select" && list}
     <select
       class="{boxClass} cursor-pointer pl-1.5"
-      value={list.entries.find((entry) => entry.value.toLowerCase() === field.value.toLowerCase())
-        ?.value ?? field.value}
+      value={entryOf(list, field.value)?.value ?? field.value}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
       onchange={(event) => choose(event.currentTarget, event.currentTarget.value)}
     >
-      {#if !list.entries.some((entry) => entry.value.toLowerCase() === field.value.toLowerCase())}
-        <option value={field.value}>{field.value === "" ? "(none)" : field.value}</option>
+      {#if !entryOf(list, field.value)}
+        <option value={field.value}>{field.value === "" ? emptyText(field, choices) : field.value}</option>
       {/if}
       {#each list.entries as entry (entry.value)}
         <option value={entry.value}>{entry.label}</option>
@@ -227,7 +226,10 @@ function oninput(event: Event): void {
     <input
       class="{boxClass} px-1.5"
       value={draft ?? boxValue}
-      size={compact ? Math.max(4, Math.min(24, (draft ?? boxValue).length + 1)) : undefined}
+      placeholder={emptyText(field, choices)}
+      size={compact
+        ? Math.max(4, Math.min(24, (draft ?? boxValue).length + 1, emptyText(field, choices).length + 1))
+        : undefined}
       spellcheck={editor === "text"}
       inputmode={editor === "number" ? "decimal" : undefined}
       data-field="{field.id}:{field.level}"

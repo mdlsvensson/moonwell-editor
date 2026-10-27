@@ -8,7 +8,7 @@ import AssetPicker from "./AssetPicker.svelte";
 import { type ChoiceList, type FieldView, iconUrl, type Kind } from "./api.ts";
 import CommandCard from "./CommandCard.svelte";
 import FieldEditor from "./FieldEditor.svelte";
-import { type ButtonPair, type Lookup, listIds, shownValue } from "./fields.ts";
+import { type ButtonPair, type Lookup, listIds, namesOf, shownValue } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
 
 type Props = {
@@ -50,7 +50,7 @@ let {
 
 let error = $state("");
 
-const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const shown = $derived(shownValue(field, choices, nameOf));
 const isList = $derived(field.type === "objectList" || field.type === "objectRef");
 const objects = $derived(

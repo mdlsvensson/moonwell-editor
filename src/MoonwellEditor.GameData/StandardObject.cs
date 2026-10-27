@@ -15,7 +15,10 @@ namespace MoonwellEditor.GameData;
 /// <c>isEffect</c> (<c>1</c>), a unit's <c>unitClass</c> in <c>unitui.slk</c> (<c>HUnit01</c>, its place in its
 /// folder); empty for an upgrade, or no value.
 /// </param>
-/// <param name="Hidden">True for an ability World Editor does not show (its <c>useInEditor</c> is 0).</param>
+/// <param name="Hidden">
+/// True for an object World Editor does not show: an ability whose <c>useInEditor</c> is 0, a unit whose
+/// <c>hiddenInEditor</c> in <c>unitui.slk</c> is 1.
+/// </param>
 /// <param name="Code">An ability's code, the ability it behaves as; null for every other kind.</param>
 /// <param name="Values">
 /// The standard values under the base tables, as the data writes them, keyed by field id, or <c>id:level</c> for a
@@ -34,6 +37,14 @@ namespace MoonwellEditor.GameData;
 /// <param name="MissingFrom">
 /// The balance sets the object does not exist under, and <c>base</c> when the base tables lack it; null for none.
 /// </param>
+/// <param name="Hostile">
+/// True for a unit World Editor files under Neutral Hostile: one of no playable race or the naga whose
+/// <c>hostilePal</c> in <c>unitui.slk</c> is 1.
+/// </param>
+/// <param name="Sort">
+/// The data column World Editor lists a folder by before the names, as written: a buff's <c>sort</c> (<c>hero</c>
+/// before <c>unit</c>), a destructable's or a doodad's <c>doodClass</c> (tree walls <c>A</c> first); empty for others.
+/// </param>
 public sealed record StandardObject(
     string Id,
     string Name,
@@ -49,4 +60,6 @@ public sealed record StandardObject(
     IReadOnlyDictionary<string, string> Values,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? Sets = null,
-    IReadOnlyList<string>? MissingFrom = null);
+    IReadOnlyList<string>? MissingFrom = null,
+    bool Hostile = false,
+    string Sort = "");

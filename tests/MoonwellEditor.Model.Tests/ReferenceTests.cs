@@ -39,10 +39,12 @@ public sealed class ReferenceTests(GameDataFixture fixture, ITestOutputHelper ou
         using var map = TempMap.Of(null);
         var session = Session.Open(MapFolder.Open(map.Folder), game);
 
-        // A custom unit given Holy Light uses it; the Paladin no longer does once the map takes it away.
+        // A custom unit given Holy Light uses it; the Paladin no longer does once the map takes it away from its hero
+        // abilities and their skin list (which names abilities too).
         var custom = session.Create(ObjectKind.Unit, "hfoo", null);
         session.Set(ObjectKind.Unit, custom, "uabi", 0, "AHhb");
         session.Set(ObjectKind.Unit, "Hpal", "uhab", 0, "AHds");
+        session.Set(ObjectKind.Unit, "Hpal", "uhas", 0, "AHds");
 
         var users = session.UsedBy(ObjectKind.Ability, "AHhb");
         var mine = Assert.Single(users, each => each.Id == custom);

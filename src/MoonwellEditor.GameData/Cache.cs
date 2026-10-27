@@ -14,7 +14,7 @@ internal static class Cache
 {
     // Raised whenever what is cached changes (these records, or what Moonwell's reader makes), so an older cache is
     // built again.
-    private const int Format = 6;
+    private const int Format = 7;
 
     /// <summary>
     /// The version of the code that builds the data: the module ids of this assembly and of Moonwell's reader
@@ -85,7 +85,7 @@ internal static class Cache
                 return null;
             }
 
-            kinds[kind] = new KindData(kind, cached.LevelField, cached.Fields, cached.Objects);
+            kinds[kind] = new KindData(kind, cached.LevelField, cached.Fields, cached.Objects, cached.Effects);
         }
 
         return new GameData(folder, kinds, file.Choices);
@@ -98,7 +98,8 @@ internal static class Cache
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
             var kindData = data.Kind(kind);
-            kinds[ObjectKinds.Key(kind)] = new CachedKind(kindData.LevelField, kindData.Fields, kindData.Objects);
+            kinds[ObjectKinds.Key(kind)] = new CachedKind(
+                kindData.LevelField, kindData.Fields, kindData.Objects, kindData.Effects);
         }
 
         var file = new CacheFile(
@@ -129,5 +130,6 @@ internal static class Cache
     internal sealed record CachedKind(
         string? LevelField,
         IReadOnlyList<FieldInfo> Fields,
-        IReadOnlyList<StandardObject> Objects);
+        IReadOnlyList<StandardObject> Objects,
+        IReadOnlyDictionary<string, IReadOnlyList<UpgradeEffectField>>? Effects);
 }

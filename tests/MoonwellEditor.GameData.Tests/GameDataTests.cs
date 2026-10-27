@@ -166,6 +166,54 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     [Fact]
+    public void World_editors_own_lists_and_skin_lists()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        // World Editor shows tilesets, and destructable and doodad categories, by name (its screens, 2026-10-27).
+        var tilesets = data.Choices["tilesetList"];
+        Assert.True(tilesets.Flags);
+        Assert.Equal("All", tilesets.Entries.Single(entry => entry.Value == "*").Label);
+        Assert.Equal("Ashenvale", tilesets.Entries.Single(entry => entry.Value == "A").Label);
+        Assert.Equal("Undercity", tilesets.Entries.Single(entry => entry.Value == "u").Label);
+        Assert.Equal("Cityscape Ruins", tilesets.Entries.Single(entry => entry.Value == "P").Label);
+        Assert.Equal(
+            "Trees/Destructibles",
+            data.Choices["destructableCategory"].Entries.Single(entry => entry.Value == "D").Label);
+        Assert.Equal("Props", data.Choices["doodadCategory"].Entries.Single(entry => entry.Value == "O").Label);
+        var tilesetField = data.Kind(ObjectKind.Destructable).Field("btil")!;
+        Assert.Equal(("choice", "tilesetList"), (tilesetField.Type, tilesetField.Choice));
+        Assert.Equal("doodadCategory", data.Kind(ObjectKind.Doodad).Field("dcat")!.Choice);
+
+        // A unit's skin lists hold ability ids, which World Editor shows by name.
+        var skins = data.Kind(ObjectKind.Unit).Field("uabs")!;
+        Assert.Equal(("objectList", "Ability", "abilitySkinList"), (skins.Type, skins.ListOf, skins.Meta));
+        Assert.Equal("model", data.Kind(ObjectKind.Unit).Field("umdl")!.Meta);
+    }
+
+    [Fact]
+    public void Upgrade_effects_and_suffixes()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        var upgrades = data.Kind(ObjectKind.Upgrade);
+        Assert.Equal(
+            [("Base", "Attack Dice Bonus - Base", "int"), ("Mod", "Attack Dice Bonus - Increment", "int")],
+            upgrades.Effects["ratd"].Select(field => (field.DataType, field.Label, field.Type)));
+        Assert.Equal("float", upgrades.Effects["rats"][0].Type);
+        Assert.Equal(("objectRef", "Ability"), (upgrades.Effects["rlev"][2].Type, upgrades.Effects["rlev"][2].ListOf));
+
+        // An upgrade is named by its first level's suffix, as World Editor names Glyph of Fortification (Upgrade 1).
+        Assert.Equal("(Upgrade 1)", upgrades.Object("Rgfo")!.Suffix);
+    }
+
+    [Fact]
     public void Object_details()
     {
         if (Skipped(out var data))

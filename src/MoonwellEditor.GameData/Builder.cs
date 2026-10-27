@@ -19,7 +19,39 @@ internal static class Builder
 
     // The table World Editor files and sorts the units by (Sven, 2026-10-27).
     private const string UnitUi = "units/unitui.slk";
-    private static readonly string[] UnitUiColumns = ["campaign", "special", "unitClass"];
+    private static readonly string[] UnitUiColumns = ["campaign", "special", "unitClass", "hostilePal", "hiddenInEditor"];
+
+    // The fields each upgrade effect uses, which World Editor labels and shows by the effect an upgrade names.
+    private const string UpgradeEffects = "units/upgradeeffectmetadata.slk";
+
+    // Lists World Editor names that uniteditordata.txt does not hold: the tilesets by their letters, in World Editor's
+    // order (its names for P, e, R and u read off its screen, 2026-10-27), and the destructable and doodad categories.
+    private static readonly (string Value, string Key)[] Tilesets =
+    [
+        ("*", "WESTRING_LOCALE_ALL"), ("L", "WESTRING_LOCALE_LORDAERON_SUMMER"),
+        ("F", "WESTRING_LOCALE_LORDAERON_FALL"), ("W", "WESTRING_LOCALE_LORDAERON_WINTER"),
+        ("B", "WESTRING_LOCALE_BARRENS"), ("A", "WESTRING_LOCALE_ASHENVALE"), ("C", "WESTRING_LOCALE_FELWOOD"),
+        ("N", "WESTRING_LOCALE_NORTHREND"), ("Y", "WESTRING_LOCALE_CITYSCAPE"), ("V", "WESTRING_LOCALE_VILLAGE"),
+        ("Q", "WESTRING_LOCALE_VILLAGEFALL"), ("D", "WESTRING_LOCALE_DUNGEON"), ("G", "WESTRING_LOCALE_DUNGEON2"),
+        ("X", "WESTRING_LOCALE_DALARAN"), ("Z", "WESTRING_LOCALE_RUINS"), ("I", "WESTRING_LOCALE_ICECROWN"),
+        ("O", "WESTRING_LOCALE_OUTLAND"), ("K", "WESTRING_LOCALE_BLACKCITADEL"), ("J", "WESTRING_LOCALE_DALARANRUINS"),
+        ("P", "WESTRING_LOCALE_CITYSCAPE_RUINS"), ("e", "WESTRING_LOCALE_LORDAERON_CAPITAL"),
+        ("R", "WESTRING_LOCALE_LORDAERON_CAPITAL_RUINS"), ("u", "WESTRING_LOCALE_UNDERCITY"),
+    ];
+
+    private static readonly (string Value, string Key)[] DestructableCategories =
+    [
+        ("D", "WESTRING_DTYPE_DESTRUCTABLE"), ("P", "WESTRING_DTYPE_PATHING"), ("B", "WESTRING_DTYPE_BRIDGE"),
+    ];
+
+    private static readonly (string Value, string Key)[] DoodadCategories =
+    [
+        ("O", "WESTRING_DTYPE_PROPS"), ("S", "WESTRING_DTYPE_STRUCTURES"), ("W", "WESTRING_DTYPE_WATER"),
+        ("C", "WESTRING_DTYPE_CLIFF"), ("E", "WESTRING_DTYPE_ENVIRONMENT"), ("Z", "WESTRING_DTYPE_CINEMATIC"),
+    ];
+
+    // The metadata types the editor gives a list of its own (above), as a choice.
+    private static readonly string[] OwnLists = ["tilesetList", "destructableCategory", "doodadCategory"];
 
     public static GameData Build(string folder)
     {
@@ -36,15 +68,6 @@ internal static class Builder
         // A bit the game's own data uses is one of its type's values, and a negative it holds is allowed (as Moonwell).
         var kindsOf = fieldsOf.Keys.Select(kind => (fieldsOf[kind], objectsOf[kind])).ToList();
         var choices = Choices.WithStandardBits(listed, kindsOf);
-        var kinds = new Dictionary<ObjectKind, KindData>();
-        foreach (var kind in Enum.GetValues<Kind>())
-        {
-            var fields = Fields.WithStandardNegatives(fieldsOf[kind], objectsOf[kind])
-                .Select(field => field.Choice == null ? field : field with { Choice = choices[field.Choice.Type] })
-                .ToList();
-            kinds[KindOf(kind)] = KindDataOf(tables, kind, fields, objectsOf[kind], kind == Kind.Unit ? UnitUiOf(folder) : []);
-        }
-
         var lists = new SortedDictionary<string, ChoiceList>(StringComparer.Ordinal);
         foreach (var (type, choice) in choices)
         {
@@ -52,6 +75,25 @@ internal static class Builder
                 choice.Flags,
                 choice.Store,
                 choice.Members.Select(member => new ChoiceEntry(member.Text, LabelOf(member), member.Alternates)).ToList());
+        }
+
+        lists["tilesetList"] = OwnList(tables, true, Tilesets);
+        lists["destructableCategory"] = OwnList(tables, false, DestructableCategories);
+        lists["doodadCategory"] = OwnList(tables, false, DoodadCategories);
+
+        var kinds = new Dictionary<ObjectKind, KindData>();
+        foreach (var kind in Enum.GetValues<Kind>())
+        {
+            var fields = Fields.WithStandardNegatives(fieldsOf[kind], objectsOf[kind])
+                .Select(field => field.Choice == null ? field : field with { Choice = choices[field.Choice.Type] })
+                .ToList();
+            kinds[KindOf(kind)] = KindDataOf(
+                tables,
+                kind,
+                fields,
+                objectsOf[kind],
+                kind == Kind.Unit ? UnitUiOf(folder) : [],
+                kind == Kind.Upgrade ? EffectsOf(tables, folder, lists) : null);
         }
 
         return new GameData(folder, kinds, lists);
@@ -75,7 +117,8 @@ internal static class Builder
         Kind kind,
         IReadOnlyList<Field> fields,
         IReadOnlyList<MoonwellObject> objects,
-        Dictionary<string, Dictionary<string, string>> unitUi)
+        Dictionary<string, Dictionary<string, string>> unitUi,
+        IReadOnlyDictionary<string, IReadOnlyList<UpgradeEffectField>>? effects)
     {
         var meta = new Dictionary<string, MetaRow>(StringComparer.Ordinal);
         foreach (var row in tables.Meta(kind))
@@ -96,15 +139,19 @@ internal static class Builder
             result.Add(Object(tables, objectKind, levelField, obj, rows, infos, readers, unitUi.GetValueOrDefault(obj.Id)));
         }
 
-        return new KindData(objectKind, levelField, infos, result);
+        return new KindData(objectKind, levelField, infos, result, effects);
     }
 
     private static FieldInfo Info(Field field, MetaRow meta)
     {
         // An ability's Effects (aeff) hold effect ids, which are buffs of the buff table (Xclf), as its Buffs (abuf)
         // hold buff ids; Moonwell's reader types only buffList as a list, so the editor types effectList the same.
-        var effects = Cell(meta, "type") == "effectList";
-        var type = effects ? "ObjectList" : field.Type.ToString();
+        // A unit's Normal Skin and Hero Skin (abilitySkinList) hold ability ids too, which World Editor shows by name.
+        var metaType = Cell(meta, "type");
+        var effects = metaType == "effectList";
+        var skins = metaType == "abilitySkinList";
+        var ownList = field.Choice == null && OwnLists.Contains(metaType);
+        var type = effects || skins ? "ObjectList" : ownList ? "Choice" : field.Type.ToString();
         return new FieldInfo(
             field.Id,
             field.Rules.Label ?? field.Name,
@@ -112,7 +159,7 @@ internal static class Builder
             Cell(meta, "sort"),
             char.ToLowerInvariant(type[0]) + type.Substring(1),
             field.Store,
-            effects ? "Buff" : field.ListOf,
+            effects ? "Buff" : skins ? "Ability" : field.ListOf,
             field.PerLevel,
             field.DataPointer,
             field.Skin,
@@ -127,14 +174,15 @@ internal static class Builder
             field.Rules.MaxEntries,
             field.Rules.Required,
             field.Rules.NoNegative,
-            field.Choice?.Type,
-            Cell(meta, "type") switch
+            ownList ? metaType : field.Choice?.Type,
+            metaType switch
             {
                 "icon" => "icon",
                 "model" or "modelList" => "model",
                 "texture" => "texture",
                 _ => null,
-            });
+            },
+            metaType);
     }
 
     /// <summary>
@@ -180,6 +228,11 @@ internal static class Builder
         var campaign = ui?.GetValueOrDefault("campaign") is { } inTable ? inTable == "1" : obj.Campaign;
         var special = (ui?.GetValueOrDefault("special") ?? FieldReader.Clean(row.Get("special", "de")?.Value)) == "1";
         var suffix = Resolved(tables, FieldReader.Clean(row.Get("EditorSuffix", "de")?.Value) ?? "");
+        // An upgrade keeps a suffix per level; World Editor names it by its first (Glyph of Fortification (Upgrade 1)).
+        if (kind == ObjectKind.Upgrade)
+        {
+            suffix = suffix.Split(',')[0].Trim();
+        }
         var categoryColumn = kind switch
         {
             ObjectKind.Item => "class",
@@ -191,7 +244,25 @@ internal static class Builder
         var category = kind == ObjectKind.Unit ? ui?.GetValueOrDefault("unitClass") ?? ""
             : categoryColumn == null ? ""
             : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
-        var hidden = kind == ObjectKind.Ability && FieldReader.Clean(row.Get("useInEditor", "de")?.Value) == "0";
+        // World Editor leaves out the abilities whose useInEditor is 0 and the units whose hiddenInEditor is 1 (the
+        // Shoveler and Sammy's cube), files a unit of no playable race by its hostilePal (Neutral Hostile or Passive),
+        // and lists a buff folder by sort (hero, then unit) and a destructable or doodad folder by doodClass before
+        // the names (World Editor's screens, 2026-10-27).
+        var hidden = kind switch
+        {
+            ObjectKind.Ability => FieldReader.Clean(row.Get("useInEditor", "de")?.Value) == "0",
+            ObjectKind.Unit => ui?.GetValueOrDefault("hiddenInEditor") == "1",
+            _ => false,
+        };
+        var hostile = kind == ObjectKind.Unit && ui?.GetValueOrDefault("hostilePal") == "1";
+        var sortColumn = kind switch
+        {
+            ObjectKind.Buff => "sort",
+            ObjectKind.Destructable or ObjectKind.Doodad => "doodClass",
+            _ => null,
+        };
+        // Kept as written: a doodClass of _ (most of them) comes after A and B.
+        var sort = sortColumn == null ? "" : row.Get(sortColumn, "de")?.Value.Trim() ?? "";
         // World Editor shows a campaign hero by its proper name (Haah, the High Elf Archmage, as Kelen the Seeker).
         var properName = FieldReader.Clean(row.Get("Propernames", "de")?.Value)?.Split(',')[0].Trim();
         var name = campaign && obj.IsHero && !string.IsNullOrEmpty(properName) ? Resolved(tables, properName) : obj.Name;
@@ -210,7 +281,9 @@ internal static class Builder
             obj.Values,
             new Dictionary<string, IReadOnlyDictionary<string, string>>(),
             obj.Sets,
-            obj.MissingFrom);
+            obj.MissingFrom,
+            hostile,
+            sort);
         return standard with { Modes = Modes(row, standard, kind, levelField, infos, readers) };
     }
 
@@ -312,6 +385,96 @@ internal static class Builder
             }
 
             result[id] = cells;
+        }
+
+        return result;
+    }
+
+    /// <summary>A list the editor makes itself, its labels from the export's World Editor strings.</summary>
+    private static ChoiceList OwnList(ExportTables tables, bool flags, (string Value, string Key)[] entries) =>
+        new(flags, "string", entries.Select(entry => new ChoiceEntry(entry.Value, tables.Label(entry.Key), [])).ToList());
+
+    /// <summary>
+    /// The fields each upgrade effect uses, from <see cref="UpgradeEffects"/>: their data type, World Editor's label,
+    /// and how they are typed (a whole number, a real, a choice of <paramref name="lists"/>, an ability or a unit).
+    /// Empty when the folder has no such table.
+    /// </summary>
+    private static Dictionary<string, IReadOnlyList<UpgradeEffectField>> EffectsOf(
+        ExportTables tables,
+        string folder,
+        IReadOnlyDictionary<string, ChoiceList> lists)
+    {
+        var found = new Dictionary<string, List<UpgradeEffectField>>(StringComparer.Ordinal);
+        foreach (var row in Rows(Path.Combine(folder, UpgradeEffects)))
+        {
+            if (row.GetValueOrDefault("effectID") is not { Length: > 0 } effect
+                || row.GetValueOrDefault("dataType") is not { Length: > 0 } dataType)
+            {
+                continue;
+            }
+
+            var metaType = row.GetValueOrDefault("type", "");
+            var (type, choice, listOf) = metaType switch
+            {
+                "int" => ("int", (string?)null, (string?)null),
+                "real" or "unreal" => ("float", null, null),
+                "abilCode" => ("objectRef", null, "Ability"),
+                "unitCode" => ("objectRef", null, "Unit"),
+                _ when lists.ContainsKey(metaType) => ("choice", metaType, null),
+                _ => ("int", null, null),
+            };
+            var label = tables.Label(row.GetValueOrDefault("displayName", ""));
+            if (!found.TryGetValue(effect, out var fields))
+            {
+                found[effect] = fields = [];
+            }
+
+            fields.Add(new UpgradeEffectField(dataType, label, type, choice, listOf));
+        }
+
+        return found.ToDictionary(
+            pair => pair.Key, IReadOnlyList<UpgradeEffectField> (pair) => pair.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>The rows of a table, each by its column names, the cells as written; empty when there is no file.</summary>
+    private static List<Dictionary<string, string>> Rows(string path)
+    {
+        var result = new List<Dictionary<string, string>>();
+        if (!File.Exists(path))
+        {
+            return result;
+        }
+
+        SylkTable table;
+        using (var stream = File.OpenRead(path))
+        {
+            table = new SylkParser(keepText: true).Parse(stream);
+        }
+
+        var columns = new Dictionary<int, string>();
+        for (var x = 0; x <= table.Columns; x++)
+        {
+            if (table[x, 0] is string name)
+            {
+                columns[x] = name;
+            }
+        }
+
+        for (var y = 1; y <= table.Rows; y++)
+        {
+            var cells = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (x, name) in columns)
+            {
+                if (table[x, y]?.ToString()?.Trim() is { Length: > 0 } cell)
+                {
+                    cells[name] = cell;
+                }
+            }
+
+            if (cells.Count > 0)
+            {
+                result.Add(cells);
+            }
         }
 
         return result;

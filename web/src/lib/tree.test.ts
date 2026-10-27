@@ -33,11 +33,8 @@ function shape(lines: Line[]): string[] {
 const allOpen = () => true;
 
 describe("the tree's rows", () => {
-  it("put the custom objects first, then the standard ones grouped by path", () => {
+  it("put the standard objects grouped by path first, then the custom ones, as World Editor does", () => {
     expect(shape(treeLines(entries, "unit", "", allOpen))).toEqual([
-      "[-] Custom 2",
-      "h000",
-      "h001",
       "[-] Standard 4",
       "[-] human 3",
       "[-] Melee 3",
@@ -50,19 +47,22 @@ describe("the tree's rows", () => {
       "[-] Melee 1",
       "[-] Units 1",
       "ogru",
+      "[-] Custom 2",
+      "h000",
+      "h001",
     ]);
   });
 
   it("leave out what is inside a closed group", () => {
     const open = (key: string) => ["unit:Custom", "unit:Standard", "unit:human"].includes(key);
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
-      "[-] Custom 2",
-      "h000",
-      "h001",
       "[-] Standard 4",
       "[-] human 3",
       "[+] Melee 3",
       "[+] orc 1",
+      "[-] Custom 2",
+      "h000",
+      "h001",
     ]);
   });
 
@@ -74,10 +74,10 @@ describe("the tree's rows", () => {
   it("hide every standard object while Standard is closed", () => {
     const open = (key: string) => key !== "unit:Standard";
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
+      "[+] Standard 4",
       "[-] Custom 2",
       "h000",
       "h001",
-      "[+] Standard 4",
     ]);
   });
 
@@ -112,7 +112,7 @@ describe("↑ and ↓", () => {
   const lines = treeLines(entries, "unit", "", allOpen);
 
   it("move to the next or previous object, over group rows", () => {
-    expect(nextObject(lines, "h001", 1)).toBe("hfoo");
+    expect(nextObject(lines, "ogru", 1)).toBe("h000");
     expect(nextObject(lines, "hkni", 1)).toBe("Hpal");
     expect(nextObject(lines, "Hpal", -1)).toBe("hkni");
   });
@@ -126,11 +126,11 @@ describe("↑ and ↓", () => {
       seen.push(next);
       at = next;
     }
-    expect(seen).toEqual(["h000", "h001", "hfoo", "hkni", "Hpal", "ogru"]);
+    expect(seen).toEqual(["hfoo", "hkni", "Hpal", "ogru", "h000", "h001"]);
   });
 
   it("stop at either end", () => {
-    expect(nextObject(lines, "ogru", 1)).toBeUndefined();
-    expect(nextObject(lines, "h000", -1)).toBeUndefined();
+    expect(nextObject(lines, "h001", 1)).toBeUndefined();
+    expect(nextObject(lines, "hfoo", -1)).toBeUndefined();
   });
 });

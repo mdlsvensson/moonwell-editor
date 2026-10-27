@@ -118,7 +118,8 @@ function focusOnMount(element: HTMLInputElement): void {
           title="Open {found.name}"
           onclick={() => onopen(found.kind, object.id)}
         >
-          {found.name}
+          <!-- A skin list names its abilities without their suffixes, as World Editor shows it. -->
+          {field.meta === "abilitySkinList" ? (found.bare ?? found.name) : found.name}
           <span class="font-mono text-faint">{object.id}</span>
         </button>
       {:else}

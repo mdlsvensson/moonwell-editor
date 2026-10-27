@@ -5,7 +5,7 @@
  */
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FieldEditor from "./FieldEditor.svelte";
-import { isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
+import { isChanged, type Lookup, namesOf, type Row, shownValue } from "./fields.ts";
 
 type Props = {
   rows: Row[];
@@ -47,7 +47,7 @@ function menuOf(field: FieldView, event: MouseEvent): void {
 // Why a cell's last value was refused, by `field:level`.
 let errors = $state<Record<string, string>>({});
 
-const nameOf = (listOf: string, id: string) => lookup(listOf, id)?.name;
+const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const columns = $derived(
   Array.from(
     { length: Math.max(0, ...rows.map((row) => row.levels?.length ?? 0)) },

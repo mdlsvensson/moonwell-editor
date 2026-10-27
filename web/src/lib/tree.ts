@@ -1,5 +1,5 @@
 /**
- * The rows of a kind's tree: the map's custom objects first, then the standard objects grouped by their path. The
+ * The rows of a kind's tree: the standard objects grouped by their path, then the map's custom objects. The
  * tree pane draws only the rows in view, so it works from this flat list.
  */
 import type { Kind, TreeEntry } from "./api.ts";
@@ -56,7 +56,7 @@ export function groupKeys(kind: Kind, entry: TreeEntry): string[] {
 export const kindNames: Record<Kind, string> = {
   unit: "Units",
   item: "Items",
-  destructable: "Destructables",
+  destructable: "Destructibles",
   doodad: "Doodads",
   ability: "Abilities",
   buff: "Buffs/Effects",
@@ -103,26 +103,6 @@ export function treeLines(
   const open = (key: string) => needle !== "" || isOpen(key);
   const result: Line[] = [];
 
-  // The Custom group shows only while the kind has custom objects (Sven, 2026-10-27).
-  const custom = shown.filter(isCustom);
-  if (custom.length > 0) {
-    const key = customKey(kind);
-    const customOpen = open(key);
-    result.push({
-      type: "group",
-      key,
-      name: "Custom",
-      depth: -1,
-      open: customOpen,
-      count: custom.length,
-    });
-    if (customOpen) {
-      for (const entry of custom) {
-        result.push({ type: "entry", key: `e:${entry.id}`, entry, depth: 0 });
-      }
-    }
-  }
-
   const root: Group = { name: "", key: "", groups: new Map(), entries: [], count: 0 };
   for (const entry of shown) {
     if (isCustom(entry)) continue;
@@ -152,8 +132,6 @@ export function treeLines(
       count: root.count,
     });
   }
-  if (!standardOpen) return result;
-
   const walk = (group: Group, depth: number) => {
     for (const child of group.groups.values()) {
       const childOpen = open(child.key);
@@ -171,7 +149,28 @@ export function treeLines(
       result.push({ type: "entry", key: `e:${entry.id}`, entry, depth });
     }
   };
-  walk(root, 0);
+  if (standardOpen) walk(root, 0);
+
+  // The Custom group comes after Standard, as World Editor's Custom Units come after its Standard Units, and shows
+  // only while the kind has custom objects (Sven, 2026-10-27).
+  const custom = shown.filter(isCustom);
+  if (custom.length > 0) {
+    const key = customKey(kind);
+    const customOpen = open(key);
+    result.push({
+      type: "group",
+      key,
+      name: "Custom",
+      depth: -1,
+      open: customOpen,
+      count: custom.length,
+    });
+    if (customOpen) {
+      for (const entry of custom) {
+        result.push({ type: "entry", key: `e:${entry.id}`, entry, depth: 0 });
+      }
+    }
+  }
   return result;
 }
 
