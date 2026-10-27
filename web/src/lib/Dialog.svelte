@@ -12,9 +12,11 @@ type Props = {
   actions: Snippet;
   /** A wider dialog that scrolls when it is taller than the window (the settings). */
   wide?: boolean;
+  /** A short text beside the title, in the ids' type (an object's id). */
+  note?: string;
 };
 
-let { title, oncancel, children, actions, wide = false }: Props = $props();
+let { title, oncancel, children, actions, wide = false, note }: Props = $props();
 
 let box: HTMLDivElement | undefined = $state();
 
@@ -72,7 +74,10 @@ function onkeydown(event: KeyboardEvent): void {
     bind:this={box}
     {onkeydown}
   >
-    <h2 class="m-0 mb-2 font-heading text-base font-bold text-fg">{title}</h2>
+    <h2 class="m-0 mb-2 flex items-baseline gap-2 font-heading text-base font-bold text-fg">
+      {title}
+      {#if note}<span class="font-mono text-[12.5px] font-normal text-muted">{note}</span>{/if}
+    </h2>
     <div class="text-[13.5px] text-body">{@render children()}</div>
     <div class="mt-4 flex justify-end gap-2">{@render actions()}</div>
   </div>

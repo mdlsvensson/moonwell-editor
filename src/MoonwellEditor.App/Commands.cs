@@ -35,6 +35,8 @@ public sealed record Startup(string? Map);
 /// <param name="Archive">True for an archive (<c>.w3x</c>, <c>.w3m</c>), false for a folder.</param>
 /// <param name="Problems">What was wrong with its files (see <see cref="Session.Problems"/>).</param>
 /// <param name="Counts">How many custom objects it has, by kind key (<c>unit</c>).</param>
+/// <param name="Title">The map's name from its info file (Scenario > Map Properties); null when it has none.</param>
+/// <param name="Expansion">True for a Frozen Throne map, false for Reign of Chaos; null when unknown.</param>
 /// <param name="Options">
 /// Its game data option (World Editor's Data Set and Data Version, and the tables the game reads under it); null when
 /// its <c>war3map.w3i</c> is missing or cannot be read.
@@ -45,7 +47,9 @@ public sealed record MapInfo(
     bool Archive,
     IReadOnlyList<string> Problems,
     IReadOnlyDictionary<string, int> Counts,
-    MapOptions? Options);
+    MapOptions? Options,
+    string? Title = null,
+    bool? Expansion = null);
 
 /// <summary>The open map and where it stands, for a page that was loaded again (the <c>currentMap</c> command).</summary>
 /// <param name="Map">The open map, as <c>openMap</c> gave it.</param>
@@ -301,7 +305,7 @@ public sealed class Commands
             "closeClicked" => Raise(CloseClicked),
             "windowState" => new WindowState(Maximized()),
             "frameColors" => FrameColors(Text(args, "surface"), Text(args, "border")),
-            "assetList" => AssetsOf(Text(args, "kind")),
+            "assetList" => AssetsOf(Text(args, "kind"), OptionalText(args, "mode") ?? "de"),
             _ => throw new UnknownCommandException(command),
         };
 
@@ -384,7 +388,16 @@ public sealed class Commands
         }
 
         var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(store.Path));
-        return new MapInfo(name, store.Path, store.IsArchive, session.Problems, counts, MapOptions.Read(store));
+        var header = MapOptions.Header(store);
+        return new MapInfo(
+            name,
+            store.Path,
+            store.IsArchive,
+            session.Problems,
+            counts,
+            MapOptions.Read(store),
+            header is { } known ? session.Text(known.Name) : null,
+            header?.Expansion);
     }
 
     // An object of a read-only kind is shown too: its view says why it cannot be edited.
@@ -482,7 +495,7 @@ public sealed class Commands
         return Changed<object?>(null);
     }
 
-    private AssetList AssetsOf(string kind)
+    private AssetList AssetsOf(string kind, string mode)
     {
         if (kind is not ("icon" or "model"))
         {
@@ -492,7 +505,7 @@ public sealed class Commands
         var assets = Assets;
         return assets == null
             ? new AssetList(false, "This window shows no game files.", "", [])
-            : new AssetList(assets.Ready, assets.Error, assets.GameFolder, assets.List(kind));
+            : new AssetList(assets.Ready, assets.Error, assets.GameFolder, assets.List(kind, mode));
     }
 
     private object? FrameColors(string surface, string border)

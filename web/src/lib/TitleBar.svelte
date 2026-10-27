@@ -2,8 +2,10 @@
 /**
  * The window's title bar (Sven, 2026-10-27): thin, as Windows draws a maximized window's, whether the window is
  * maximized or not. The bar is a drag region, which the window treats as its caption (dragging, snapping, a double
- * click to maximize, the system menu on a right click). Back and forward at the left walk the visited objects, as a
- * browser's do (Alt ← and Alt →); the buttons at the right minimize, maximize or restore, and close.
+ * click to maximize, the system menu on a right click). At the left the logo, then back and forward, which walk the
+ * visited objects as a browser's do (Alt ← and Alt →; held down or right-clicked, they list the history); then the
+ * map: its name, Folder or Archive, Exp (Frozen Throne) or RoC, and its path. At the right minimize, maximize or
+ * restore, and close, all with the same hover.
  */
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
@@ -12,20 +14,39 @@ import Minus from "@lucide/svelte/icons/minus";
 import Square from "@lucide/svelte/icons/square";
 import X from "@lucide/svelte/icons/x";
 import { onMount } from "svelte";
-import { closeClicked, maximizeWindow, minimizeWindow, onWindowState, windowState } from "./api.ts";
+import {
+  closeClicked,
+  type MapInfo,
+  maximizeWindow,
+  minimizeWindow,
+  onWindowState,
+  windowState,
+} from "./api.ts";
 import logo from "./logo.svg";
+import Popover from "./Popover.svelte";
+
+/** One visited object, for the history list: its place in the history and what to call it. */
+export type Visit = { at: number; name: string; id: string };
 
 type Props = {
-  title: string;
-  canBack: boolean;
-  canForward: boolean;
-  onback: () => void;
-  onforward: () => void;
+  map: MapInfo | null;
+  /** The visits before the current one, newest first. */
+  back: Visit[];
+  /** The visits after the current one, nearest first. */
+  forward: Visit[];
+  /** Goes to a place in the history. */
+  onjump: (at: number) => void;
 };
 
-let { title, canBack, canForward, onback, onforward }: Props = $props();
+let { map, back, forward, onjump }: Props = $props();
 
 let maximized = $state(false);
+// The history list open under the back or the forward button.
+let listing = $state<"back" | "forward" | null>(null);
+let backButton: HTMLButtonElement | undefined = $state();
+let forwardButton: HTMLButtonElement | undefined = $state();
+let holdTimer: ReturnType<typeof setTimeout> | undefined;
+let held = false;
 
 onMount(() => {
   windowState().then(
@@ -35,42 +56,105 @@ onMount(() => {
   return onWindowState((state) => (maximized = state.maximized));
 });
 
-// Like Windows' own caption buttons, they take no keyboard focus.
+// The map's name without the game's colour codes (|cffffcc00 ... |r).
+const title = $derived(
+  (map?.title ?? "")
+    .replace(/\|c[0-9a-f]{8}/gi, "")
+    .replace(/\|r/gi, "")
+    .trim() ||
+    (map?.name ?? ""),
+);
+
+function press(which: "back" | "forward"): void {
+  held = false;
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    held = true;
+    listing = which;
+  }, 450);
+}
+
+function release(which: "back" | "forward"): void {
+  clearTimeout(holdTimer);
+  if (held) return;
+  const list = which === "back" ? back : forward;
+  if (list[0]) onjump(list[0].at);
+}
+
+function jump(at: number): void {
+  listing = null;
+  onjump(at);
+}
+
+// Like Windows' own caption buttons, they take no keyboard focus; every one has the same hover.
 const buttonClass =
-  "flex w-[46px] items-center justify-center text-muted outline-none hover:bg-hover hover:text-fg [app-region:no-drag]";
+  "flex items-center justify-center text-muted outline-none hover:bg-hover hover:text-fg disabled:text-faint disabled:opacity-50 disabled:hover:bg-transparent [app-region:no-drag]";
 </script>
 
-<div class="flex min-w-0 items-stretch bg-surface select-none [app-region:drag]">
+{#snippet arrow(which: "back" | "forward")}
+  {@const list = which === "back" ? back : forward}
   <button
     type="button"
-    class="flex w-8 items-center justify-center text-muted outline-none hover:bg-hover hover:text-fg disabled:text-faint disabled:opacity-50 disabled:hover:bg-transparent [app-region:no-drag]"
+    class="{buttonClass} w-8"
     tabindex="-1"
-    title="Back (Alt ←)"
-    aria-label="Back"
-    disabled={!canBack}
-    onclick={onback}
+    title="{which === 'back' ? 'Back (Alt ←)' : 'Forward (Alt →)'}; hold for the history"
+    aria-label={which === "back" ? "Back" : "Forward"}
+    disabled={list.length === 0}
+    onpointerdown={(event) => event.button === 0 && press(which)}
+    onpointerup={(event) => event.button === 0 && release(which)}
+    onpointerleave={() => clearTimeout(holdTimer)}
+    oncontextmenu={(event) => {
+      event.preventDefault();
+      listing = which;
+    }}
+    bind:this={
+      () => (which === "back" ? backButton : forwardButton),
+      (element) => (which === "back" ? (backButton = element) : (forwardButton = element))
+    }
   >
-    <ArrowLeft size={14} strokeWidth={1.75} />
+    {#if which === "back"}<ArrowLeft size={14} strokeWidth={1.75} />{:else}<ArrowRight
+        size={14}
+        strokeWidth={1.75}
+      />{/if}
   </button>
+{/snippet}
+
+<div class="relative flex min-w-0 items-stretch bg-surface select-none [app-region:drag]">
+  <img src={logo} alt="" class="mx-2 size-4 self-center" draggable="false" />
+  {@render arrow("back")}
+  {@render arrow("forward")}
+  <span class="flex min-w-0 flex-1 items-center gap-1.5 truncate px-2 text-xs leading-[23px]">
+    {#if map}
+      <b class="shrink-0 font-semibold text-fg">{title}</b>
+      <span class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted">
+        {map.archive ? "Archive" : "Folder"}
+      </span>
+      {#if map.expansion !== null && map.expansion !== undefined}
+        <span
+          class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted"
+          title={map.expansion ? "A Frozen Throne (expansion) map" : "A Reign of Chaos map"}
+        >
+          {map.expansion ? "Exp" : "RoC"}
+        </span>
+      {/if}
+      <span class="min-w-0 truncate text-faint">{map.path}</span>
+    {:else}
+      <span class="text-muted">Moonwell Editor</span>
+    {/if}
+  </span>
   <button
     type="button"
-    class="flex w-8 items-center justify-center text-muted outline-none hover:bg-hover hover:text-fg disabled:text-faint disabled:opacity-50 disabled:hover:bg-transparent [app-region:no-drag]"
+    class="{buttonClass} w-[46px]"
     tabindex="-1"
-    title="Forward (Alt →)"
-    aria-label="Forward"
-    disabled={!canForward}
-    onclick={onforward}
+    title="Minimize"
+    aria-label="Minimize"
+    onclick={minimizeWindow}
   >
-    <ArrowRight size={14} strokeWidth={1.75} />
-  </button>
-  <img src={logo} alt="" class="ml-1.5 size-4 self-center" />
-  <span class="min-w-0 flex-1 truncate px-2 text-xs leading-[23px] text-muted">{title}</span>
-  <button type="button" class={buttonClass} tabindex="-1" title="Minimize" aria-label="Minimize" onclick={minimizeWindow}>
     <Minus size={14} strokeWidth={1.5} />
   </button>
   <button
     type="button"
-    class={buttonClass}
+    class="{buttonClass} w-[46px]"
     tabindex="-1"
     title={maximized ? "Restore" : "Maximize"}
     aria-label={maximized ? "Restore" : "Maximize"}
@@ -84,7 +168,7 @@ const buttonClass =
   </button>
   <button
     type="button"
-    class="flex w-[46px] items-center justify-center text-muted outline-none hover:bg-[#c42b1c] hover:text-white [app-region:no-drag]"
+    class="{buttonClass} w-[46px]"
     tabindex="-1"
     title="Close"
     aria-label="Close"
@@ -92,4 +176,31 @@ const buttonClass =
   >
     <X size={15} strokeWidth={1.5} />
   </button>
+  <!-- The window's top edge, which resizes it while it is not maximized, over the buttons too: last, so its drag
+       region is not cut out by the buttons'. -->
+  {#if !maximized}
+    <div class="absolute inset-x-0 top-0 z-10 h-1 [app-region:drag]" aria-hidden="true"></div>
+  {/if}
 </div>
+
+{#if listing}
+  {@const anchor = listing === "back" ? backButton : forwardButton}
+  {@const list = listing === "back" ? back : forward}
+  {#if anchor}
+    <Popover {anchor} onclose={() => (listing = null)}>
+      <div class="flex flex-col" role="menu" aria-label="History">
+        {#each list as visit (visit.at)}
+          <button
+            type="button"
+            role="menuitem"
+            class="flex items-center gap-3 rounded px-2 py-1 text-left hover:bg-hover"
+            onclick={() => jump(visit.at)}
+          >
+            <span class="min-w-0 flex-1 truncate text-fg">{visit.name}</span>
+            <span class="font-mono text-[12px] text-faint">{visit.id}</span>
+          </button>
+        {/each}
+      </div>
+    </Popover>
+  {/if}
+{/if}

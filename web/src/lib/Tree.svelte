@@ -7,6 +7,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
 import { iconUrl, type Kind, type TreeEntry } from "./api.ts";
+import { graphics } from "./graphics.svelte.ts";
 import {
   customKey,
   groupKeys,
@@ -29,6 +30,11 @@ type Props = {
   oncontext: (id: string, x: number, y: number) => void;
   /** The filter text (name or id); the Table view filters its rows by it too. */
   filter?: string;
+  /**
+   * True while the tree is where the user is (Ctrl C copies its object): the selection shows strong; otherwise it
+   * shows which object is open, faintly (Sven, 2026-10-27).
+   */
+  active?: boolean;
 };
 
 let {
@@ -39,6 +45,7 @@ let {
   onselect,
   oncontext,
   filter = $bindable(""),
+  active = true,
 }: Props = $props();
 
 const rowHeight = 26;
@@ -196,7 +203,9 @@ function clearOnEscape(event: KeyboardEvent): void {
               aria-selected={entry.id === selected}
               class="flex w-full items-center gap-1.5 pr-2.5 text-left whitespace-nowrap {entry.id ===
               selected
-                ? 'bg-accent/16 text-fg'
+                ? active
+                  ? 'bg-accent/25 text-fg shadow-[inset_2px_0_0_var(--accent)]'
+                  : 'bg-hover text-fg'
                 : 'hover:bg-hover'}"
               style:height="{rowHeight}px"
               style:padding-left="{10 + line.depth * 16}px"
@@ -214,7 +223,7 @@ function clearOnEscape(event: KeyboardEvent): void {
               <!-- Its icon, as World Editor shows one beside each object (Sven, 2026-10-27). -->
               {#if entry.icon}
                 <img
-                  src={iconUrl(entry.icon)}
+                  src={iconUrl(entry.iconModes?.[graphics.mode] ?? entry.icon, graphics.mode)}
                   alt=""
                   class="size-[18px] shrink-0 rounded-[2px]"
                   loading="lazy"

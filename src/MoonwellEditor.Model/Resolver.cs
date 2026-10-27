@@ -143,7 +143,17 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     /// The path of the object's icon (its Art field; an upgrade's at level 1): the map's when it sets one, else the
     /// standard object's; empty for a kind without icons.
     /// </summary>
-    public string Icon(StandardObject? standard, MapObject? map)
+    public string Icon(StandardObject? standard, MapObject? map) => IconOf(standard, map).Path;
+
+    /// <summary>
+    /// The icon's path in each graphics mode (<c>sd</c>, <c>hd</c>, <c>de</c>) when the standard object's differs by
+    /// mode and the map does not set one (the Priest: <c>BTNPriest</c> in Classic, <c>BTNPriestV1</c> otherwise); null
+    /// when one path serves every mode.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? IconModes(StandardObject? standard, MapObject? map) =>
+        IconOf(standard, map).Modes;
+
+    private (string Path, IReadOnlyDictionary<string, string>? Modes) IconOf(StandardObject? standard, MapObject? map)
     {
         var id = kind switch
         {
@@ -157,12 +167,19 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
         var field = id == null ? null : data.Field(id);
         if (field == null)
         {
-            return "";
+            return ("", null);
         }
 
         var level = field.PerLevel ? 1 : 0;
         var value = MapValue(field, level, map);
-        return !string.IsNullOrEmpty(value) ? value : standard == null ? "" : StandardValue(field, level, standard);
+        if (!string.IsNullOrEmpty(value))
+        {
+            return (value, null);
+        }
+
+        return standard == null
+            ? ("", null)
+            : (StandardValue(field, level, standard), standard.Modes.GetValueOrDefault(Key(field, level)));
     }
 
     /// <summary>The object's suffix: the map's when it sets one, else the standard object's.</summary>

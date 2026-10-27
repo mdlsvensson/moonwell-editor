@@ -127,13 +127,13 @@ async function paste(field: FieldView): Promise<void> {
 }
 
 /**
- * Ctrl C, Ctrl X or Ctrl V while a field is selected and the focus is in the panel: copies the field's value, or
- * pastes the copied one into it (a field is never cut). False when no field is selected there, so the key goes to the
- * object.
+ * Ctrl C, Ctrl X or Ctrl V while a field is selected and the panel is where the user is (the page asks only then):
+ * copies the field's value, or pastes the copied one into it (a field is never cut). False when no field is selected,
+ * so the key goes to the object.
  */
 export function clipKey(key: "c" | "x" | "v"): boolean {
   const field = selectedField();
-  if (!field || !root?.contains(document.activeElement)) return false;
+  if (!field) return false;
   if (key === "c") copy(field);
   else if (key === "v") paste(field);
   else onnotice("A field cannot be cut: Ctrl C copies its value.", false);
@@ -169,6 +169,38 @@ function fieldMenu(field: FieldView, x: number, y: number): void {
 }
 
 let filterInput: HTMLInputElement | undefined = $state();
+let scroller: HTMLDivElement | undefined = $state();
+
+/** A changed field's mark beside the scroll bar: how far down the fields it is, in percent. */
+type Mark = { top: number; label: string; element: HTMLElement };
+let marks = $state.raw<Mark[]>([]);
+
+// The marks follow what is drawn: measured again whenever the fields' height or the object's fields change.
+function measureMarks(): void {
+  const box = scroller;
+  if (!box || box.scrollHeight === 0) {
+    marks = [];
+    return;
+  }
+  const top = box.getBoundingClientRect().top;
+  marks = [...box.querySelectorAll<HTMLElement>("[data-changed]")].map((element) => ({
+    top: ((element.getBoundingClientRect().top - top + box.scrollTop) / box.scrollHeight) * 100,
+    label: element.getAttribute("aria-label") ?? element.textContent?.trim().split("\n")[0] ?? "",
+    element,
+  }));
+}
+
+$effect(() => {
+  void categories;
+  void closed;
+  const box = scroller;
+  if (!box) return;
+  const resized = new ResizeObserver(() => measureMarks());
+  for (const child of box.children) resized.observe(child);
+  resized.observe(box);
+  tick().then(measureMarks);
+  return () => resized.disconnect();
+});
 // Categories the user closed, by key; they stay closed from object to object.
 let closed = $state<Record<string, boolean>>({});
 
@@ -216,6 +248,16 @@ export async function focusField(field: FieldView): Promise<boolean> {
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)
     element.select();
   return true;
+}
+
+/** How far the fields are scrolled, for the history to come back to. */
+export function scrollPosition(): number {
+  return scroller?.scrollTop ?? 0;
+}
+
+/** Scrolls the fields to a position the history kept. */
+export function scrollTo(top: number): void {
+  if (scroller) scroller.scrollTop = top;
 }
 
 /** Puts the cursor in the field filter (Ctrl F). */
@@ -318,7 +360,8 @@ function clearOnEscape(event: KeyboardEvent): void {
   </div>
 
   <!-- Only the fields scroll: the header stays above them and the bar floats over them, where it is. -->
-  <div class="min-h-0 flex-1 overflow-auto pb-16">
+  <div class="relative flex min-h-0 flex-1">
+  <div class="min-h-0 flex-1 overflow-auto pb-16" bind:this={scroller}>
     {#if categories.length === 0}
       <p class="mx-[18px] mt-3.5 text-muted">
         {changedOnly && !filter ? "The map changes no fields of this object." : "No field matches."}
@@ -333,6 +376,7 @@ function clearOnEscape(event: KeyboardEvent): void {
           <button
             type="button"
             class="flex w-full items-center gap-2 bg-surface px-2.5 py-1.5 text-left font-bold text-fg"
+            data-changed={(!open && category.rows.some(isChanged)) || undefined}
             aria-expanded={open}
             onclick={() => (closed[category.key] = open)}
           >
@@ -384,6 +428,21 @@ function clearOnEscape(event: KeyboardEvent): void {
         </div>
       {/each}
     {/key}
+  </div>
+
+  <!-- The changed fields' places beside the scroll bar, as a code editor marks changed lines; a click goes there. -->
+  <div class="pointer-events-none absolute inset-y-0 right-0 w-2" aria-hidden="true">
+    {#each marks as mark, index (index)}
+      <button
+        type="button"
+        tabindex="-1"
+        class="pointer-events-auto absolute right-0 h-[3px] w-2 rounded-[1px] bg-changed/80 hover:bg-changed"
+        style:top="{mark.top}%"
+        title="Changed: {mark.label}"
+        onclick={() => mark.element.scrollIntoView({ block: "center" })}
+      ></button>
+    {/each}
+  </div>
   </div>
 
   <!-- Floats at the bottom of the panel, over the fields, and never moves (Sven, 2026-10-27): icons, named by their

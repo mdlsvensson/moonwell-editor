@@ -1,19 +1,20 @@
 /** The game's icons and models for the pickers, and their search. */
 import { type AssetList, assetList } from "./api.ts";
 
-// Asked for once each (again while the install is still opening, or after a failure).
-const lists: Partial<Record<"icon" | "model", Promise<AssetList>>> = {};
+// Asked for once each per graphics mode (again while the install is still opening, or after a failure).
+const lists = new Map<string, Promise<AssetList>>();
 
-/** The game's icons or models. */
-export function listOf(kind: "icon" | "model"): Promise<AssetList> {
-  const known = lists[kind];
+/** The game's icons or models in a graphics mode (its own tier's too). */
+export function listOf(kind: "icon" | "model", mode: string): Promise<AssetList> {
+  const key = `${kind}|${mode}`;
+  const known = lists.get(key);
   if (known) return known;
-  const asked = assetList(kind).then((list) => {
-    if (!list.ready) delete lists[kind];
+  const asked = assetList(kind, mode).then((list) => {
+    if (!list.ready) lists.delete(key);
     return list;
   });
-  asked.catch(() => delete lists[kind]);
-  lists[kind] = asked;
+  asked.catch(() => lists.delete(key));
+  lists.set(key, asked);
   return asked;
 }
 

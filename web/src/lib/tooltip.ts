@@ -1,0 +1,287 @@
+/**
+ * The in-game tooltip of an object (Sven, 2026-10-27): which fields make it, the game's colour markup turned into
+ * coloured runs, and the `<id,Field>` placeholders an ability's text names filled from its own fields.
+ */
+import type { FieldView, Kind, ObjectView } from "./api.ts";
+
+/** A stretch of tooltip text in one colour; `placeholder` marks a `<id,Field>` the preview cannot fill. */
+export type Run = { text: string; color: string | null; placeholder?: boolean };
+
+/** One line of tooltip text. */
+export type Line = Run[];
+
+/** The gold the game colours a hotkey letter with. */
+export const hotkeyColor = "#ffcc00";
+
+/**
+ * Splits tooltip markup into lines of runs: `|cAARRGGBB` starts a colour (`#rrggbb`, the alpha ignored), `|r` ends
+ * it, `|n` and a real newline break the line, `||` is a bar. Any other `|` is kept as text.
+ */
+export function parseColors(text: string): Line[] {
+  let line: Line = [];
+  const lines: Line[] = [line];
+  let color: string | null = null;
+  let buffer = "";
+
+  const flush = () => {
+    if (buffer === "") return;
+    const last = line[line.length - 1];
+    if (last && last.color === color) last.text += buffer;
+    else line.push({ text: buffer, color });
+    buffer = "";
+  };
+  const breakLine = () => {
+    flush();
+    line = [];
+    lines.push(line);
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === "\r" && text[i + 1] === "\n") continue;
+    if (char === "\n" || char === "\r") {
+      breakLine();
+      continue;
+    }
+    if (char !== "|") {
+      buffer += char;
+      continue;
+    }
+    const next = text[i + 1]?.toLowerCase();
+    if (next === "c" && /^[0-9a-f]{8}$/i.test(text.slice(i + 2, i + 10))) {
+      flush();
+      color = `#${text.slice(i + 4, i + 10).toLowerCase()}`;
+      i += 9;
+    } else if (next === "r") {
+      flush();
+      color = null;
+      i += 1;
+    } else if (next === "n") {
+      breakLine();
+      i += 1;
+    } else if (next === "|") {
+      buffer += "|";
+      i += 1;
+    } else {
+      buffer += "|";
+    }
+  }
+  flush();
+  return lines;
+}
+
+/** A placeholder: `<AHhb,Dur1>` or `<AHhb,DataB1,%>`. */
+const placeholderPattern = /<([^,<>]+),([^,<>]+)(,%)?>/g;
+
+/** A number as the game writes it into a tooltip: an integer as is, a decimal without trailing zeros. */
+export function formatNumber(value: string, percent = false): string {
+  const number = Number(value);
+  if (value.trim() === "" || !Number.isFinite(number)) return value;
+  const scaled = percent ? number * 100 : number;
+  return String(Math.round(scaled * 1000) / 1000);
+}
+
+/**
+ * Fills the `<id,Field>` and `<id,Field,%>` placeholders whose id is one of `own` (the object's id and base id) from
+ * `values`, keyed by the game's text key with its level (`Dur1`, `Cool2`), ignoring case. `,%` gives the value times
+ * 100 (the text has the % sign after it). A placeholder for another object, or a key `values` lacks, stays as written.
+ */
+export function fillData(
+  text: string,
+  own: readonly string[],
+  values: Record<string, string>,
+): string {
+  const byKey = new Map(Object.entries(values).map(([key, value]) => [key.toLowerCase(), value]));
+  return text.replace(placeholderPattern, (whole, id: string, key: string, percent?: string) => {
+    if (!own.includes(id.trim())) return whole;
+    const value = byKey.get(key.trim().toLowerCase());
+    return value === undefined ? whole : formatNumber(value, percent !== undefined);
+  });
+}
+
+/** Splits the runs of `lines` around the placeholders left in them, which are marked `placeholder`. */
+export function markPlaceholders(lines: Line[]): Line[] {
+  return lines.map((line) =>
+    line.flatMap((run) => {
+      const parts: Run[] = [];
+      let at = 0;
+      for (const match of run.text.matchAll(placeholderPattern)) {
+        const start = match.index ?? 0;
+        if (start > at) parts.push({ text: run.text.slice(at, start), color: run.color });
+        parts.push({ text: match[0], color: run.color, placeholder: true });
+        at = start + match[0].length;
+      }
+      if (at === 0) return [run];
+      if (at < run.text.length) parts.push({ text: run.text.slice(at), color: run.color });
+      return parts;
+    }),
+  );
+}
+
+/** Tooltip markup as lines of runs, with the placeholders left in it marked. */
+export function tooltipLines(text: string): Line[] {
+  return markPlaceholders(parseColors(text));
+}
+
+/**
+ * The ability fields an ability's text can name, by the game's text key. The Data keys (`DataA1`) are left out: a
+ * field does not say which data slot it is, so those placeholders stay as written.
+ */
+const abilityKeys: Record<string, string> = {
+  adur: "Dur",
+  ahdu: "HeroDur",
+  acdn: "Cool",
+  amcs: "Cost",
+  aran: "Rng",
+  aare: "Area",
+};
+
+/** The values an ability's text can name, keyed by the game's text key with its level (`Dur1`, `Cool3`). */
+export function abilityTextValues(view: ObjectView): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of view.fields) {
+    const key = abilityKeys[field.id];
+    if (key && field.level > 0) values[`${key}${field.level}`] = field.value;
+  }
+  return values;
+}
+
+/** One cost of the tooltip's cost line. */
+export type Cost = { label: string; value: string };
+
+/** What the preview shows: the icon's path, the title and text as markup (placeholders filled), the costs. */
+export type Tooltip = {
+  /** The icon's path; "" for none. */
+  icon: string;
+  /** The basic tooltip, with the hotkey added in gold when there is one. */
+  title: string;
+  /** The extended tooltip. */
+  text: string;
+  /** The costs that are not zero, in the game's order. */
+  costs: Cost[];
+  /** The hotkey letter; "" for none. */
+  hotkey: string;
+  /** A hero ability's learn tooltip; null for none. */
+  learn: { title: string; text: string } | null;
+};
+
+/** The fields that make a kind's tooltip, by what they are for. */
+type Recipe = {
+  icon: string;
+  title: string;
+  text: string;
+  hotkey: string;
+  costs: { label: string; ids: string[]; step?: string }[];
+};
+
+const recipes: Partial<Record<Kind, Recipe>> = {
+  unit: {
+    icon: "uico",
+    title: "utip",
+    text: "utub",
+    hotkey: "uhot",
+    costs: [
+      { label: "Gold", ids: ["ugol"] },
+      { label: "Lumber", ids: ["ulum"] },
+      { label: "Food", ids: ["ufoo"] },
+    ],
+  },
+  item: {
+    icon: "iico",
+    title: "utip",
+    text: "utub",
+    hotkey: "uhot",
+    costs: [
+      { label: "Gold", ids: ["igol", "ugol"] },
+      { label: "Lumber", ids: ["ilum", "ulum"] },
+    ],
+  },
+  ability: {
+    icon: "aart",
+    title: "atp1",
+    text: "aub1",
+    hotkey: "ahky",
+    costs: [
+      { label: "Mana", ids: ["amcs"] },
+      { label: "Cooldown", ids: ["acdn"] },
+    ],
+  },
+  buff: { icon: "fart", title: "ftip", text: "fube", hotkey: "", costs: [] },
+  upgrade: {
+    icon: "gar1",
+    title: "gtp1",
+    text: "gub1",
+    hotkey: "ghk1",
+    costs: [
+      { label: "Gold", ids: ["gglb"], step: "gglm" },
+      { label: "Lumber", ids: ["glmb"], step: "glmm" },
+    ],
+  },
+};
+
+/** A field at a level: the per-level field's level, else the field without levels; undefined when it has neither. */
+function fieldAt(view: ObjectView, id: string, level: number): FieldView | undefined {
+  return (
+    view.fields.find((field) => field.id === id && field.level === level) ??
+    view.fields.find((field) => field.id === id && field.level === 0)
+  );
+}
+
+function valueAt(view: ObjectView, id: string, level: number): string {
+  return fieldAt(view, id, level)?.value ?? "";
+}
+
+/** The basic tooltip with the hotkey after it in gold, as the game shows it: `Train Footman (F)`. */
+export function withHotkey(title: string, hotkey: string): string {
+  const letter = hotkey.trim().charAt(0).toUpperCase();
+  if (letter === "" || title === "") return title;
+  return `${title} (|cffffcc00${letter}|r)`;
+}
+
+/**
+ * The tooltip of an object at a level (from 1; an object without levels ignores it), or null for a kind the game
+ * shows no tooltip for (destructables and doodads). The icon is the kind's icon field, else the first icon field.
+ */
+export function tooltipOf(view: ObjectView, level = 1): Tooltip | null {
+  const recipe = recipes[view.kind];
+  if (!recipe) return null;
+  const own = [view.id, ...(view.baseId ? [view.baseId] : [])];
+  const values = view.kind === "ability" ? abilityTextValues(view) : {};
+  const fill = (text: string) => fillData(text, own, values);
+
+  const hotkey = recipe.hotkey ? valueAt(view, recipe.hotkey, level).trim() : "";
+  const icon =
+    fieldAt(view, recipe.icon, level)?.value ??
+    view.fields.find((field) => field.asset === "icon")?.value ??
+    "";
+
+  const costs: Cost[] = [];
+  for (const cost of recipe.costs) {
+    const id = cost.ids.find((candidate) => fieldAt(view, candidate, level));
+    if (!id) continue;
+    let number = Number(valueAt(view, id, level));
+    if (cost.step && level > 1)
+      number += Number(valueAt(view, cost.step, level) || 0) * (level - 1);
+    if (Number.isFinite(number) && number !== 0) {
+      costs.push({ label: cost.label, value: formatNumber(String(number)) });
+    }
+  }
+
+  let learn: Tooltip["learn"] = null;
+  if (view.kind === "ability" && valueAt(view, "aher", level) !== "0") {
+    const title = valueAt(view, "aret", level).replaceAll("%d", String(level));
+    const text = valueAt(view, "arut", level);
+    if (title || text) {
+      learn = { title: fill(withHotkey(title, valueAt(view, "arhk", level))), text: fill(text) };
+    }
+  }
+
+  return {
+    icon,
+    title: fill(withHotkey(valueAt(view, recipe.title, level), hotkey)),
+    text: fill(valueAt(view, recipe.text, level)),
+    costs,
+    hotkey,
+    learn,
+  };
+}

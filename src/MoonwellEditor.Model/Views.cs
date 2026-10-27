@@ -17,6 +17,9 @@ namespace MoonwellEditor.Model;
 /// The path of its icon (its Art - Icon field: the map's when it changes it, else the standard one); empty for a kind
 /// without icons (destructables, doodads) or none.
 /// </param>
+/// <param name="IconModes">
+/// The icon in each graphics mode (<c>sd</c>, <c>hd</c>, <c>de</c>) when it differs by mode; null when it does not.
+/// </param>
 public sealed record TreeEntry(
     string Id,
     string? BaseId,
@@ -24,7 +27,8 @@ public sealed record TreeEntry(
     string Suffix,
     IReadOnlyList<string> Path,
     bool Changed,
-    string Icon = "");
+    string Icon = "",
+    IReadOnlyDictionary<string, string>? IconModes = null);
 
 /// <summary>One object with every field that applies to it, resolved against the map and the standard data.</summary>
 /// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="Files.ObjectKinds.Key"/> names it.</param>

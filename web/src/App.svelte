@@ -2,7 +2,8 @@
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Settings from "@lucide/svelte/icons/settings";
-import { onMount } from "svelte";
+import { onMount, tick } from "svelte";
+import AlphaNotice, { alphaUnderstood } from "./lib/AlphaNotice.svelte";
 import {
   type CellEdit,
   type ChoiceList,
@@ -42,7 +43,9 @@ import Details from "./lib/Details.svelte";
 import Dialog from "./lib/Dialog.svelte";
 import { type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
+import { graphics, viewInMode } from "./lib/graphics.svelte.ts";
 import KindBar from "./lib/KindBar.svelte";
+import { actionOf, loadKeymap } from "./lib/keymap.ts";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
 import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
@@ -56,7 +59,7 @@ import {
   settleUnsaved,
 } from "./lib/settle.ts";
 import TableView, { type EditResult } from "./lib/TableView.svelte";
-import TitleBar from "./lib/TitleBar.svelte";
+import TitleBar, { type Visit } from "./lib/TitleBar.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
 import { applyTheme, savedTheme, saveTheme, type Theme } from "./lib/themes.ts";
@@ -64,8 +67,8 @@ import { windowTitle } from "./lib/title.ts";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
 import { nameField, savedText } from "./lib/values.ts";
 
-/** A place in the visited-objects history (Alt ← and Alt →). */
-type Place = { kind: Kind; id: string };
+/** A place in the visited-objects history (Alt ← and Alt →), with where the details panel was scrolled to. */
+type Place = { kind: Kind; id: string; scroll?: number };
 
 /** The unsaved-changes dialog: its question, whether Save is offered, and how it answers. */
 type Unsaved = { question: string; canSave: boolean; answer: (choice: Choice) => void };
@@ -96,8 +99,15 @@ let map = $state.raw<MapInfo | null>(null);
 let session = $state.raw<SessionState | null>(null);
 let mapProblem = $state("");
 let showProblems = $state(false);
+// Where the user last clicked or moved the focus: the tree (Ctrl C copies the object) or the details (a selected
+// field's value); the tree's selection looks active only while it is the tree (Sven, 2026-10-27).
+let zone = $state<"tree" | "details">("tree");
 // The settings dialog, and the theme on the page (Sven, 2026-10-27).
 let settingsOpen = $state(false);
+// The alpha notice the editor opens with, until the user ticks "Don't show this again" (Sven, 2026-10-27).
+let alphaOpen = $state(!alphaUnderstood());
+// The hotkeys, which the settings change.
+let keymap = $state(loadKeymap());
 // Put on before the first paint, so the page never shows the default theme first.
 const startTheme = savedTheme();
 applyTheme(startTheme);
@@ -119,6 +129,8 @@ let treeErrors = $state<Partial<Record<Kind, string>>>({});
 // The object last picked in each kind.
 let picked = $state<Partial<Record<Kind, string>>>({});
 let current = $state.raw<ObjectView | null>(null);
+// The object as the graphics mode shows it (the values the game keeps per mode are the mode's).
+const shown = $derived(current ? viewInMode(current, graphics.mode) : null);
 let objectError = $state("");
 let choiceLists = $state.raw<Record<string, ChoiceList> | null>(null);
 
@@ -138,6 +150,8 @@ let details:
       focusFilter(): void;
       focusField(field: FieldView): Promise<boolean>;
       clipKey(key: "c" | "x" | "v"): boolean;
+      scrollPosition(): number;
+      scrollTo(top: number): void;
     }
   | undefined = $state();
 
@@ -503,6 +517,18 @@ async function startNew(): Promise<void> {
   creating = { kind: shown.kind, baseId, baseName, id, error, busy: false };
 }
 
+/**
+ * Why an id typed for a new object cannot be used, as it is typed: not four letters or digits, or another object of
+ * the kind has it; null when it can (or is empty, which takes the next free id).
+ */
+function idProblem(each: Kind, typed: string): string | null {
+  const id = typed.trim();
+  if (id === "") return null;
+  if (!/^[0-9A-Za-z]{4}$/.test(id)) return "An id is four letters or digits.";
+  const taken = trees[each]?.find((entry) => entry.id === id);
+  return taken ? `${id} is taken by ${taken.name || id}.` : null;
+}
+
 async function create(): Promise<void> {
   const asked = creating;
   if (!asked || asked.busy) return;
@@ -724,7 +750,13 @@ async function show(each: Kind, id: string, remember = true): Promise<void> {
   }
 }
 
+/** A history entry for the title bar's list: its place and its object's name. */
+function visitOf(place: Place, index: number): Visit {
+  return { at: index, id: place.id, name: names[place.kind]?.get(place.id) || place.id };
+}
+
 function visit(place: Place): void {
+  remember();
   const here = history[at];
   if (here && here.kind === place.kind && here.id === place.id) return;
   history = history.slice(0, at + 1);
@@ -733,11 +765,20 @@ function visit(place: Place): void {
   at = history.length - 1;
 }
 
-function walk(by: number): void {
+// Keeps where the details panel is scrolled to with the place shown, for going back to it.
+function remember(): void {
+  const here = history[at];
+  if (here && details) here.scroll = details.scrollPosition();
+}
+
+async function walk(by: number): Promise<void> {
   const place = history[at + by];
   if (!place) return;
+  remember();
   at += by;
-  show(place.kind, place.id, false);
+  await show(place.kind, place.id, false);
+  await tick();
+  if (place.scroll !== undefined) details?.scrollTo(place.scroll);
 }
 
 // The mouse's back and forward buttons walk the history too, as in a browser.
@@ -771,21 +812,20 @@ function openInDetails(each: Kind, id: string): void {
  * cells (and they never reach here); anywhere else in the table they, and the details view's other keys for the
  * object shown (Ctrl Shift D, Ctrl Shift N, Alt ←/→), do nothing, as that object is not in view. True when handled.
  */
-function tableKey(event: KeyboardEvent, key: string): boolean {
-  const ctrl = event.ctrlKey && !event.altKey;
-  if (ctrl && key === "f") {
+function tableKey(event: KeyboardEvent): boolean {
+  const action = actionOf(event, keymap);
+  if (action === "filterFields") {
     event.preventDefault();
     tableView?.focusFilter();
     return true;
   }
-  if (event.key === "F2" || (ctrl && key === "d") || (ctrl && event.shiftKey && key === "n")) {
-    event.preventDefault();
-    return true;
-  }
-  if (event.key === "Delete" && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+  if (action === "deleteObject") {
     return !typingIn(event.target) && !inPopup(event.target);
   }
-  if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+  if (
+    action &&
+    ["rename", "fieldIds", "newObject", "copyObject", "back", "forward"].includes(action)
+  ) {
     event.preventDefault();
     return true;
   }
@@ -793,48 +833,68 @@ function tableKey(event: KeyboardEvent, key: string): boolean {
 }
 
 function onkeydown(event: KeyboardEvent): void {
-  if (unsaved || diskChanged || creating || deleting || settingsOpen) return; // and so do the dialogs
-  const key = event.key.toLowerCase();
-  const ctrl = event.ctrlKey && !event.altKey;
-  if (page === "table" && tableKey(event, key)) return;
-  if (ctrl && key === "s") {
-    event.preventDefault();
-    saveMap();
-  } else if (ctrl && event.shiftKey && key === "n") {
-    event.preventDefault();
-    if (map) startNew();
-  } else if (ctrl && (key === "y" || key === "z")) {
-    if (typingIn(event.target)) return; // the box's own undo
-    event.preventDefault();
-    undoOrRedo(key === "y" || event.shiftKey);
-  } else if (ctrl && !event.shiftKey && (key === "c" || key === "x" || key === "v")) {
-    if (page !== "details" || !map || typingIn(event.target) || inPopup(event.target)) return;
-    if (key !== "v" && (window.getSelection()?.toString() ?? "") !== "") return; // copying text
-    event.preventDefault();
-    if (details?.clipKey(key)) return; // a selected field's value
-    if (key === "v") paste();
-    else if (current) clip(current.kind, current.id, key === "x");
-  } else if (event.key === "F2") {
-    event.preventDefault();
-    focusName();
-  } else if (event.ctrlKey && !event.altKey && key === "f") {
-    event.preventDefault();
-    details?.focusFilter();
-  } else if (ctrl && event.shiftKey && key === "d") {
-    event.preventDefault();
-    deleteOrCopyKey(true);
-  } else if (event.ctrlKey && !event.altKey && key === "d") {
-    event.preventDefault();
-    showIds = !showIds;
-  } else if (event.key === "Delete" && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-    if (typingIn(event.target) || inPopup(event.target)) return; // the box's own Delete
-    event.preventDefault();
-    deleteOrCopyKey(false);
-  } else if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-    event.preventDefault();
-    walk(event.key === "ArrowLeft" ? -1 : 1);
-  } else if (event.key === "Escape") {
+  if (unsaved || diskChanged || creating || deleting || settingsOpen || alphaOpen) return; // and so do the dialogs
+  if (page === "table" && tableKey(event)) return;
+  if (event.key === "Escape") {
     showProblems = false;
+    return;
+  }
+  // The keys of the keymap, which the settings change (Sven, 2026-10-27).
+  const action = actionOf(event, keymap);
+  if (!action) return;
+  switch (action) {
+    case "save":
+      event.preventDefault();
+      saveMap();
+      break;
+    case "newObject":
+      event.preventDefault();
+      if (map) startNew();
+      break;
+    case "undo":
+    case "redo":
+      if (typingIn(event.target)) return; // the box's own undo
+      event.preventDefault();
+      undoOrRedo(action === "redo");
+      break;
+    case "copy":
+    case "cut":
+    case "paste": {
+      if (page !== "details" || !map || typingIn(event.target) || inPopup(event.target)) return;
+      if (action !== "paste" && (window.getSelection()?.toString() ?? "") !== "") return; // copying text
+      event.preventDefault();
+      const clipboardKey = action === "copy" ? "c" : action === "cut" ? "x" : "v";
+      if (zone === "details" && details?.clipKey(clipboardKey)) return; // a selected field's value
+      if (action === "paste") paste();
+      else if (current) clip(current.kind, current.id, action === "cut");
+      break;
+    }
+    case "rename":
+      event.preventDefault();
+      focusName();
+      break;
+    case "filterFields":
+      event.preventDefault();
+      details?.focusFilter();
+      break;
+    case "copyObject":
+      event.preventDefault();
+      deleteOrCopyKey(true);
+      break;
+    case "fieldIds":
+      event.preventDefault();
+      showIds = !showIds;
+      break;
+    case "deleteObject":
+      if (typingIn(event.target) || inPopup(event.target)) return; // the box's own Delete
+      event.preventDefault();
+      deleteOrCopyKey(false);
+      break;
+    case "back":
+    case "forward":
+      event.preventDefault();
+      walk(action === "back" ? -1 : 1);
+      break;
   }
 }
 
@@ -930,11 +990,13 @@ onMount(() => {
 
 <div class="grid h-full grid-cols-1 grid-rows-[23px_44px_1fr_26px]">
   <TitleBar
-    title={windowTitle(map?.path ?? null)}
-    canBack={at > 0}
-    canForward={at < history.length - 1}
-    onback={() => walk(-1)}
-    onforward={() => walk(1)}
+    {map}
+    back={history
+      .slice(0, Math.max(0, at))
+      .map((place, index) => visitOf(place, index))
+      .reverse()}
+    forward={history.slice(at + 1).map((place, index) => visitOf(place, at + 1 + index))}
+    onjump={(to) => walk(to - at)}
   />
   <header class="flex items-center gap-2.5 border-b border-line bg-surface px-3">
     <OpenMapMenu
@@ -1078,7 +1140,12 @@ onMount(() => {
         ? 'hidden'
         : ''}"
     >
-      <aside class="min-h-0 overflow-hidden border-r border-line bg-surface" aria-label="Objects">
+      <aside
+        class="min-h-0 overflow-hidden border-r border-line bg-surface"
+        aria-label="Objects"
+        onpointerdown={() => (zone = "tree")}
+        onfocusin={() => (zone = "tree")}
+      >
         <Tree
           {kind}
           entries={trees[kind] ?? null}
@@ -1087,10 +1154,16 @@ onMount(() => {
           onselect={(id) => show(kind, id)}
           oncontext={(id, x, y) => objectMenu(kind, id, x, y)}
           bind:filter={treeFilter}
+          active={zone === "tree"}
         />
       </aside>
       <!-- The details panel scrolls its own fields, under a header and a bar that stay put. -->
-      <section class="flex min-h-0 flex-col overflow-hidden" aria-label="Details">
+      <section
+        class="flex min-h-0 flex-col overflow-hidden"
+        aria-label="Details"
+        onpointerdown={() => (zone = "details")}
+        onfocusin={() => (zone = "details")}
+      >
         {#if mapProblem}
           <p class="mx-[18px] mt-3.5 shrink-0 text-warn" data-testid="map-error">{mapProblem}</p>
         {/if}
@@ -1099,7 +1172,7 @@ onMount(() => {
         {:else if current}
           <Details
             bind:this={details}
-            view={current}
+            view={shown ?? current}
             choices={choiceLists}
             {lookup}
             bind:filter={fieldFilter}
@@ -1126,7 +1199,7 @@ onMount(() => {
         aria-label="Uses and used by"
       >
         {#if current}
-          <SidePanel view={current} {lookup} onopen={(each, id) => show(each, id)} />
+          <SidePanel view={shown ?? current} {lookup} onopen={(each, id) => show(each, id)} />
         {/if}
       </aside>
     </main>
@@ -1164,45 +1237,44 @@ onMount(() => {
 
 {#if creating}
   {@const asked = creating}
+  <!-- "New Sorceress hsor" (Sven, 2026-10-27): the id is checked as it is typed. -->
+  {@const typedProblem = idProblem(asked.kind, asked.id)}
   <Dialog
-    title={asked.from ? `Paste ${asked.from.name}` : `New ${asked.kind}`}
+    title={asked.from
+      ? `${asked.from.cut ? "Move" : "Paste"} ${asked.from.name}`
+      : `New ${asked.baseName}`}
+    note={asked.from ? asked.from.id : asked.baseId}
     oncancel={() => (creating = null)}
   >
-    <p class="m-0">
-      {#if asked.from}
-        {asked.from.cut ? "Moves" : "A copy of"}
-        <b class="font-semibold text-fg">{asked.from.name}</b>
-        <span class="font-mono text-[12.5px] text-muted">{asked.from.id}</span>, based on
-        {asked.baseName}
-      {:else}
-        Based on <b class="font-semibold text-fg">{asked.baseName}</b>
-        <span class="font-mono text-[12.5px] text-muted">{asked.baseId}</span>
-      {/if}
-    </p>
-    <label class="mt-3 flex items-center gap-2">
+    <label class="flex items-center gap-2">
       Id
       <input
-        class="w-28 rounded-[5px] border bg-bg px-2 py-1 font-mono text-fg outline-none focus:border-accent {asked.error
+        class="w-28 rounded-[5px] border bg-bg px-2 py-1 font-mono text-fg outline-none focus:border-accent {asked.error ||
+        typedProblem
           ? 'border-warn'
           : 'border-line'}"
         maxlength="4"
         spellcheck="false"
         bind:value={asked.id}
+        oninput={() => (asked.error = "")}
         onkeydown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            create();
+            if (!typedProblem) create();
           }
         }}
       />
-      <span class="text-xs text-muted">The next free id; type another to use it.</span>
     </label>
-    {#if asked.error}
-      <p class="mt-2 mb-0 text-[12.5px] text-warn" role="alert">{asked.error}</p>
+    {#if asked.error || typedProblem}
+      <p class="mt-2 mb-0 text-[12.5px] text-warn" role="alert">{asked.error || typedProblem}</p>
     {/if}
     {#snippet actions()}
       {@render button("Cancel", () => (creating = null))}
-      {@render button(asked.busy ? "Making…" : asked.from ? "Paste" : "Make", create, "primary")}
+      {@render button(
+        asked.busy ? "Making…" : asked.from ? "Paste" : "Make",
+        () => !typedProblem && create(),
+        "primary",
+      )}
     {/snippet}
   </Dialog>
 {/if}
@@ -1260,5 +1332,17 @@ onMount(() => {
 {/if}
 
 {#if settingsOpen}
-  <SettingsDialog {theme} ontheme={useTheme} {map} {data} onclose={() => (settingsOpen = false)} />
+  <SettingsDialog
+    {theme}
+    ontheme={useTheme}
+    {keymap}
+    onkeymap={(changed) => (keymap = changed)}
+    {map}
+    {data}
+    onclose={() => (settingsOpen = false)}
+  />
+{/if}
+
+{#if alphaOpen}
+  <AlphaNotice onclose={() => (alphaOpen = false)} />
 {/if}

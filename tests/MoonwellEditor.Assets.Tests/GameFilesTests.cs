@@ -37,6 +37,22 @@ public sealed class GameFilesTests : IClassFixture<GameFilesTests.Install>
         Assert.EndsWith(".mdx", files.Find(@"units\human\Peasant\Peasant.mdl"), StringComparison.OrdinalIgnoreCase);
         Assert.Null(files.Find(@"units\human\NoSuchUnit\NoSuchUnit"));
 
+        // Each graphics mode reads its own tier first: the Definitive Edition's Peasant icon is its own.
+        Assert.StartsWith(
+            "War3.w3mod:_DE.w3mod:",
+            files.Find(@"ReplaceableTextures\CommandButtons\BTNPeasant.blp", "de"),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(
+            "War3.w3mod:ReplaceableTextures",
+            files.Find(@"ReplaceableTextures\CommandButtons\BTNPeasant.blp", "sd"),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            files.List("ReplaceableTextures/CommandButtons/", "de", ".dds", ".blp"),
+            icon => icon.Contains("BTNPriestV1", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            files.List("ReplaceableTextures/CommandButtons/", "sd", ".dds", ".blp"),
+            icon => icon.Contains("BTNPriestV1", StringComparison.OrdinalIgnoreCase));
+
         // Only the Reforged tiers hold the icon the data gives the Priest.
         Assert.Contains(
             "_HD.w3mod:",
@@ -59,7 +75,7 @@ public sealed class GameFilesTests : IClassFixture<GameFilesTests.Install>
         Assert.Equal((64, 64), (dds.Width, dds.Height));
         Assert.Contains(dds.Pixels.Chunk(4), pixel => pixel[0] + pixel[1] + pixel[2] > 100);
 
-        var blp = files.List("ReplaceableTextures/CommandButtons/", ".blp");
+        var blp = files.List("ReplaceableTextures/CommandButtons/", "sd", ".blp");
         Assert.NotEmpty(blp);
         var image = Textures.Decode(files.Read(blp[0])!)!;
         Assert.True(image.Width > 0 && image.Pixels.Length == image.Width * image.Height * 4);
@@ -76,10 +92,10 @@ public sealed class GameFilesTests : IClassFixture<GameFilesTests.Install>
             return;
         }
 
-        var icons = files.List("ReplaceableTextures/CommandButtons/", ".dds", ".blp");
+        var icons = files.List("ReplaceableTextures/CommandButtons/", "sd", ".dds", ".blp");
         Assert.True(icons.Count > 1000, $"{icons.Count} icons");
         Assert.Contains(icons, icon => icon.EndsWith("BTNPeasant.dds", StringComparison.OrdinalIgnoreCase));
-        var models = files.List("", ".mdx");
+        var models = files.List("", "sd", ".mdx");
         Assert.True(models.Count > 1000);
         Assert.DoesNotContain(models, model => model.Contains(".w3mod:", StringComparison.OrdinalIgnoreCase));
     }

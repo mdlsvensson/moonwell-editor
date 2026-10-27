@@ -17,7 +17,28 @@ public sealed record MapOptions(string DataSet, string DataVersion, string Value
     private const string Base = "base";
 
     /// <summary>The map's option from its <c>war3map.w3i</c>; null when the map has none or it cannot be read.</summary>
-    public static MapOptions? Read(IMapStore store)
+    public static MapOptions? Read(IMapStore store) =>
+        Info(store) is { } info ? Of(info.GameDataSet, info.GameDataVersion) : null;
+
+    /// <summary>
+    /// The map's name as its info file writes it (a <c>TRIGSTR_n</c> for most maps) and whether it is an expansion
+    /// (Frozen Throne) map: an archive by its extension (<c>.w3x</c>, <c>.w3m</c>), a folder by its info file's format
+    /// (Reign of Chaos maps have a format below 25). Null when the info file is missing or cannot be read.
+    /// </summary>
+    public static (string Name, bool Expansion)? Header(IMapStore store)
+    {
+        if (Info(store) is not { } info)
+        {
+            return null;
+        }
+
+        var expansion = store.IsArchive
+            ? !string.Equals(System.IO.Path.GetExtension(store.Path), ".w3m", StringComparison.OrdinalIgnoreCase)
+            : (int)info.FormatVersion >= 25;
+        return (info.MapName ?? "", expansion);
+    }
+
+    private static MapInfo? Info(IMapStore store)
     {
         var bytes = store.Read(InfoFile);
         if (bytes == null)
@@ -25,19 +46,16 @@ public sealed record MapOptions(string DataSet, string DataVersion, string Value
             return null;
         }
 
-        MapInfo info;
         try
         {
             using var reader = new BinaryReader(new MemoryStream(bytes));
-            info = reader.ReadMapInfo();
+            return reader.ReadMapInfo();
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException
                                               or ArgumentException or EndOfStreamException)
         {
             return null;
         }
-
-        return Of(info.GameDataSet, info.GameDataVersion);
     }
 
     /// <summary>The option for a data set and version, as the game reads them.</summary>

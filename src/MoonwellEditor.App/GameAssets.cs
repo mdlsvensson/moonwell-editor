@@ -49,18 +49,22 @@ public sealed class GameAssets : IDisposable
     /// <summary>True once the install is open.</summary>
     public bool Ready => _files != null;
 
-    /// <summary>A file's bytes: the map's file of that name, else the game's; null when neither has it.</summary>
-    public byte[]? File(string path) => FromMap(path) ?? _files?.Read(path);
+    /// <summary>
+    /// A file's bytes: the map's file of that name, else the game's in the graphics mode (<c>sd</c>, <c>hd</c>,
+    /// <c>de</c>); null when neither has it.
+    /// </summary>
+    public byte[]? File(string path, string mode = "de") => FromMap(path) ?? _files?.Read(path, mode);
 
-    /// <summary>An icon (any texture) as PNG; null when there is no such file or it cannot be decoded.</summary>
-    public byte[]? Icon(string path)
+    /// <summary>An icon (any texture) as PNG, in a graphics mode; null when there is none or it cannot be decoded.</summary>
+    public byte[]? Icon(string path, string mode = "de")
     {
-        if (_icons.TryGetValue(path, out var known))
+        var key = mode + "|" + path;
+        if (_icons.TryGetValue(key, out var known))
         {
             return known;
         }
 
-        var bytes = File(path);
+        var bytes = File(path, mode);
         var image = bytes == null ? null : Textures.Decode(bytes);
         var png = image == null ? null : Textures.Png(image);
         if (_files != null || png != null)
@@ -71,7 +75,7 @@ public sealed class GameAssets : IDisposable
                 _icons.Clear();
             }
 
-            _icons[path] = png;
+            _icons[key] = png;
         }
 
         return png;
@@ -85,7 +89,7 @@ public sealed class GameAssets : IDisposable
     /// <c>ReplaceableTextures\CommandButtons\BTNPeasant.blp</c>) or <c>model</c> (every model but portraits,
     /// <c>units\human\Peasant\Peasant.mdl</c>). Empty until the install is open.
     /// </summary>
-    public IReadOnlyList<string> List(string kind)
+    public IReadOnlyList<string> List(string kind, string mode = "de")
     {
         var files = _files;
         if (files == null)
@@ -95,22 +99,22 @@ public sealed class GameAssets : IDisposable
 
         lock (_lists)
         {
-            if (_lists.TryGetValue(kind, out var known))
+            if (_lists.TryGetValue(kind + "|" + mode, out var known))
             {
                 return known;
             }
 
             var found = kind switch
             {
-                "icon" => files.List("ReplaceableTextures/CommandButtons/", ".blp", ".dds")
-                    .Concat(files.List("ReplaceableTextures/PassiveButtons/", ".blp", ".dds"))
+                "icon" => files.List("ReplaceableTextures/CommandButtons/", mode, ".blp", ".dds")
+                    .Concat(files.List("ReplaceableTextures/PassiveButtons/", mode, ".blp", ".dds"))
                     .Select(path => Written(path, ".blp")),
-                "model" => files.List("", ".mdx")
+                "model" => files.List("", mode, ".mdx")
                     .Where(path => !path.EndsWith("_portrait.mdx", StringComparison.OrdinalIgnoreCase))
                     .Select(path => Written(path, ".mdl")),
                 _ => [],
             };
-            return _lists[kind] = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return _lists[kind + "|" + mode] = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
     }
 

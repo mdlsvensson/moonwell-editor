@@ -3,10 +3,12 @@
  * A 3D preview of a game model: it plays the model's Stand animation, lit and textured, and turns slowly; a drag turns
  * it by hand. war3-model parses and draws the model with WebGL. Each model gets its own canvas and GL context, and
  * both go when the path changes or the preview closes. Particles and ribbons are drawn as war3-model draws them; the
- * game's HD models are not the aim.
+ * game's HD models are not the aim. The team colour and hero glow take a player's colour, and a row of the 24 colours
+ * can pick it (Sven, 2026-10-27).
  */
 import { decodeDds, parseHeaders } from "dds-parser";
 import { mat4, quat, vec3 } from "gl-matrix";
+import { untrack } from "svelte";
 import { decodeBLP, getBLPImageData, ModelRenderer, parseMDL, parseMDX } from "war3-model";
 import {
   type Extent,
@@ -16,6 +18,7 @@ import {
   stripChunks,
   unreadChunks,
 } from "./mdx.ts";
+import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
 
 type Props = {
   /** The model's game path as object data spells it, with .mdl, .mdx or no extension. */
@@ -24,9 +27,13 @@ type Props = {
   fileUrl: (path: string) => string;
   /** The width and height in pixels. */
   size?: number;
+  /** The player whose colour the team colour and hero glow take, 0 for player 1 (Red) to 23 (Peanut). */
+  teamColor?: number;
+  /** Whether to show the 24 player colours under the model; a click sets `teamColor`. */
+  picker?: boolean;
 };
 
-let { path, fileUrl, size = 240 }: Props = $props();
+let { path, fileUrl, size = 240, teamColor = $bindable(0), picker = false }: Props = $props();
 
 let host: HTMLDivElement | undefined = $state();
 let status: "loading" | "ready" | "error" = $state("loading");
@@ -34,10 +41,27 @@ let error = $state("");
 /** The textures that could not be loaded; the model is drawn without them. */
 let missing: string[] = $state([]);
 
+/** The preview on show, so a new team colour reaches its renderer without loading the model again. */
+let current: ReturnType<typeof show> | undefined;
+
 $effect(() => {
   if (!host) return;
-  const preview = show(host, path, fileUrl, size);
-  return () => preview.stop();
+  const preview = show(
+    host,
+    path,
+    fileUrl,
+    size,
+    untrack(() => teamColor),
+  );
+  current = preview;
+  return () => {
+    preview.stop();
+    if (current === preview) current = undefined;
+  };
+});
+
+$effect(() => {
+  current?.tint(teamColor);
 });
 
 type Model = ReturnType<typeof parseMDX>;
@@ -54,14 +78,20 @@ const replaceable: Record<number, string> = {
   37: "ReplaceableTextures\\OutlandMushroomTree\\MushroomTree.blp",
 };
 
-/** Player 1's red, for the team colour. */
-const teamColour = vec3.fromValues(1, 0.012, 0.012);
 const fieldOfView = Math.PI / 4;
 /** Radians a second the model turns by itself. */
 const turnSpeed = 0.35;
 
-/** Loads the model at `at` into a new canvas in `into` and keeps drawing it until `stop`. */
-function show(into: HTMLElement, at: string, url: (path: string) => string, px: number) {
+/**
+ * Loads the model at `at` into a new canvas in `into`, in player `team`'s colour, and keeps drawing it until `stop`.
+ */
+function show(
+  into: HTMLElement,
+  at: string,
+  url: (path: string) => string,
+  px: number,
+  team: number,
+) {
   status = "loading";
   error = "";
   missing = [];
@@ -69,6 +99,9 @@ function show(into: HTMLElement, at: string, url: (path: string) => string, px: 
   let stopped = false;
   let frameId = 0;
   let renderer: ModelRenderer | undefined;
+  // war3-model reads the colour each frame: it fills texture 1 (team colour) with it and draws texture 2 (the hero
+  // glow) as a disc of it.
+  const colour = vec3.fromValues(...teamRgb(team));
   const canvas = document.createElement("canvas");
   const ratio = window.devicePixelRatio || 1;
   canvas.width = Math.round(px * ratio);
@@ -134,7 +167,7 @@ function show(into: HTMLElement, at: string, url: (path: string) => string, px: 
       lightShaders(gl);
       renderer = new ModelRenderer(model);
       renderer.initGL(gl);
-      renderer.setTeamColor(teamColour);
+      renderer.setTeamColor(colour);
     } catch (e) {
       return fail(`The model could not be drawn: ${message(e)}`);
     }
@@ -271,6 +304,11 @@ function show(into: HTMLElement, at: string, url: (path: string) => string, px: 
   });
 
   return {
+    /** Sets the team colour to player `player`'s; the next frame draws it. */
+    tint(player: number): void {
+      vec3.set(colour, ...teamRgb(player));
+      renderer?.setTeamColor(colour);
+    },
     stop(): void {
       stopped = true;
       abort.abort();
@@ -365,26 +403,47 @@ function message(e: unknown): string {
 }
 </script>
 
-<div
-  bind:this={host}
-  class="relative shrink-0 overflow-hidden rounded border border-line bg-bg"
-  style="width: {size}px; height: {size}px"
->
-  {#if status === "loading"}
-    <p class="absolute inset-0 m-0 flex items-center justify-center text-xs text-faint">Loading model…</p>
-  {:else if status === "error"}
-    <p
-      class="absolute inset-0 m-0 flex items-center justify-center p-3 text-center text-xs text-warn"
-      role="alert"
-    >
-      {error}
-    </p>
-  {:else if missing.length > 0}
-    <p
-      class="absolute bottom-0 left-0 m-0 truncate px-2 py-1 text-[11px] text-faint"
-      title={missing.join("\n")}
-    >
-      {missing.length === 1 ? "1 texture missing" : `${missing.length} textures missing`}
-    </p>
+<div class="flex shrink-0 flex-col gap-1.5" style="width: {size}px">
+  <div
+    bind:this={host}
+    class="relative shrink-0 overflow-hidden rounded border border-line bg-bg"
+    style="width: {size}px; height: {size}px"
+  >
+    {#if status === "loading"}
+      <p class="absolute inset-0 m-0 flex items-center justify-center text-xs text-faint">Loading model…</p>
+    {:else if status === "error"}
+      <p
+        class="absolute inset-0 m-0 flex items-center justify-center p-3 text-center text-xs text-warn"
+        role="alert"
+      >
+        {error}
+      </p>
+    {:else if missing.length > 0}
+      <p
+        class="absolute bottom-0 left-0 m-0 truncate px-2 py-1 text-[11px] text-faint"
+        title={missing.join("\n")}
+      >
+        {missing.length === 1 ? "1 texture missing" : `${missing.length} textures missing`}
+      </p>
+    {/if}
+  </div>
+  {#if picker}
+    <div class="grid grid-cols-12 gap-0.5" role="radiogroup" aria-label="Team colour">
+      {#each teamColors as colour, index (colour.name)}
+        {@const chosen = playerIndex(teamColor) === index}
+        <button
+          type="button"
+          class="aspect-square rounded-sm border {chosen
+            ? 'relative z-10 border-bg outline-2 outline-fg'
+            : 'border-line hover:border-muted'}"
+          style="background-color: {colour.hex}"
+          title="Player {index + 1}: {colour.name}"
+          aria-label="Player {index + 1}, {colour.name}"
+          role="radio"
+          aria-checked={chosen}
+          onclick={() => (teamColor = index)}
+        ></button>
+      {/each}
+    </div>
   {/if}
 </div>

@@ -115,11 +115,17 @@ public sealed class MainForm : Form
 
         base.WndProc(ref m);
 
-        // The strip above the page resizes the window from its top edge.
-        if (m.Msg == TitleBar.HitTestMessage && m.Result == 1 && Padding.Top > 0)
+        // The top few pixels resize the window from its top edge while it is not maximized. The page marks them as a
+        // drag region, which WebView2 hands to the window to hit-test (Sven, 2026-10-27: the title bar's buttons reach
+        // the top, so no strip of the window's own shows above them).
+        if (m.Msg == TitleBar.HitTestMessage && m.Result is 1 or 2 && WindowState != FormWindowState.Maximized)
         {
             var point = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
-            m.Result = TitleBar.HitTest(point, ClientSize.Width, Padding.Top, LogicalToDeviceUnits(16));
+            var strip = LogicalToDeviceUnits(TitleBar.ResizeStrip);
+            if (point.Y < strip)
+            {
+                m.Result = TitleBar.HitTest(point, ClientSize.Width, strip, LogicalToDeviceUnits(16));
+            }
         }
     }
 
@@ -128,7 +134,6 @@ public sealed class MainForm : Form
     {
         base.OnSizeChanged(e);
         var maximized = WindowState == FormWindowState.Maximized;
-        Padding = new Padding(0, maximized ? 0 : LogicalToDeviceUnits(TitleBar.ResizeStrip), 0, 0);
         if (maximized != _maximized)
         {
             _maximized = maximized;
@@ -354,7 +359,9 @@ public sealed class MainForm : Form
     {
         var assets = _commands.Assets;
         var uri = new Uri(e.Request.Uri);
-        var path = System.Web.HttpUtility.ParseQueryString(uri.Query)["path"];
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var path = query["path"];
+        var mode = query["mode"] is "sd" or "hd" or "de" ? query["mode"]! : "de";
         if (assets == null || string.IsNullOrWhiteSpace(path) || uri.AbsolutePath is not ("/icon" or "/file"))
         {
             e.Response = environment.CreateWebResourceResponse(null, 404, "Not Found", "");
@@ -366,7 +373,7 @@ public sealed class MainForm : Form
         Task.Run(async () =>
         {
             await assets.Loading;
-            return icon ? assets.Icon(path) : assets.File(path);
+            return icon ? assets.Icon(path, mode) : assets.File(path, mode);
         }).ContinueWith(task => OnWindowThread(() =>
         {
             var bytes = task.IsCompletedSuccessfully ? task.Result : null;

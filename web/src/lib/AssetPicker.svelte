@@ -8,6 +8,7 @@ import Box from "@lucide/svelte/icons/box";
 import ImageIcon from "@lucide/svelte/icons/image";
 import { type AssetList, fileUrl, iconUrl } from "./api.ts";
 import { listOf, matching } from "./assets.ts";
+import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
 import Popover from "./Popover.svelte";
 
@@ -36,7 +37,7 @@ const previewed = $derived(hovered ?? (value.trim() || null));
 $effect(() => {
   if (!open) return;
   problem = "";
-  listOf(kind).then(
+  listOf(kind, graphics.mode).then(
     (found) => (list = found),
     (error) => (problem = error instanceof Error ? error.message : String(error)),
   );
@@ -101,7 +102,7 @@ function focusOnMount(element: HTMLInputElement): void {
               title={path}
               onclick={() => pick(path)}
             >
-              <img src={iconUrl(path)} alt={path} class="block size-10" loading="lazy" draggable="false" />
+              <img src={iconUrl(path, graphics.mode)} alt={path} class="block size-10" loading="lazy" draggable="false" />
             </button>
           {/each}
         </div>
@@ -113,7 +114,7 @@ function focusOnMount(element: HTMLInputElement): void {
                 type="button"
                 role="option"
                 aria-selected={path.toLowerCase() === value.trim().toLowerCase()}
-                class="truncate rounded px-1.5 py-0.5 text-left font-mono text-[12px] hover:bg-hover {path.toLowerCase() ===
+                class="shrink-0 truncate rounded px-1.5 py-0.5 text-left font-mono text-[12px] hover:bg-hover {path.toLowerCase() ===
                 value.trim().toLowerCase()
                   ? 'text-accent-hi'
                   : 'text-body'}"
@@ -128,7 +129,7 @@ function focusOnMount(element: HTMLInputElement): void {
           </div>
           <div class="shrink-0">
             {#if previewed}
-              <ModelPreview path={previewed} {fileUrl} size={240} />
+              <ModelPreview path={previewed} fileUrl={(path) => fileUrl(path, graphics.mode)} size={240} />
               <p class="m-0 mt-1 w-[240px] truncate font-mono text-[11px] text-faint" title={previewed}>
                 {previewed}
               </p>

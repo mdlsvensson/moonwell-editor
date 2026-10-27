@@ -16,8 +16,17 @@ public sealed class GameFiles : IDisposable
     private const string Locale = "War3.w3mod:_Locales/enUS.w3mod:";
     private const string Aliases = "filealiases.json";
 
-    // Where a file is looked for, in order: the locale's, the Classic files, then the Reforged tiers.
-    private static readonly string[] Prefixes = [Locale, Root, Root + "_HD.w3mod:", Root + "_DE.w3mod:"];
+    private const string Hd = Root + "_HD.w3mod:";
+    private const string De = Root + "_DE.w3mod:";
+
+    // Where a file is looked for in each graphics mode (Sven, 2026-10-27): the mode's own tier first (Classic is the
+    // base files and the locale's), then the rest, so a file only another tier holds is still found.
+    private static readonly Dictionary<string, string[]> Prefixes = new(StringComparer.Ordinal)
+    {
+        ["sd"] = [Locale, Root, Hd, De],
+        ["hd"] = [Hd, Locale, Root, De],
+        ["de"] = [De, Locale, Root, Hd],
+    };
 
     private readonly CascStorage _storage;
     private readonly Dictionary<string, string> _aliases = new(StringComparer.OrdinalIgnoreCase);
@@ -52,12 +61,16 @@ public sealed class GameFiles : IDisposable
     /// <exception cref="IOException">There is no install there, or its storage cannot be read.</exception>
     public static GameFiles Open(string gameFolder) => new(CascStorage.Open(gameFolder));
 
-    /// <summary>The file at a path as object data writes it; null when the game has no such file.</summary>
-    public byte[]? Read(string path) => Find(path) is { } found ? _storage.Read(found) : null;
+    /// <summary>
+    /// The file at a path as object data writes it, in a graphics mode (<c>sd</c> Classic, <c>hd</c> Reforged, <c>de</c>
+    /// Definitive Edition; Classic when not given); null when the game has no such file.
+    /// </summary>
+    public byte[]? Read(string path, string mode = "sd") => Find(path, mode) is { } found ? _storage.Read(found) : null;
 
-    /// <summary>The storage path the game reads for <paramref name="path"/>; null when it has no such file.</summary>
-    public string? Find(string path)
+    /// <summary>The storage path the game reads for <paramref name="path"/> in a graphics mode; null when it has none.</summary>
+    public string? Find(string path, string mode = "sd")
     {
+        var prefixes = Prefixes.GetValueOrDefault(mode, Prefixes["sd"]);
         var normalized = Normalized(path);
         if (normalized.Length == 0)
         {
@@ -67,7 +80,7 @@ public sealed class GameFiles : IDisposable
         foreach (var candidate in Candidates(normalized).Concat(
                      _aliases.TryGetValue(normalized, out var moved) ? Candidates(moved) : []))
         {
-            foreach (var prefix in Prefixes)
+            foreach (var prefix in prefixes)
             {
                 if (_storage.Contains(prefix + candidate))
                 {
@@ -80,20 +93,35 @@ public sealed class GameFiles : IDisposable
     }
 
     /// <summary>
-    /// The Classic files under <paramref name="folder"/> (<c>ReplaceableTextures/CommandButtons/</c>) whose names end
-    /// in one of <paramref name="extensions"/>, as paths object data would write (no storage prefix), sorted.
+    /// The files under <paramref name="folder"/> (<c>ReplaceableTextures/CommandButtons/</c>) whose names end in one
+    /// of <paramref name="extensions"/>: the Classic files and, in another graphics mode, its tier's too (where
+    /// <c>BTNPriestV1</c> is), as paths object data would write (no storage prefix), once each, sorted.
     /// </summary>
-    public List<string> List(string folder, params string[] extensions)
+    public List<string> List(string folder, string mode, params string[] extensions)
     {
-        var start = Root + Normalized(folder);
-        return _storage.Paths
-            // The HD files and the locales sit in nested folders (War3.w3mod:_HD.w3mod:...), which are left out.
-            .Where(path => path.StartsWith(start, StringComparison.OrdinalIgnoreCase)
-                           && path.IndexOf(".w3mod:", Root.Length, StringComparison.OrdinalIgnoreCase) < 0
-                           && extensions.Any(extension => path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
-            .Select(path => path[Root.Length..])
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var tiers = mode switch
+        {
+            "hd" => new[] { Root, Hd },
+            "de" => [Root, De],
+            _ => [Root],
+        };
+        var found = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tier in tiers)
+        {
+            var start = tier + Normalized(folder);
+            foreach (var path in _storage.Paths)
+            {
+                // Another tier and the locales sit in nested folders (War3.w3mod:_HD.w3mod:...), which are left out.
+                if (path.StartsWith(start, StringComparison.OrdinalIgnoreCase)
+                    && path.IndexOf(".w3mod:", tier.Length, StringComparison.OrdinalIgnoreCase) < 0
+                    && extensions.Any(extension => path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+                {
+                    found.Add(path[tier.Length..]);
+                }
+            }
+        }
+
+        return [.. found];
     }
 
     /// <inheritdoc />

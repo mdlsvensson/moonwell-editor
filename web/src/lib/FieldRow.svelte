@@ -9,6 +9,7 @@ import { type ChoiceList, type FieldView, iconUrl, type Kind } from "./api.ts";
 import CommandCard from "./CommandCard.svelte";
 import FieldEditor from "./FieldEditor.svelte";
 import { type ButtonPair, type Lookup, listIds, shownValue } from "./fields.ts";
+import { graphics } from "./graphics.svelte.ts";
 
 type Props = {
   field: FieldView;
@@ -79,6 +80,7 @@ async function reset(): Promise<void> {
 </script>
 
 <div
+  data-changed={field.changed || undefined}
   class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)] items-center border-t border-line {selected
     ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60'
     : 'hover:bg-surface'}"
@@ -106,7 +108,7 @@ async function reset(): Promise<void> {
     {#if field.asset === "icon" && field.value.trim()}
       <!-- The icon the field names (Sven, 2026-10-27). -->
       <img
-        src={iconUrl(field.value)}
+        src={iconUrl(field.value, graphics.mode)}
         alt=""
         class="size-6 shrink-0 rounded-[2px]"
         draggable="false"

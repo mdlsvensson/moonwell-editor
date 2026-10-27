@@ -59,6 +59,10 @@ public sealed partial class Session
     /// <summary>The strings file as edited, or null when the map has none.</summary>
     internal WtsFile? Strings => _strings;
 
+    /// <summary>A text as the map shows it: a <c>TRIGSTR_n</c> as its strings file has it, any other as it is.</summary>
+    public string Text(string value) =>
+        WtsFile.TriggerString(value) is { } number && _strings?.Get(number) is { } text ? text : value;
+
     /// <summary>A kind's main or skin file as edited, or null when there is none.</summary>
     internal ObjectFile? FileOf(ObjectKind kind, bool skin) => skin ? _kinds[kind].Skin : _kinds[kind].Main;
 
@@ -150,7 +154,8 @@ public sealed partial class Session
                 resolver.Suffix(standard, custom),
                 ["Custom"],
                 custom.HasMods,
-                resolver.Icon(standard, custom)));
+                resolver.Icon(standard, custom),
+                resolver.IconModes(standard, custom)));
         }
 
         var originals = map.Originals();
@@ -164,7 +169,8 @@ public sealed partial class Session
                 resolver.Suffix(standard, changes),
                 Folders.Of(kind, standard),
                 changes?.HasMods ?? false,
-                resolver.Icon(standard, changes)));
+                resolver.Icon(standard, changes),
+                resolver.IconModes(standard, changes)));
         }
 
         return tree;

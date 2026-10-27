@@ -23,13 +23,6 @@ let button: HTMLButtonElement | undefined = $state();
 const columns = [0, 1, 2, 3];
 const rows = [0, 1, 2];
 const at = $derived({ x: Number(pair.x.value), y: Number(pair.y.value) });
-// The part of the label both halves share: "Normal", "Turn Off", "Research".
-const name = $derived(
-  pair.x.label
-    .replace(/^Button Position\s*-?\s*/, "")
-    .replace(/\s*\(X\)$/, "")
-    .trim(),
-);
 
 async function pick(x: number, y: number): Promise<void> {
   error = (await onpick(x, y)) ?? "";
@@ -52,7 +45,7 @@ async function pick(x: number, y: number): Promise<void> {
 {#if open && button}
   <Popover anchor={button} onclose={() => (open = false)}>
     <div class="p-1">
-      <p class="m-0 mb-2 text-xs text-muted">Command card{name ? ` · ${name}` : ""}</p>
+      <p class="m-0 mb-2 text-xs text-muted">Button Position</p>
       <div class="grid grid-cols-4 gap-1" role="grid" aria-label="Command card">
         {#each rows as y (y)}
           {#each columns as x (x)}
@@ -71,9 +64,6 @@ async function pick(x: number, y: number): Promise<void> {
           {/each}
         {/each}
       </div>
-      <p class="m-0 mt-2 max-w-44 text-[11.5px] text-faint">
-        Another value (off the card, or -11 to hide it) goes in the X and Y boxes.
-      </p>
       {#if error}
         <p class="m-0 mt-1 max-w-44 text-[11.5px] text-warn" role="alert">{error}</p>
       {/if}

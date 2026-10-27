@@ -87,7 +87,7 @@ async function reset(field: FieldView): Promise<void> {
       </thead>
       <tbody>
         {#each rows as row (row.id)}
-          <tr>
+          <tr data-changed={isChanged(row) || undefined}>
             <th class="border border-line px-2 py-0.5 text-left font-normal whitespace-nowrap">
               <span class="inline-flex items-center gap-1.5">
                 <span class="h-3.5 w-1 rounded-sm {isChanged(row) ? 'bg-changed' : ''}"></span>

@@ -51,6 +51,10 @@ export type MapInfo = {
   problems: string[];
   /** How many custom objects it has, by kind. */
   counts: Record<Kind, number>;
+  /** Its name from its info file (a strings-file text resolved); null or absent when it has none. */
+  title?: string | null;
+  /** True for a Frozen Throne map, false for Reign of Chaos; null or absent when unknown. */
+  expansion?: boolean | null;
   /** Its game data option, from its war3map.w3i; null when that is missing or cannot be read. */
   options: MapOptions | null;
 };
@@ -75,6 +79,8 @@ export type TreeEntry = {
   changed: boolean;
   /** Its icon's path (`ReplaceableTextures\CommandButtons\BTNPeasant.blp`); "" or absent for none. */
   icon?: string;
+  /** Its icon in each graphics mode (`sd`, `hd`, `de`) when that differs by mode; absent or null when not. */
+  iconModes?: Record<string, string> | null;
 };
 
 /** One link of an object's chain; `id` is "" for a link that is not an object (the kind, a hero, a building). */
@@ -422,20 +428,23 @@ export async function frameColors(surface: string, border: string): Promise<void
 /** Where the page loads the game's and the map's files from (the window serves this host). */
 const assetHost = "https://game.moonwelleditor";
 
-/** The URL of an icon (any texture) as PNG, by the path object data writes. */
-export function iconUrl(path: string): string {
-  return `${assetHost}/icon?path=${encodeURIComponent(path)}`;
+/**
+ * The URL of an icon (any texture) as PNG, by the path object data writes, in a graphics mode (`sd`, `hd`, `de`):
+ * the mode's own files first.
+ */
+export function iconUrl(path: string, mode: string): string {
+  return `${assetHost}/icon?path=${encodeURIComponent(path)}&mode=${mode}`;
 }
 
-/** The URL of a game or map file's bytes (a model, a texture), by the path object data writes. */
-export function fileUrl(path: string): string {
-  return `${assetHost}/file?path=${encodeURIComponent(path)}`;
+/** The URL of a game or map file's bytes (a model, a texture), by the path object data writes, in a graphics mode. */
+export function fileUrl(path: string, mode: string): string {
+  return `${assetHost}/file?path=${encodeURIComponent(path)}&mode=${mode}`;
 }
 
 /** The game's icons or models, for the pickers; `ready` is false while the install opens or when there is none. */
 export type AssetList = { ready: boolean; error: string | null; folder: string; paths: string[] };
 
-/** Lists the game's icons or models, as object data writes their paths. */
-export function assetList(kind: "icon" | "model"): Promise<AssetList> {
-  return call<AssetList>("assetList", { kind });
+/** Lists the game's icons or models in a graphics mode, as object data writes their paths. */
+export function assetList(kind: "icon" | "model", mode: string): Promise<AssetList> {
+  return call<AssetList>("assetList", { kind, mode });
 }
