@@ -25,16 +25,16 @@
   </ItemGroup>
 
   <!--
-    Moonwell's generator does not write its XML docs, and some of its enum members have none; this library does, so
-    the missing-comment warning is turned off for Moonwell's files only, by a config naming each of them (a global
-    config matches whole paths, not patterns). It is written at build time, so it is added to the configs the
-    compiler reads here rather than found on disk.
+    Moonwell's generator does not write its XML docs: some of its members have none and some list only part of their
+    parameters. This library does, so those two warnings are turned off for Moonwell's files only, by a config naming
+    each of them (a global config matches whole paths, not patterns). It is written at build time, so it is added to
+    the configs the compiler reads here rather than found on disk.
   -->
   <Target Name="WriteMoonwellConfig" BeforeTargets="CoreCompile">
     <ItemGroup>
       <_MoonwellSource Include="@(Compile)" Condition="$([System.String]::Copy('%(Compile.Link)').StartsWith('Moonwell\'))" />
       <_MoonwellConfigLine Include="is_global = true" />
-      <_MoonwellConfigLine Include="@(_MoonwellSource->'%(FullPath)'->Replace('\', '/')->'[%(Identity)]%0Adotnet_diagnostic.CS1591.severity = none')" />
+      <_MoonwellConfigLine Include="@(_MoonwellSource->'%(FullPath)'->Replace('\', '/')->'[%(Identity)]%0Adotnet_diagnostic.CS1591.severity = none%0Adotnet_diagnostic.CS1573.severity = none')" />
     </ItemGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)moonwell.globalconfig" Lines="@(_MoonwellConfigLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
     <ItemGroup>
