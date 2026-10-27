@@ -242,7 +242,6 @@ public sealed class Commands
             "redo" => Changed(Map().Redo()),
             "save" => Changed(Map().Save()),
             "reload" => Reload(Flag(args, "discard")),
-            "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
             "choices" => NeedGameData().Choices,
             "fields" => Fields(Kind(args)),
             "table" => TableOf(args),

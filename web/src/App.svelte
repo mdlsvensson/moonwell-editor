@@ -1,7 +1,6 @@
 <script lang="ts">
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
-import Search from "@lucide/svelte/icons/search";
 import { onMount } from "svelte";
 import {
   type CellEdit,
@@ -15,7 +14,6 @@ import {
   deleteObject,
   type FieldRef,
   type FieldView,
-  type Hit,
   type Kind,
   type MapInfo,
   nextId,
@@ -43,8 +41,8 @@ import { type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
 import KindBar from "./lib/KindBar.svelte";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
+import { useTrees } from "./lib/objects.ts";
 import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
-import Palette from "./lib/Palette.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
 import {
@@ -111,7 +109,6 @@ let tableView: { focusFilter(): void } | undefined = $state();
 let fieldFilter = $state("");
 let changedOnly = $state(false);
 let showIds = $state(false);
-let paletteOpen = $state(false);
 let details: { focusFilter(): void; focusField(field: FieldView): Promise<boolean> } | undefined =
   $state();
 
@@ -158,6 +155,9 @@ const lookup: Lookup = (listOf, id) => {
   }
   return undefined;
 };
+
+// The pickers that add an object to a list find it in the loaded trees.
+useTrees((each) => trees[each]);
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -616,28 +616,6 @@ function openInDetails(each: Kind, id: string): void {
   show(each, id);
 }
 
-async function pick(hit: Hit): Promise<void> {
-  paletteOpen = false;
-  page = "details";
-  if (!hit.field) {
-    await show(hit.kind, hit.id);
-    return;
-  }
-  // A field hit filters the details panel to the field, on an object of the field's kind.
-  fieldFilter = hit.field;
-  changedOnly = false;
-  if (current?.kind === hit.kind) return;
-  const id = picked[hit.kind];
-  if (id) {
-    await show(hit.kind, id);
-    return;
-  }
-  kind = hit.kind;
-  await ensureTree(hit.kind);
-  const first = trees[hit.kind]?.[0];
-  if (first) await show(hit.kind, first.id);
-}
-
 /**
  * The keys that act differently in the table: Ctrl F goes to its filter. The grid takes F2, Ctrl D and Delete for its
  * cells (and they never reach here); anywhere else in the table they, and the details view's other keys for the
@@ -665,7 +643,6 @@ function tableKey(event: KeyboardEvent, key: string): boolean {
 }
 
 function onkeydown(event: KeyboardEvent): void {
-  if (paletteOpen) return; // the palette has its own keys
   if (unsaved || diskChanged || creating || deleting) return; // and so do the dialogs
   const key = event.key.toLowerCase();
   const ctrl = event.ctrlKey && !event.altKey;
@@ -683,9 +660,6 @@ function onkeydown(event: KeyboardEvent): void {
   } else if (event.key === "F2") {
     event.preventDefault();
     focusName();
-  } else if (event.ctrlKey && !event.altKey && key === "k") {
-    event.preventDefault();
-    if (map) paletteOpen = true;
   } else if (event.ctrlKey && !event.altKey && key === "f") {
     event.preventDefault();
     details?.focusFilter();
@@ -813,20 +787,7 @@ onMount(() => {
         <RotateCw size={17} />
       </button>
     {/if}
-    <button
-      type="button"
-      class="mx-auto flex max-w-[520px] flex-1 cursor-text items-center gap-2 rounded-md border border-line bg-bg px-2.5 py-[5px] text-left text-muted disabled:cursor-default disabled:opacity-50"
-      disabled={!map}
-      onclick={() => (paletteOpen = true)}
-    >
-      <Search size={14} />
-      <span class="truncate">Search objects, ids, fields, values…</span>
-      <span
-        class="ml-auto shrink-0 rounded border border-line px-1.5 font-mono text-[11px] whitespace-nowrap"
-        >Ctrl K</span
-      >
-    </button>
-    <div class="flex shrink-0 gap-0.5" role="group" aria-label="Views">
+    <div class="ml-auto flex shrink-0 gap-0.5" role="group" aria-label="Views">
       {#each [{ key: "details", name: "Details" }, { key: "table", name: "Table" }] as const as each (each.key)}
         <button
           type="button"
@@ -973,7 +934,7 @@ onMount(() => {
           />
         {:else}
           <p class="mx-[18px] mt-3.5 text-muted">
-            Pick an object in the tree, or search with Ctrl K.
+            Pick an object in the tree.
           </p>
         {/if}
       </section>
@@ -998,10 +959,6 @@ onMount(() => {
     {notice}
   />
 </div>
-
-{#if paletteOpen}
-  <Palette onpick={pick} onclose={() => (paletteOpen = false)} />
-{/if}
 
 {#snippet button(text: string, onclick: () => void, look: "primary" | "plain" | "danger" = "plain")}
   <button

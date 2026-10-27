@@ -1,12 +1,13 @@
 <script lang="ts">
 /**
  * An object list (or a field that holds one object): its objects as chips with names (a click opens the object, ×
- * takes it out), and + to add one, which opens a picker that searches the objects of the list's kinds.
+ * takes it out), and + to add one, which opens a picker that finds the objects of the list's kinds in the loaded trees.
  */
 import Plus from "@lucide/svelte/icons/plus";
 import X from "@lucide/svelte/icons/x";
-import { type FieldView, type Hit, type Kind, search } from "./api.ts";
+import type { FieldView, Kind } from "./api.ts";
 import { type Lookup, listIds, listKinds } from "./fields.ts";
+import { type FoundObject, findObjects } from "./objects.ts";
 import Popover from "./Popover.svelte";
 import { addId, removeId } from "./values.ts";
 
@@ -21,18 +22,13 @@ type Props = {
 
 let { field, lookup, compact, onset, onopen }: Props = $props();
 
-// The search spans every kind, so it asks for many hits and keeps the list's kinds.
-const limit = 200;
 const shownHits = 12;
 
 let open = $state(false);
 let addButton: HTMLButtonElement | undefined = $state();
 let query = $state("");
-let hits = $state.raw<Hit[]>([]);
+let hits = $state.raw<FoundObject[]>([]);
 let index = $state(0);
-let problem = $state("");
-let asked = 0;
-let timer: ReturnType<typeof setTimeout> | undefined;
 
 const single = $derived(field.type === "objectRef");
 const kinds = $derived(listKinds(field.listOf));
@@ -41,41 +37,17 @@ const objects = $derived(
 );
 
 function oninput(): void {
-  clearTimeout(timer);
-  timer = setTimeout(find, 60);
-}
-
-// Searches every kind, and keeps the objects of the list's kinds (never a field hit).
-async function find(): Promise<void> {
-  const mine = ++asked;
-  const text = query.trim();
-  if (text === "") {
-    hits = [];
-    return;
-  }
-  try {
-    const found = await search(text, limit);
-    if (mine !== asked) return;
-    hits = found
-      .filter((hit) => hit.field === null && kinds.includes(hit.kind))
-      .slice(0, shownHits);
-    index = 0;
-    problem = "";
-  } catch (error) {
-    if (mine !== asked) return;
-    hits = [];
-    problem = error instanceof Error ? error.message : String(error);
-  }
+  hits = findObjects(kinds, query, shownHits);
+  index = 0;
 }
 
 function close(): void {
   open = false;
   query = "";
   hits = [];
-  clearTimeout(timer);
 }
 
-function add(hit: Hit): void {
+function add(hit: FoundObject): void {
   const value = addId(field.value, hit.id, single);
   close();
   addButton?.focus();
@@ -154,9 +126,7 @@ function focusOnMount(element: HTMLInputElement): void {
       {onkeydown}
       use:focusOnMount
     />
-    {#if problem}
-      <p class="m-0 px-2 py-1 text-warn">{problem}</p>
-    {:else if query.trim() !== "" && hits.length === 0}
+    {#if query.trim() !== "" && hits.length === 0}
       <p class="m-0 px-2 py-1 text-muted">Nothing found.</p>
     {/if}
     <div class="mt-1 flex flex-col">

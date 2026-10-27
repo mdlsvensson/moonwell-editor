@@ -44,7 +44,6 @@ public sealed partial class Session
         _stamp = loaded.Stamp;
         _unreadable = loaded.Unreadable;
         _stringsReadOnly = loaded.StringsReadOnly;
-        _search = new SearchIndex(game, _kinds, _strings);
         _savedObjects = Describe();
     }
 

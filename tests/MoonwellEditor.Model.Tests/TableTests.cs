@@ -218,10 +218,11 @@ public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output
         Assert.Equal("Nondescript", session.Strings!.Get(3));
         Assert.Equal("Gamma", session.Strings!.Get(4));
 
-        // The search index knows every touched object's new name.
+        // The tree shows every touched object's new name.
+        var tree = session.Tree(ObjectKind.Unit);
         foreach (var (id, name) in new[] { ("H001", "Alpha"), ("u001", "Beta"), ("H002", "Gamma") })
         {
-            Assert.Contains(session.Search(name, 50), hit => hit.Id == id && hit.Field == null);
+            Assert.Equal(name, tree.Single(entry => entry.Id == id).Name);
         }
 
         Assert.True(session.Undo());

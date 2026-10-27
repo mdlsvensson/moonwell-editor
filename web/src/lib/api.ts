@@ -121,9 +121,6 @@ export type ObjectView = {
  */
 export type SaveReport = { written: string[]; backup: string; note: string };
 
-/** One search result: an object, or (with `field` set) a field of a kind. */
-export type Hit = { kind: Kind; id: string; name: string; detail: string; field: string | null };
-
 /** One value of a choice list. */
 export type ChoiceEntry = {
   value: string;
@@ -300,11 +297,6 @@ export function save(): Promise<SaveReport> {
  */
 export function reload(discard = false): Promise<MapInfo> {
   return call<MapInfo>("reload", discard ? { discard } : {});
-}
-
-/** Searches the objects of every kind and the kinds' fields; at most `limit` hits, best first. */
-export function search(query: string, limit: number): Promise<Hit[]> {
-  return call<Hit[]>("search", { query, limit });
 }
 
 /** Every choice list, by the key a `FieldView`'s `choice` names. */
