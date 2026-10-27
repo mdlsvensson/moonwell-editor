@@ -17,10 +17,10 @@ public sealed partial class Session
     public bool Dirty => _history.Dirty;
 
     /// <summary>Undoes the last edit; false when there is none.</summary>
-    public bool Undo() => _history.Undo() != null;
+    public bool Undo() => Reindex(_history.Undo());
 
     /// <summary>Makes the last undone edit again; false when there is none.</summary>
-    public bool Redo() => _history.Redo() != null;
+    public bool Redo() => Reindex(_history.Redo());
 
     /// <summary>
     /// Sets a field of an object at a level (0 for a field without levels; a doodad's variation, from 1). The value is
@@ -174,8 +174,28 @@ public sealed partial class Session
         Commit(edit);
     }
 
-    /// <summary>Keeps an edit that was just made in the history.</summary>
-    private void Commit(Edit edit) => _history.Add(edit);
+    /// <summary>Keeps an edit that was just made in the history, and brings the search index up to date.</summary>
+    private void Commit(Edit edit)
+    {
+        _history.Add(edit);
+        Reindex(edit);
+    }
+
+    /// <summary>Updates the search index for the objects an edit touched; false when there is no edit.</summary>
+    private bool Reindex(Edit? edit)
+    {
+        if (edit == null)
+        {
+            return false;
+        }
+
+        foreach (var (kind, id) in edit.Touched)
+        {
+            _search.Update(kind, id, _kinds[kind], _game.Kind(kind), _strings);
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// The check part of <see cref="Set"/> (a value) and <see cref="Reset"/> (a null value): the object, field and

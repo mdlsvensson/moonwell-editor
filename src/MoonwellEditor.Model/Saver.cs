@@ -109,6 +109,7 @@ public sealed partial class Session
         _unreadable = loaded.Unreadable;
         _stringsReadOnly = loaded.StringsReadOnly;
         _history = new History();
+        _search.Rebuild(_kinds, _strings);
         _savedObjects = Describe();
     }
 

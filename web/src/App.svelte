@@ -42,7 +42,6 @@ import { type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
 import KindBar from "./lib/KindBar.svelte";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
-import { useTrees } from "./lib/objects.ts";
 import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
@@ -168,9 +167,6 @@ const lookup: Lookup = (listOf, id) => {
   }
   return undefined;
 };
-
-// The pickers that add an object to a list find it in the loaded trees.
-useTrees((each) => trees[each]);
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

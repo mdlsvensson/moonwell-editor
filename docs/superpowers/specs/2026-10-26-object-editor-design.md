@@ -34,7 +34,8 @@ classes needs Roslyn, which only .NET has.
 ## Goals
 
 1. **Find anything fast.** One search box (Ctrl K) over every object of every kind, by name, id, editor suffix, field
-   label, field id and value. Results show as you type.
+   label, field id and value. Results show as you type. Sven, 2026-10-27: the search box and Ctrl K are removed; the
+   same search stays behind the + picker of an object list.
 2. **Read an object at a glance.** A details panel grouped by category (Stats, Combat, Art...), a field filter, a
    "changed only" switch, field ids on demand, changed fields marked, and per-level fields as a grid with the levels
    across.

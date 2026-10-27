@@ -89,6 +89,7 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["save", () => api.save(), "save", {}],
     ["reload", () => api.reload(), "reload", {}],
     ["reload dropping unsaved edits", () => api.reload(true), "reload", { discard: true }],
+    ["search", () => api.search("foot", 20), "search", { query: "foot", limit: 20 }],
     ["choices", () => api.choices(), "choices", {}],
     ["startup", () => api.startup(), "startup", {}],
     ["nextId", () => api.nextId("unit", "hfoo"), "nextId", { kind: "unit", baseId: "hfoo" }],
