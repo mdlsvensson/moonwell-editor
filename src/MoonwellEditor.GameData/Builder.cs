@@ -1,5 +1,6 @@
 using Moonwell.GameData;
 using MoonwellEditor.Files;
+using War3Net.IO.Slk;
 using MoonwellObject = Moonwell.GameData.StandardObject;
 
 namespace MoonwellEditor.GameData;
@@ -15,6 +16,10 @@ internal static class Builder
     private const string LevelCountName = "LevelCount";
     private const string KeyPrefix = "WESTRING_";
     private const string BaseTables = "base";
+
+    // The table World Editor files and sorts the units by (Sven, 2026-10-27).
+    private const string UnitUi = "units/unitui.slk";
+    private static readonly string[] UnitUiColumns = ["campaign", "special", "unitClass"];
 
     public static GameData Build(string folder)
     {
@@ -37,7 +42,7 @@ internal static class Builder
             var fields = Fields.WithStandardNegatives(fieldsOf[kind], objectsOf[kind])
                 .Select(field => field.Choice == null ? field : field with { Choice = choices[field.Choice.Type] })
                 .ToList();
-            kinds[KindOf(kind)] = KindDataOf(tables, kind, fields, objectsOf[kind]);
+            kinds[KindOf(kind)] = KindDataOf(tables, kind, fields, objectsOf[kind], kind == Kind.Unit ? UnitUiOf(folder) : []);
         }
 
         var lists = new SortedDictionary<string, ChoiceList>(StringComparer.Ordinal);
@@ -69,7 +74,8 @@ internal static class Builder
         ExportTables tables,
         Kind kind,
         IReadOnlyList<Field> fields,
-        IReadOnlyList<MoonwellObject> objects)
+        IReadOnlyList<MoonwellObject> objects,
+        Dictionary<string, Dictionary<string, string>> unitUi)
     {
         var meta = new Dictionary<string, MetaRow>(StringComparer.Ordinal);
         foreach (var row in tables.Meta(kind))
@@ -87,7 +93,7 @@ internal static class Builder
         foreach (var obj in objects)
         {
             var rows = PrimaryRows(tables, kind, obj, baseRows, setRows);
-            result.Add(Object(tables, objectKind, levelField, obj, rows, infos, readers));
+            result.Add(Object(tables, objectKind, levelField, obj, rows, infos, readers, unitUi.GetValueOrDefault(obj.Id)));
         }
 
         return new KindData(objectKind, levelField, infos, result);
@@ -153,11 +159,16 @@ internal static class Builder
         MoonwellObject obj,
         ObjectRows rows,
         List<FieldInfo> infos,
-        List<FieldReader> readers)
+        List<FieldReader> readers,
+        Dictionary<string, string>? ui)
     {
         var row = new ModeRow(rows);
         var building = kind == ObjectKind.Unit && FieldReader.Clean(row.Get("isbldg", "de")?.Value) == "1";
-        var special = FieldReader.Clean(row.Get("special", "de")?.Value) == "1";
+        // World Editor files a unit by unitui.slk's own campaign and special, which the skin text may contradict (it
+        // gives the High Elf Archmage, Haah, campaign 0 against the table's 1), and lists a folder's units by its
+        // unitClass (HUnit01, HUnit02...), the classic order (Sven, 2026-10-27).
+        var campaign = ui?.GetValueOrDefault("campaign") is { } inTable ? inTable == "1" : obj.Campaign;
+        var special = (ui?.GetValueOrDefault("special") ?? FieldReader.Clean(row.Get("special", "de")?.Value)) == "1";
         var suffix = Resolved(tables, FieldReader.Clean(row.Get("EditorSuffix", "de")?.Value) ?? "");
         var categoryColumn = kind switch
         {
@@ -167,14 +178,16 @@ internal static class Builder
             ObjectKind.Buff => "isEffect",
             _ => null,
         };
-        var category = categoryColumn == null ? "" : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
+        var category = kind == ObjectKind.Unit ? ui?.GetValueOrDefault("unitClass") ?? ""
+            : categoryColumn == null ? ""
+            : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
         var hidden = kind == ObjectKind.Ability && FieldReader.Clean(row.Get("useInEditor", "de")?.Value) == "0";
         var standard = new StandardObject(
             obj.Id,
             obj.Name,
             suffix,
             obj.Race,
-            obj.Campaign,
+            campaign,
             obj.IsHero,
             building,
             special,
@@ -226,6 +239,64 @@ internal static class Builder
         }
 
         return modes;
+    }
+
+    /// <summary>
+    /// The <see cref="UnitUiColumns"/> of each unit in the base <c>unitui.slk</c>, as the table writes them (a cell it
+    /// leaves empty is absent); empty when the folder has no such table.
+    /// </summary>
+    private static Dictionary<string, Dictionary<string, string>> UnitUiOf(string folder)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+        var path = Path.Combine(folder, UnitUi);
+        if (!File.Exists(path))
+        {
+            return result;
+        }
+
+        SylkTable table;
+        using (var stream = File.OpenRead(path))
+        {
+            table = new SylkParser(keepText: true).Parse(stream);
+        }
+
+        // The first column with a name holds the ids, as Moonwell reads its tables.
+        int? idColumn = null;
+        var columns = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var x = 0; x <= table.Columns; x++)
+        {
+            if (table[x, 0] is not string name)
+            {
+                continue;
+            }
+
+            idColumn ??= x;
+            if (Array.IndexOf(UnitUiColumns, name) >= 0)
+            {
+                columns[name] = x;
+            }
+        }
+
+        for (var y = 1; idColumn != null && y <= table.Rows; y++)
+        {
+            if (table[idColumn.Value, y] is not string { Length: > 0 } id)
+            {
+                continue;
+            }
+
+            var cells = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (name, x) in columns)
+            {
+                if (FieldReader.Clean(table[x, y]?.ToString()) is { Length: > 0 } value)
+                {
+                    cells[name] = value;
+                }
+            }
+
+            result[id] = cells;
+        }
+
+        return result;
     }
 
     private static Dictionary<string, ObjectRows> Index(IReadOnlyList<ObjectRows> rows)

@@ -25,6 +25,21 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
     }
 
     [Fact]
+    public void Units_of_a_folder_go_by_their_unit_class()
+    {
+        var sorted = Folders.Sorted(
+            ObjectKind.Unit,
+            [
+                Standard("hfoo", "human", category: "HUnit02"),
+                Standard("hxxx", "human"),
+                Standard("hpea", "human", category: "HUnit01"),
+                Standard("htow", "human", building: true, category: "HBuilding01"),
+            ]);
+
+        Assert.Equal(["hpea", "hfoo", "hxxx", "htow"], sorted.Select(standard => standard.Id));
+    }
+
+    [Fact]
     public void Items_go_by_class()
     {
         Assert.Equal(["Power Up"], Folders.Of(ObjectKind.Item, Standard("manh", "", category: "PowerUp")));
@@ -126,6 +141,21 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             ["Human", "Orc", "Undead", "Night Elf", "Special"],
             Groups(session.Tree(ObjectKind.Upgrade), []));
 
+        // A folder lists its units as World Editor does, by their unitClass (Sven, 2026-10-27).
+        Assert.Equal(
+            ["hpea", "hfoo", "hkni", "hrif", "hmtm", "hgyr", "hgry", "hmpr", "hsor", "hmtt", "hspt", "hdhw"],
+            Objects(units, ["Human", "Melee", "Units"]));
+        Assert.Equal(
+            [
+                "htow", "hkee", "hcas", "hhou", "halt", "hbar", "hlum", "hbla", "harm", "hars", "hgra", "hwtw", "hgtw",
+                "hctw", "hatw", "hvlt",
+            ],
+            Objects(units, ["Human", "Melee", "Buildings"]));
+        Assert.Equal(["Hpal", "Hamg", "Hmkg", "Hblm"], Objects(units, ["Human", "Melee", "Heroes"]));
+
+        // unitui.slk files the High Elf Archmage in the campaign, though the skin text says otherwise.
+        Assert.Equal(["Human", "Campaign", "Heroes"], units.Single(entry => entry.Id == "Haah").Path);
+
         // The map's custom objects stay first.
         Assert.Equal(["Custom"], units[0].Path);
     }
@@ -137,6 +167,10 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             .Select(entry => entry.Path[parent.Length])
             .Distinct()
             .ToList();
+
+    /// <summary>The ids of the objects in the folder <paramref name="path"/>, in tree order.</summary>
+    private static List<string> Objects(IReadOnlyList<TreeEntry> tree, string[] path) =>
+        tree.Where(entry => entry.Path.SequenceEqual(path)).Select(entry => entry.Id).ToList();
 
     private static StandardObject Standard(
         string id,
