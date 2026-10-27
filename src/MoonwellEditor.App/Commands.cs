@@ -66,6 +66,10 @@ public sealed record FieldDescription(
     string? Choice,
     string? ListOf);
 
+/// <summary>The window's state, for the page's title bar (the <c>windowState</c> command and event).</summary>
+/// <param name="Maximized">True when the window is maximized.</param>
+public sealed record WindowState(bool Maximized);
+
 /// <summary>What <c>setCells</c> answers with.</summary>
 /// <param name="Changed">How many cells changed (a cell that already had its value changes nothing).</param>
 public sealed record CellsChanged(int Changed);
@@ -147,6 +151,24 @@ public sealed class Commands
     /// the user chose to discard them (the <c>closeWindow</c> command).
     /// </summary>
     public event Action? CloseApproved;
+
+    /// <summary>Raised when the page's title bar minimizes the window (the <c>minimizeWindow</c> command).</summary>
+    public event Action? MinimizeAsked;
+
+    /// <summary>
+    /// Raised when the page's title bar maximizes the window, or restores it when it is maximized (the
+    /// <c>maximizeWindow</c> command).
+    /// </summary>
+    public event Action? MaximizeAsked;
+
+    /// <summary>
+    /// Raised when the page's title bar closes the window (the <c>closeClicked</c> command): the window closes as with
+    /// any close, asking the page about unsaved edits first.
+    /// </summary>
+    public event Action? CloseClicked;
+
+    /// <summary>Whether the window is maximized, for the page's title bar (the <c>windowState</c> command).</summary>
+    public Func<bool> Maximized { get; set; } = () => false;
 
     /// <summary>True when a map is open with edits that are not saved.</summary>
     public bool Dirty => _session?.Dirty ?? false;
@@ -250,6 +272,10 @@ public sealed class Commands
             "setCells" => SetCells(args),
             "closeAsking" => Raise(CloseAsking),
             "closeWindow" => Raise(CloseApproved),
+            "minimizeWindow" => Raise(MinimizeAsked),
+            "maximizeWindow" => Raise(MaximizeAsked),
+            "closeClicked" => Raise(CloseClicked),
+            "windowState" => new WindowState(Maximized()),
             _ => throw new UnknownCommandException(command),
         };
 

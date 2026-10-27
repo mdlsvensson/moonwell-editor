@@ -373,3 +373,31 @@ export async function closeAsking(): Promise<void> {
 export async function closeWindow(): Promise<void> {
   await call<null>("closeWindow");
 }
+
+/** The window's state, for the title bar. */
+export type WindowState = { maximized: boolean };
+
+/** Whether the window is maximized. */
+export function windowState(): Promise<WindowState> {
+  return call<WindowState>("windowState");
+}
+
+/** Listens to `windowState`, which the app sends when the window is maximized or restored. */
+export function onWindowState(handler: (state: WindowState) => void): () => void {
+  return on("windowState", (payload) => handler(payload as WindowState));
+}
+
+/** Minimizes the window. */
+export async function minimizeWindow(): Promise<void> {
+  await call<null>("minimizeWindow");
+}
+
+/** Maximizes the window, or restores it when it is maximized. */
+export async function maximizeWindow(): Promise<void> {
+  await call<null>("maximizeWindow");
+}
+
+/** Closes the window as its close button does: unsaved edits are asked about first (see `onCloseRequested`). */
+export async function closeClicked(): Promise<void> {
+  await call<null>("closeClicked");
+}

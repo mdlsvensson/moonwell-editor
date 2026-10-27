@@ -85,9 +85,48 @@ body {
   overflow: hidden;
 }
 
-button {
-  font: inherit;
-  color: inherit;
+/*
+ * Checkboxes and selects in the page's colours (Sven, 2026-10-27). In the base layer, so a class on the element still
+ * wins: Tailwind's preflight already gives buttons and fields the inherited font and colour, and a rule outside a layer
+ * would beat every class.
+ */
+@layer base {
+  input[type="checkbox"] {
+    appearance: none;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 1px solid var(--faint);
+    border-radius: 3px;
+    background: var(--bg) center / 10px 10px no-repeat;
+    cursor: pointer;
+  }
+  input[type="checkbox"]:hover {
+    border-color: var(--muted);
+  }
+  input[type="checkbox"]:checked {
+    border-color: var(--accent);
+    background-color: var(--accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121212' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  }
+  input[type="checkbox"]:focus-visible {
+    outline: 1px solid var(--accent-hi);
+    outline-offset: 1px;
+  }
+
+  select {
+    appearance: none;
+    padding-right: 22px;
+    background:
+      var(--bg)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6f73' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+      right 6px center / 12px 12px no-repeat;
+  }
+  select option {
+    background: var(--raised);
+    color: var(--fg);
+  }
 }
 
 /* Scroll bars are a thin, see-through bar with no track and no arrows. */

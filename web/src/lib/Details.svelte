@@ -1,8 +1,8 @@
 <script lang="ts">
 /**
- * The middle panel: the object's name, id and chain, New / Copy / Delete, the field filter and chips, then its fields
- * by category (which open and close), per-level fields as grids. The fields are editors unless the object is read
- * only.
+ * The middle panel: the object's name, id and chain, Copy and Delete, the field filter, then its fields by category
+ * (which open and close), per-level fields as grids. The fields are editors unless the object is read only. A bar
+ * floats at the bottom with New, "Changed only", "Field ids", and Collapse all and Expand all.
  */
 
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -10,10 +10,12 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import ChevronsDownUp from "@lucide/svelte/icons/chevrons-down-up";
 import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 import Copy from "@lucide/svelte/icons/copy";
+import Hash from "@lucide/svelte/icons/hash";
 import Lock from "@lucide/svelte/icons/lock";
+import PencilLine from "@lucide/svelte/icons/pencil-line";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash from "@lucide/svelte/icons/trash-2";
-import { tick } from "svelte";
+import { type Component, tick } from "svelte";
 import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import type { MenuItem } from "./ContextMenu.svelte";
 import FieldRow from "./FieldRow.svelte";
@@ -228,44 +230,33 @@ function clearOnEscape(event: KeyboardEvent): void {
 }
 </script>
 
-<div class="pb-4" style:--label-width="{labelWidth}px" bind:this={root}>
-  <div class="sticky top-0 z-[2] border-b border-line bg-bg px-[18px] pt-3.5 pb-2.5">
+<div class="relative flex min-h-0 flex-1 flex-col" style:--label-width="{labelWidth}px" bind:this={root}>
+  <div class="shrink-0 border-b border-line bg-bg px-[18px] pt-3.5 pb-2.5">
     <div class="flex items-start gap-2">
       <h1 class="m-0 flex min-w-0 flex-1 items-baseline gap-2.5 font-heading text-xl font-bold text-fg">
         <span class="truncate">{view.name}</span>
         <span class="font-mono text-[12.5px] font-normal text-muted">{view.id}</span>
       </h1>
-      {#if editable}
+      {#if editable && custom}
         <div class="flex shrink-0 gap-1" role="group" aria-label="Object">
           <button
             type="button"
             class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
-            title="A new object based on {custom ? 'its base' : 'this object'} (Ctrl Shift N)"
-            onclick={onnew}
+            title="A copy of this object, with the next free id (Ctrl Shift D)"
+            onclick={oncopy}
           >
-            <Plus size={13} />
-            New
+            <Copy size={13} />
+            Copy
           </button>
-          {#if custom}
-            <button
-              type="button"
-              class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
-              title="A copy of this object, with the next free id (Ctrl Shift D)"
-              onclick={oncopy}
-            >
-              <Copy size={13} />
-              Copy
-            </button>
-            <button
-              type="button"
-              class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-warn hover:text-warn"
-              title="Delete this object (Delete; asks first, and Ctrl Z brings it back)"
-              onclick={ondelete}
-            >
-              <Trash size={13} />
-              Delete
-            </button>
-          {/if}
+          <button
+            type="button"
+            class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-warn hover:text-warn"
+            title="Delete this object (Delete; asks first, and Ctrl Z brings it back)"
+            onclick={ondelete}
+          >
+            <Trash size={13} />
+            Delete
+          </button>
         </div>
       {/if}
     </div>
@@ -297,84 +288,48 @@ function clearOnEscape(event: KeyboardEvent): void {
         Read only: {view.readOnly}
       </p>
     {/if}
-    <div class="mt-2.5 flex items-center gap-2">
-      <input
-        class="w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-        placeholder="Filter fields: name, id or value (Ctrl F)…"
-        aria-label="Filter fields"
-        bind:this={filterInput}
-        bind:value={filter}
-        onkeydown={clearOnEscape}
-      />
-      <button
-        type="button"
-        class="rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespace-nowrap {changedOnly
-          ? 'border-changed text-changed'
-          : 'border-line text-muted'}"
-        aria-pressed={changedOnly}
-        onclick={() => (changedOnly = !changedOnly)}
-      >
-        Changed only
-      </button>
-      <button
-        type="button"
-        class="rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespace-nowrap {showIds
-          ? 'border-changed text-changed'
-          : 'border-line text-muted'}"
-        aria-pressed={showIds}
-        title="Ctrl D"
-        onclick={() => (showIds = !showIds)}
-      >
-        Field ids
-      </button>
-    </div>
+    <input
+      class="mt-2.5 w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
+      placeholder="Filter fields: name, id or value (Ctrl F)…"
+      aria-label="Filter fields"
+      bind:this={filterInput}
+      bind:value={filter}
+      onkeydown={clearOnEscape}
+    />
   </div>
 
-  {#if categories.length === 0}
-    <p class="mx-[18px] mt-3.5 text-muted">
-      {changedOnly && !filter ? "The map changes no fields of this object." : "No field matches."}
-    </p>
-  {/if}
+  <!-- Only the fields scroll: the header stays above them and the bar floats over them, where it is. -->
+  <div class="min-h-0 flex-1 overflow-auto pb-16">
+    {#if categories.length === 0}
+      <p class="mx-[18px] mt-3.5 text-muted">
+        {changedOnly && !filter ? "The map changes no fields of this object." : "No field matches."}
+      </p>
+    {/if}
 
-  <!-- The editors are made again for another object, so what was typed for one never shows on the next. -->
-  {#key `${view.kind}:${view.id}`}
-    {#each categories as category (category.key)}
-      {@const open = !closed[category.key]}
-      <div class="mx-[18px] mt-3.5 overflow-hidden rounded-[7px] border border-line">
-        <button
-          type="button"
-          class="flex w-full items-center gap-2 bg-surface px-2.5 py-1.5 text-left font-bold text-fg"
-          aria-expanded={open}
-          onclick={() => (closed[category.key] = open)}
-        >
-          {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-          {category.name}
-          <span class="ml-auto text-xs font-normal text-faint">
-            {category.rows.length}
-            {category.rows.length === 1 ? "field" : "fields"}
-            {#if category.rows.some(isChanged)}· <span class="text-changed">changed</span>{/if}
-          </span>
-        </button>
-        {#if open}
-          {#each runs(category.rows) as run, index (index)}
-            {#if run.grid}
-              <LevelGrid
-                rows={run.rows}
-                {showIds}
-                {choices}
-                {lookup}
-                {editable}
-                {onset}
-                {onreset}
-                {onopen}
-                {selected}
-                onselect={select}
-                onmenu={fieldMenu}
-              />
-            {:else}
-              {#each run.rows as row (row.id)}
-                <FieldRow
-                  field={row.field}
+    <!-- The editors are made again for another object, so what was typed for one never shows on the next. -->
+    {#key `${view.kind}:${view.id}`}
+      {#each categories as category (category.key)}
+        {@const open = !closed[category.key]}
+        <div class="mx-[18px] mt-3.5 overflow-hidden rounded-[7px] border border-line">
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 bg-surface px-2.5 py-1.5 text-left font-bold text-fg"
+            aria-expanded={open}
+            onclick={() => (closed[category.key] = open)}
+          >
+            {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+            {category.name}
+            <span class="ml-auto text-xs font-normal text-faint">
+              {category.rows.length}
+              {category.rows.length === 1 ? "field" : "fields"}
+              {#if category.rows.some(isChanged)}· <span class="text-changed">changed</span>{/if}
+            </span>
+          </button>
+          {#if open}
+            {#each runs(category.rows) as run, index (index)}
+              {#if run.grid}
+                <LevelGrid
+                  rows={run.rows}
                   {showIds}
                   {choices}
                   {lookup}
@@ -382,43 +337,73 @@ function clearOnEscape(event: KeyboardEvent): void {
                   {onset}
                   {onreset}
                   {onopen}
-                  selected={selected === keyOf(row.field)}
+                  {selected}
                   onselect={select}
                   onmenu={fieldMenu}
                 />
-              {/each}
-            {/if}
-          {/each}
-        {/if}
-      </div>
-    {/each}
-  {/key}
+              {:else}
+                {#each run.rows as row (row.id)}
+                  <FieldRow
+                    field={row.field}
+                    {showIds}
+                    {choices}
+                    {lookup}
+                    {editable}
+                    {onset}
+                    {onreset}
+                    {onopen}
+                    selected={selected === keyOf(row.field)}
+                    onselect={select}
+                    onmenu={fieldMenu}
+                  />
+                {/each}
+              {/if}
+            {/each}
+          {/if}
+        </div>
+      {/each}
+    {/key}
+  </div>
 
-  <!-- Floats at the bottom of the panel while the fields scroll under it. -->
-  {#if categories.length > 1}
-    <div class="pointer-events-none sticky bottom-3 mt-4 flex justify-center">
-      <div
-        class="pointer-events-auto flex gap-0.5 rounded-full border border-line bg-raised p-0.5 shadow-lg shadow-black/40"
-        role="group"
-        aria-label="Categories"
-      >
-        <button
-          type="button"
-          class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg"
-          onclick={() => collapseAll(true)}
-        >
-          <ChevronsDownUp size={14} />
-          Collapse all
-        </button>
-        <button
-          type="button"
-          class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg"
-          onclick={() => collapseAll(false)}
-        >
-          <ChevronsUpDown size={14} />
-          Expand all
-        </button>
-      </div>
-    </div>
-  {/if}
+  <!-- Floats at the bottom of the panel, over the fields, and never moves (Sven, 2026-10-27): icons, named by their
+       tooltips. -->
+  <div
+    class="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-line bg-raised p-0.5 shadow-lg shadow-black/40"
+    role="toolbar"
+    aria-label="Fields"
+  >
+    {#if editable}
+      {@render barButton(
+        `New object based on ${custom ? "its base" : "this object"} (Ctrl Shift N)`,
+        Plus,
+        onnew,
+      )}
+      <span class="mx-0.5 h-4 w-px bg-line" aria-hidden="true"></span>
+    {/if}
+    {@render barButton("Changed only", PencilLine, () => (changedOnly = !changedOnly), changedOnly)}
+    {@render barButton("Field ids (Ctrl D)", Hash, () => (showIds = !showIds), showIds)}
+    <span class="mx-0.5 h-4 w-px bg-line" aria-hidden="true"></span>
+    {@render barButton("Collapse all", ChevronsDownUp, () => collapseAll(true))}
+    {@render barButton("Expand all", ChevronsUpDown, () => collapseAll(false))}
+  </div>
 </div>
+
+{#snippet barButton(
+  label: string,
+  Icon: Component<{ size?: number }>,
+  onclick: () => void,
+  pressed?: boolean,
+)}
+  <button
+    type="button"
+    class="rounded-full p-1.5 {pressed
+      ? 'bg-accent-lo text-accent-hi'
+      : 'text-muted hover:bg-hover hover:text-fg'}"
+    title={label}
+    aria-label={label}
+    aria-pressed={pressed}
+    {onclick}
+  >
+    <Icon size={15} />
+  </button>
+{/snippet}

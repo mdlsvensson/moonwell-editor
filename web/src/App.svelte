@@ -53,6 +53,7 @@ import {
   settleUnsaved,
 } from "./lib/settle.ts";
 import TableView, { type EditResult } from "./lib/TableView.svelte";
+import TitleBar from "./lib/TitleBar.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
 import { windowTitle } from "./lib/title.ts";
@@ -885,7 +886,8 @@ onMount(() => {
 
 <svelte:window {onkeydown} oncontextmenu={(event) => !typingIn(event.target) && event.preventDefault()} />
 
-<div class="grid h-full grid-cols-1 grid-rows-[44px_1fr_26px]">
+<div class="grid h-full grid-cols-1 grid-rows-[23px_44px_1fr_26px]">
+  <TitleBar title={windowTitle(map?.path ?? null)} />
   <header class="flex items-center gap-2.5 border-b border-line bg-surface px-3">
     <OpenMapMenu
       buttonClass="flex shrink-0 items-center rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg disabled:opacity-50"
@@ -1030,9 +1032,10 @@ onMount(() => {
           bind:filter={treeFilter}
         />
       </aside>
-      <section class="min-h-0 overflow-auto" aria-label="Details">
+      <!-- The details panel scrolls its own fields, under a header and a bar that stay put. -->
+      <section class="flex min-h-0 flex-col overflow-hidden" aria-label="Details">
         {#if mapProblem}
-          <p class="mx-[18px] mt-3.5 text-warn" data-testid="map-error">{mapProblem}</p>
+          <p class="mx-[18px] mt-3.5 shrink-0 text-warn" data-testid="map-error">{mapProblem}</p>
         {/if}
         {#if objectError}
           <p class="mx-[18px] mt-3.5 text-warn">{objectError}</p>

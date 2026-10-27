@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -10,6 +11,9 @@ public sealed class MainForm : Form
 
     // Made again when the browser process ends (see OnProcessFailed).
     private WebView2 _web = NewWeb();
+
+    // Whether the window is maximized, as the page's title bar was last told.
+    private volatile bool _maximized;
     private readonly Commands _commands;
     private readonly Bridge _bridge;
 
@@ -36,7 +40,8 @@ public sealed class MainForm : Form
         Text = "Moonwell Editor";
         ClientSize = new Size(1400, 860);
         MinimumSize = new Size(900, 600);
-        BackColor = Color.FromArgb(0x12, 0x12, 0x12);
+        // The title bar's colour (Vitesse Dark's surface), which shows in the top edge's resize strip (see TitleBar).
+        BackColor = Color.FromArgb(0x18, 0x18, 0x18);
         Controls.Add(_web);
 
         var appData = Path.Combine(
@@ -57,6 +62,13 @@ public sealed class MainForm : Form
             _closeGuard.Approve();
             Close();
         });
+        _commands.MinimizeAsked += () => OnWindowThread(() => WindowState = FormWindowState.Minimized);
+        _commands.MaximizeAsked += () => OnWindowThread(() =>
+            WindowState = WindowState == FormWindowState.Maximized
+                ? FormWindowState.Normal
+                : FormWindowState.Maximized);
+        _commands.CloseClicked += () => OnWindowThread(Close);
+        _commands.Maximized = () => _maximized;
         _pageWait.Tick += (_, _) => AskIfPageSilent();
         FormClosing += OnClosing;
 
@@ -72,6 +84,43 @@ public sealed class MainForm : Form
     {
         base.OnHandleCreated(e);
         TitleBar.Style(Handle);
+    }
+
+    /// <inheritdoc />
+    protected override void WndProc(ref Message m)
+    {
+        // The client area takes the caption's place (see TitleBar): Windows works out the frame, then the top is put
+        // back where the window starts.
+        if (m.Msg == TitleBar.CalcSizeMessage && m.WParam != IntPtr.Zero)
+        {
+            var windowTop = Marshal.ReadInt32(m.LParam, 4);
+            base.WndProc(ref m);
+            Marshal.WriteInt32(m.LParam, 4, TitleBar.ClientTop(Handle, windowTop));
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
+        base.WndProc(ref m);
+
+        // The strip above the page resizes the window from its top edge.
+        if (m.Msg == TitleBar.HitTestMessage && m.Result == 1 && Padding.Top > 0)
+        {
+            var point = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
+            m.Result = TitleBar.HitTest(point, ClientSize.Width, Padding.Top, LogicalToDeviceUnits(16));
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        var maximized = WindowState == FormWindowState.Maximized;
+        Padding = new Padding(0, maximized ? 0 : LogicalToDeviceUnits(TitleBar.ResizeStrip), 0, 0);
+        if (maximized != _maximized)
+        {
+            _maximized = maximized;
+            Notify("windowState", new WindowState(maximized));
+        }
     }
 
     /// <summary>Sends a message (for example from <see cref="Bridge.Event"/>) to the page. Call it from the UI thread.</summary>
@@ -206,6 +255,9 @@ public sealed class MainForm : Form
         await _web.EnsureCoreWebView2Async(environment);
 
         var core = _web.CoreWebView2;
+
+        // The page's title bar is a drag region (CSS app-region: drag), which WebView2 makes the window's caption.
+        core.Settings.IsNonClientRegionSupportEnabled = true;
 
         // Only the app's own pages may use the bridge, and the window never leaves them (a link to the web is ignored).
         _origins.Add($"https://{Host}/");

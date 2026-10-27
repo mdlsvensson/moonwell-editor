@@ -384,6 +384,21 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
 - **Layout** (see the mockup): a top bar with the map name, the search box and the views (Details, Table, Compare);
   a left tree with the seven kinds and a filter; the details panel in the middle; a right panel with components,
   "used by" and the tooltip preview; a status bar with unsaved changes and the game data version.
+- **Sven, 2026-10-27:**
+  - The title bar is the page's own, thin as Windows draws a maximized window's (23 px), maximized or not: Windows
+    draws the caption of a window that is not maximized 8 px taller and cannot be made thinner. The window keeps its
+    frame (resize borders, snapping, shadow, rounded corners); the bar is a WebView2 drag region, and a 4 px strip
+    above the page resizes from the top edge while the window is not maximized.
+  - The details panel lays fields out as World Editor does: the value starts right after the widest name, at the
+    left of a box as wide as the value (a multi-line text takes the row), with ↺ after it. Checkboxes and selects
+    have the theme's look.
+  - A bar floats at the bottom of the details panel and never moves: New, "Changed only", "Field ids", Collapse all
+    and Expand all, as icons named by their tooltips. Copy and Delete stay at the top right.
+  - In the tree, Standard opens and closes like Custom, and both headings look the same.
+  - A folder lists its units by `unitClass` in `unitui.slk` (`HUnit01`, `HUnit02`...), World Editor's order, and a
+    unit's campaign and special come from that table too: the skin text gives the High Elf Archmage (`Haah`)
+    campaign 0 against the table's 1, so it is in Human > Campaign > Heroes. Whether World Editor lists it at all
+    (it is missing from the melee_v0 and custom_v0 sets) is open.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

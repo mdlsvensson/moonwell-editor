@@ -25,7 +25,6 @@ const entries = [
 /** Each row as a short text: `[+]`/`[-]` for an open/closed group, the id for an object. */
 function shape(lines: Line[]): string[] {
   return lines.map((line) => {
-    if (line.type === "heading") return `# ${line.text}`;
     if (line.type === "group") return `${line.open ? "[-]" : "[+]"} ${line.name} ${line.count}`;
     return line.entry.id;
   });
@@ -39,7 +38,7 @@ describe("the tree's rows", () => {
       "[-] Custom 2",
       "h000",
       "h001",
-      "# Standard",
+      "[-] Standard 4",
       "[-] human 3",
       "[-] Melee 3",
       "[-] Units 2",
@@ -55,12 +54,12 @@ describe("the tree's rows", () => {
   });
 
   it("leave out what is inside a closed group", () => {
-    const open = (key: string) => key === "unit:Custom" || key === "unit:human";
+    const open = (key: string) => ["unit:Custom", "unit:Standard", "unit:human"].includes(key);
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
       "[-] Custom 2",
       "h000",
       "h001",
-      "# Standard",
+      "[-] Standard 4",
       "[-] human 3",
       "[+] Melee 3",
       "[+] orc 1",
@@ -69,13 +68,23 @@ describe("the tree's rows", () => {
 
   it("have no Custom group while the kind has no custom objects", () => {
     const standard = entries.filter((entry) => entry.path[0] !== "Custom");
-    expect(shape(treeLines(standard, "unit", "", allOpen))[0]).toBe("# Standard");
+    expect(shape(treeLines(standard, "unit", "", allOpen))[0]).toBe("[-] Standard 4");
+  });
+
+  it("hide every standard object while Standard is closed", () => {
+    const open = (key: string) => key !== "unit:Standard";
+    expect(shape(treeLines(entries, "unit", "", open))).toEqual([
+      "[-] Custom 2",
+      "h000",
+      "h001",
+      "[+] Standard 4",
+    ]);
   });
 
   it("open every group while filtering, and keep only the matches", () => {
     const closed = () => false;
     expect(shape(treeLines(entries, "unit", "KNI", closed))).toEqual([
-      "# Standard",
+      "[-] Standard 1",
       "[-] human 1",
       "[-] Melee 1",
       "[-] Units 1",
@@ -85,6 +94,7 @@ describe("the tree's rows", () => {
 
   it("key a group by the kind and its path", () => {
     expect(groupKeys("unit", entries[0] as TreeEntry)).toEqual([
+      "unit:Standard",
       "unit:human",
       "unit:human/Melee",
       "unit:human/Melee/Units",

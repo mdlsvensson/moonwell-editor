@@ -91,10 +91,14 @@ const title = $derived(
     ? `Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`
     : undefined,
 );
+// Values start at the left of their box, and a box in the details panel is as wide as its value (between 8 characters
+// and the column), as World Editor shows them (Sven, 2026-10-27); a level grid's cell fills its column.
 const boxClass = $derived(
-  `w-full min-w-0 rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none hover:border-line focus:border-accent ${
-    error || field.warning ? "border-warn bg-warn-lo" : "border-transparent bg-bg"
-  } ${field.changed ? "text-changed" : "text-fg"} ${editor === "number" ? "text-right" : ""}`,
+  `min-w-0 rounded border py-[3px] font-mono text-[12.5px] outline-none hover:border-line focus:border-accent ${
+    compact ? "w-full" : "field-sizing-content min-w-[8ch] max-w-full"
+  } ${error || field.warning ? "border-warn bg-warn-lo" : "border-transparent bg-bg"} ${
+    field.changed ? "text-changed" : "text-fg"
+  }`,
 );
 
 async function send(value: string): Promise<boolean> {
@@ -165,7 +169,7 @@ function oninput(event: Event): void {
 }
 </script>
 
-<span class="block min-w-0" {title}>
+<span class="block min-w-0 {compact ? '' : 'max-w-full'}" {title}>
   {#if editor === "toggle"}
     <label class="inline-flex cursor-pointer items-center gap-2 px-1.5 py-[3px] font-mono text-[12.5px] {field.changed
         ? 'text-changed'
@@ -181,7 +185,7 @@ function oninput(event: Event): void {
     </label>
   {:else if editor === "select" && list}
     <select
-      class="{boxClass} cursor-pointer"
+      class="{boxClass} cursor-pointer pl-1.5"
       value={list.entries.find((entry) => entry.value.toLowerCase() === field.value.toLowerCase())
         ?.value ?? field.value}
       data-field="{field.id}:{field.level}"
@@ -201,7 +205,7 @@ function oninput(event: Event): void {
     <IdsEditor {field} {lookup} {compact} onset={send} {onopen} />
   {:else if multiline}
     <textarea
-      class="{boxClass} block resize-y"
+      class="{boxClass} block w-full resize-y px-1.5"
       rows="3"
       value={draft ?? field.value}
       data-field="{field.id}:{field.level}"
@@ -213,7 +217,7 @@ function oninput(event: Event): void {
     ></textarea>
   {:else}
     <input
-      class={boxClass}
+      class="{boxClass} px-1.5"
       value={draft ?? field.value}
       size={compact ? Math.max(4, Math.min(24, (draft ?? field.value).length + 1)) : undefined}
       spellcheck={editor === "text"}

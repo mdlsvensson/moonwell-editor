@@ -49,11 +49,11 @@ async function toggle(value: string, on: boolean): Promise<void> {
 
 <button
   type="button"
-  class="flex w-full min-w-0 items-center gap-1 rounded border px-1.5 py-[3px] text-left font-mono text-[12.5px] hover:border-line focus:border-accent focus:outline-none {field.warning
+  class="flex min-w-0 items-center gap-1 rounded border px-1.5 py-[3px] text-left font-mono text-[12.5px] hover:border-line focus:border-accent focus:outline-none {field.warning
     ? 'border-warn bg-warn-lo'
     : 'border-transparent bg-bg'} {field.changed ? 'text-changed' : 'text-fg'} {compact
-    ? 'max-w-56'
-    : ''}"
+    ? 'w-full max-w-56'
+    : 'w-fit max-w-full'}"
   title={shown}
   data-field="{field.id}:{field.level}"
   aria-haspopup="dialog"
@@ -61,7 +61,7 @@ async function toggle(value: string, on: boolean): Promise<void> {
   bind:this={button}
   onclick={() => (open = !open)}
 >
-  <span class="min-w-0 flex-1 truncate">{shown === "" ? " " : shown}</span>
+  <span class="min-w-0 truncate {compact ? 'flex-1' : ''}">{shown === "" ? " " : shown}</span>
   <ChevronDown size={12} class="shrink-0 text-faint" />
 </button>
 {#if open && button}

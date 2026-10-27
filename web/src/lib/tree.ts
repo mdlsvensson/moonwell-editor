@@ -4,9 +4,11 @@
  */
 import type { Kind, TreeEntry } from "./api.ts";
 
-/** One drawn row: a heading, a group that opens and closes (depth -1 for Custom), or an object. */
+/**
+ * One drawn row: a group that opens and closes (depth -1 for the Custom and Standard headings, which open and close
+ * like any group), or an object.
+ */
 export type Line =
-  | { type: "heading"; key: string; text: string }
   | { type: "group"; key: string; name: string; depth: number; open: boolean; count: number }
   | { type: "entry"; key: string; entry: TreeEntry; depth: number };
 
@@ -36,10 +38,18 @@ export function customKey(kind: Kind): string {
   return `${kind}:Custom`;
 }
 
-/** The keys of the groups an object is in, broadest first: what must be open for it to show. */
+/** The key of the Standard heading of a kind. */
+export function standardKey(kind: Kind): string {
+  return `${kind}:Standard`;
+}
+
+/** The keys of the groups an object is in, broadest first (Standard, then its path): what must be open for it to show. */
 export function groupKeys(kind: Kind, entry: TreeEntry): string[] {
   if (isCustom(entry)) return [customKey(kind)];
-  return entry.path.map((_, depth) => `${kind}:${entry.path.slice(0, depth + 1).join("/")}`);
+  return [
+    standardKey(kind),
+    ...entry.path.map((_, depth) => `${kind}:${entry.path.slice(0, depth + 1).join("/")}`),
+  ];
 }
 
 /** The kinds' names, as the kind buttons show them. */
@@ -122,7 +132,7 @@ export function treeLines(
     entry.path.forEach((name, depth) => {
       let child = group.groups.get(name);
       if (!child) {
-        child = { name, key: keys[depth] ?? "", groups: new Map(), entries: [], count: 0 };
+        child = { name, key: keys[depth + 1] ?? "", groups: new Map(), entries: [], count: 0 };
         group.groups.set(name, child);
       }
       child.count++;
@@ -130,7 +140,19 @@ export function treeLines(
     });
     group.entries.push(entry);
   }
-  if (root.count > 0) result.push({ type: "heading", key: "h:standard", text: "Standard" });
+  // Standard opens and closes like Custom (Sven, 2026-10-27).
+  const standardOpen = open(standardKey(kind));
+  if (root.count > 0) {
+    result.push({
+      type: "group",
+      key: standardKey(kind),
+      name: "Standard",
+      depth: -1,
+      open: standardOpen,
+      count: root.count,
+    });
+  }
+  if (!standardOpen) return result;
 
   const walk = (group: Group, depth: number) => {
     for (const child of group.groups.values()) {

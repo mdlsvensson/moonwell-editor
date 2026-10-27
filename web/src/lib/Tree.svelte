@@ -7,7 +7,15 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
 import type { Kind, TreeEntry } from "./api.ts";
-import { customKey, groupKeys, groupName, kindNames, nextObject, treeLines } from "./tree.ts";
+import {
+  customKey,
+  groupKeys,
+  groupName,
+  kindNames,
+  nextObject,
+  standardKey,
+  treeLines,
+} from "./tree.ts";
 
 type Props = {
   kind: Kind;
@@ -34,18 +42,16 @@ let {
 }: Props = $props();
 
 const rowHeight = 26;
-// The Standard heading and the Custom group look the same (Sven, 2026-10-27).
-const headingClass = "flex items-end pb-1 text-xs tracking-[.06em] text-muted uppercase";
 const overscan = 12;
 
-// Groups the user opened or closed, by `kind:path`; any other is closed, except Custom, which starts open.
+// Groups the user opened or closed, by `kind:path`; any other is closed, except Custom and Standard, which start open.
 let toggled = $state<Record<string, boolean>>({});
 let scroller: HTMLDivElement | undefined = $state();
 let scrollTop = $state(0);
 let height = $state(0);
 
 function isOpen(key: string): boolean {
-  return toggled[key] ?? key === customKey(kind);
+  return toggled[key] ?? (key === customKey(kind) || key === standardKey(kind));
 }
 
 const lines = $derived(entries ? treeLines(entries, kind, filter, isOpen) : []);
@@ -144,15 +150,12 @@ function clearOnEscape(event: KeyboardEvent): void {
     <div class="relative" style:height="{lines.length * rowHeight}px">
       <div class="absolute inset-x-0 top-0" style:transform="translateY({first * rowHeight}px)">
         {#each visible as line (line.key)}
-          {#if line.type === "heading"}
-            <div class="{headingClass} px-2.5" style:height="{rowHeight}px">
-              {line.text}
-            </div>
-          {:else if line.type === "group" && line.depth < 0}
-            <!-- Custom: a heading like Standard, with its arrow in the margin so the two words line up. -->
+          {#if line.type === "group" && line.depth < 0}
+            <!-- Custom and Standard: the same heading, which opens and closes, its arrow in the groups' arrow column
+                 (Sven, 2026-10-27). -->
             <button
               type="button"
-              class="{headingClass} relative w-full pr-2.5 pl-2.5 text-left"
+              class="flex w-full items-center gap-1.5 pr-2.5 pl-2.5 text-left text-xs tracking-[.06em] text-muted uppercase hover:text-fg"
               style:height="{rowHeight}px"
               aria-expanded={line.open}
               onclick={() => {
@@ -160,8 +163,8 @@ function clearOnEscape(event: KeyboardEvent): void {
                 focusTree();
               }}
             >
-              <span class="absolute bottom-1 left-0 flex h-4 w-2.5 items-center justify-center">
-                {#if line.open}<ChevronDown size={10} />{:else}<ChevronRight size={10} />{/if}
+              <span class="flex w-3 shrink-0 items-center text-faint">
+                {#if line.open}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
               </span>
               {line.name}
               <span class="ml-auto font-mono text-[11px] tracking-normal text-faint normal-case">{line.count}</span>
@@ -178,7 +181,7 @@ function clearOnEscape(event: KeyboardEvent): void {
                 focusTree();
               }}
             >
-              <span class="w-3 text-faint">
+              <span class="flex w-3 shrink-0 items-center text-faint">
                 {#if line.open}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
               </span>
               {groupName(line.name)}

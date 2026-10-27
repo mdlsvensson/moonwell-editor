@@ -48,6 +48,8 @@ const objects = $derived(
 );
 const standard = $derived(shownValue({ ...field, value: field.base }, choices, nameOf));
 const title = $derived(titleOf(field));
+// A text of several lines gets a box as wide as the row; any other value a box as wide as itself.
+const multiline = $derived(field.value.includes("\n"));
 
 function titleOf(view: FieldView): string {
   const lines = [shown];
@@ -68,7 +70,7 @@ async function reset(): Promise<void> {
 </script>
 
 <div
-  class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)_24px] items-center border-t border-line {selected
+  class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)] items-center border-t border-line {selected
     ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60'
     : 'hover:bg-surface'}"
   role="group"
@@ -90,9 +92,21 @@ async function reset(): Promise<void> {
     {field.label}
     {#if showIds}<span class="ml-1.5 font-mono text-[12.5px] text-faint">{field.id}</span>{/if}
   </button>
-  <span class="min-w-0 px-2 py-[3px]">
+  <!-- The value starts right after the names, with ↺ after it, as World Editor lays them out (Sven, 2026-10-27). -->
+  <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
     {#if editable}
-      <FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error />
+      <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error /></span>
+      {#if field.changed}
+        <button
+          type="button"
+          class="shrink-0 px-1 text-changed hover:text-fg"
+          title="Back to the standard value: {standard === '' ? '(empty)' : standard}"
+          aria-label="Reset {field.label}"
+          onclick={reset}
+        >
+          ↺
+        </button>
+      {/if}
     {:else if isList && objects.length > 0}
       <span class="flex flex-wrap gap-1" {title}>
         {#each objects as object, index (index)}
@@ -115,7 +129,7 @@ async function reset(): Promise<void> {
       </span>
     {:else}
       <span
-        class="block truncate rounded border px-1.5 py-[3px] font-mono text-[12.5px] {field.warning
+        class="block max-w-full truncate rounded border px-1.5 py-[3px] font-mono text-[12.5px] {field.warning
           ? 'border-warn bg-warn-lo'
           : 'border-transparent'} {field.changed ? 'text-changed' : 'text-fg'}"
         {title}
@@ -124,22 +138,9 @@ async function reset(): Promise<void> {
       </span>
     {/if}
   </span>
-  {#if editable && field.changed}
-    <button
-      type="button"
-      class="justify-self-center text-changed hover:text-fg"
-      title="Back to the standard value: {standard === '' ? '(empty)' : standard}"
-      aria-label="Reset {field.label}"
-      onclick={reset}
-    >
-      ↺
-    </button>
-  {:else}
-    <span></span>
-  {/if}
   {#if error}
-    <span class="col-start-2 col-end-5 pr-2 pb-1.5 text-xs text-warn" role="alert">{error}</span>
+    <span class="col-start-2 col-end-4 pr-2 pb-1.5 text-xs text-warn" role="alert">{error}</span>
   {:else if field.warning}
-    <span class="col-start-2 col-end-5 pr-2 pb-1.5 text-xs text-warn">{field.warning}</span>
+    <span class="col-start-2 col-end-4 pr-2 pb-1.5 text-xs text-warn">{field.warning}</span>
   {/if}
 </div>
