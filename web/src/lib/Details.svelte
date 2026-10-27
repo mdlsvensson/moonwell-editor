@@ -20,7 +20,15 @@ import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import type { MenuItem } from "./ContextMenu.svelte";
 import FieldRow from "./FieldRow.svelte";
 import { copiedField, copyField, fits } from "./fieldClip.ts";
-import { groupFields, isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
+import {
+  type ButtonPair,
+  buttonPair,
+  groupFields,
+  isChanged,
+  type Lookup,
+  type Row,
+  shownValue,
+} from "./fields.ts";
 import LevelGrid from "./LevelGrid.svelte";
 import { labelColumnWidth } from "./measure.ts";
 import { kindText } from "./tree.ts";
@@ -45,6 +53,8 @@ type Props = {
   onmenu: (x: number, y: number, items: MenuItem[]) => void;
   /** Shows a short message in the status bar. */
   onnotice: (text: string, warn: boolean) => void;
+  /** Changes several fields of the object as one edit; answers with why it was refused, or null. */
+  onfields: (edits: { field: FieldView; value: string }[]) => Promise<string | null>;
 };
 
 let {
@@ -62,6 +72,7 @@ let {
   ondelete,
   onmenu,
   onnotice,
+  onfields,
 }: Props = $props();
 
 let root: HTMLDivElement | undefined = $state();
@@ -127,6 +138,14 @@ export function clipKey(key: "c" | "x" | "v"): boolean {
   else if (key === "v") paste(field);
   else onnotice("A field cannot be cut: Ctrl C copies its value.", false);
   return true;
+}
+
+/** Puts a button at a place on the command card: its X and Y, as one edit. */
+function setPair(pair: ButtonPair, x: number, y: number): Promise<string | null> {
+  return onfields([
+    { field: pair.x, value: String(x) },
+    { field: pair.y, value: String(y) },
+  ]);
 }
 
 /** The context menu of a field (one level of a per-level field). */
@@ -355,6 +374,8 @@ function clearOnEscape(event: KeyboardEvent): void {
                     selected={selected === keyOf(row.field)}
                     onselect={select}
                     onmenu={fieldMenu}
+                    pair={buttonPair(row.field, view.fields)}
+                    onpair={setPair}
                   />
                 {/each}
               {/if}

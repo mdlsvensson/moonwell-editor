@@ -13,6 +13,7 @@ import Square from "@lucide/svelte/icons/square";
 import X from "@lucide/svelte/icons/x";
 import { onMount } from "svelte";
 import { closeClicked, maximizeWindow, minimizeWindow, onWindowState, windowState } from "./api.ts";
+import logo from "./logo.svg";
 
 type Props = {
   title: string;
@@ -62,6 +63,7 @@ const buttonClass =
   >
     <ArrowRight size={14} strokeWidth={1.75} />
   </button>
+  <img src={logo} alt="" class="ml-1.5 size-4 self-center" />
   <span class="min-w-0 flex-1 truncate px-2 text-xs leading-[23px] text-muted">{title}</span>
   <button type="button" class={buttonClass} tabindex="-1" title="Minimize" aria-label="Minimize" onclick={minimizeWindow}>
     <Minus size={14} strokeWidth={1.5} />

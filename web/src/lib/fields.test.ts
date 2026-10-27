@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChoiceList, FieldView, ObjectView } from "./api.ts";
 import {
+  buttonPair,
   type Category,
   groupFields,
   type Lookup,
@@ -332,5 +333,21 @@ describe("the picker's prompt", () => {
     expect(searchPrompt(listKinds("Buff"))).toBe("Search buffs by name or id…");
     expect(searchPrompt(listKinds("object"))).toBe("Search units and upgrades by name or id…");
     expect(searchPrompt([])).toBe("Search objects by name or id…");
+  });
+});
+
+describe("a button position pair", () => {
+  const x = field({ id: "abpx", label: "Button Position - Normal (X)", value: "1" });
+  const y = field({ id: "abpy", label: "Button Position - Normal (Y)", value: "2" });
+  const offX = field({ id: "aubx", label: "Button Position - Turn Off (X)" });
+
+  it("is found from either half", () => {
+    expect(buttonPair(x, [x, y, offX])).toEqual({ x, y });
+    expect(buttonPair(y, [x, y, offX])).toEqual({ x, y });
+  });
+
+  it("is null for another field, or without its other half", () => {
+    expect(buttonPair(life, [life, x, y])).toBeNull();
+    expect(buttonPair(offX, [x, y, offX])).toBeNull();
   });
 });

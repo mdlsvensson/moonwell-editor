@@ -10,9 +10,11 @@ type Props = {
   oncancel: () => void;
   children: Snippet;
   actions: Snippet;
+  /** A wider dialog that scrolls when it is taller than the window (the settings). */
+  wide?: boolean;
 };
 
-let { title, oncancel, children, actions }: Props = $props();
+let { title, oncancel, children, actions, wide = false }: Props = $props();
 
 let box: HTMLDivElement | undefined = $state();
 
@@ -53,14 +55,16 @@ function onkeydown(event: KeyboardEvent): void {
 </script>
 
 <div
-  class="fixed inset-0 z-30 flex items-start justify-center bg-black/55 pt-[120px]"
+  class="fixed inset-0 z-30 flex items-start justify-center bg-black/55 {wide ? 'pt-[60px]' : 'pt-[120px]'}"
   role="presentation"
   onclick={(event) => {
     if (event.target === event.currentTarget) oncancel();
   }}
 >
   <div
-    class="w-[460px] max-w-[calc(100%-32px)] rounded-[10px] border border-line bg-surface p-4 shadow-[0_20px_60px_rgba(0,0,0,.5)]"
+    class="{wide
+      ? 'max-h-[calc(100%-90px)] w-[620px] overflow-auto'
+      : 'w-[460px]'} max-w-[calc(100%-32px)] rounded-[10px] border border-line bg-surface p-4 shadow-[0_20px_60px_rgba(0,0,0,.5)]"
     role="dialog"
     aria-modal="true"
     aria-label={title}

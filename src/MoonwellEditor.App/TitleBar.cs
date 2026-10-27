@@ -48,6 +48,10 @@ internal static class TitleBar
         SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0, NoMove | NoSize | NoZOrder | FrameChanged);
     }
 
+    /// <summary>Gives the window's border a colour (the page's theme's); Windows 11 takes it, older ones ignore it.</summary>
+    public static void SetBorder(IntPtr window, Color color) =>
+        Set(window, BorderColor, color.R | color.G << 8 | color.B << 16);
+
     /// <summary>
     /// Where the client area starts, given the window's top before Windows took out its caption: at the window's top,
     /// or below the frame a maximized window has above the screen's edge.

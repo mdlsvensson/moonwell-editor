@@ -51,7 +51,15 @@ export type MapInfo = {
   problems: string[];
   /** How many custom objects it has, by kind. */
   counts: Record<Kind, number>;
+  /** Its game data option, from its war3map.w3i; null when that is missing or cannot be read. */
+  options: MapOptions | null;
 };
+
+/**
+ * A map's game data option: World Editor's Data Set (Default, Custom, Melee) and Data Version (Reign of Chaos, Frozen
+ * Throne, Forsaken Kingdom), and the tables the game reads under it: `base`, `custom_v0`, `custom_v1` or `melee_v0`.
+ */
+export type MapOptions = { dataSet: string; dataVersion: string; values: string; objects: string };
 
 /** One object in a kind's tree. */
 export type TreeEntry = {
@@ -400,4 +408,9 @@ export async function maximizeWindow(): Promise<void> {
 /** Closes the window as its close button does: unsaved edits are asked about first (see `onCloseRequested`). */
 export async function closeClicked(): Promise<void> {
   await call<null>("closeClicked");
+}
+
+/** Gives the window's frame the theme's title bar and border colours (`#rrggbb`). */
+export async function frameColors(surface: string, border: string): Promise<void> {
+  await call<null>("frameColors", { surface, border });
 }

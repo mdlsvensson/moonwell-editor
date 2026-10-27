@@ -38,6 +38,8 @@ public sealed class MainForm : Form
     public MainForm(string? startupMap = null)
     {
         Text = "Moonwell Editor";
+        // The exe's icon (wc3.dev's mark), for the taskbar and Alt Tab.
+        Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         ClientSize = new Size(1400, 860);
         MinimumSize = new Size(900, 600);
         // The title bar's colour (Vitesse Dark's surface), which shows in the top edge's resize strip (see TitleBar).
@@ -69,6 +71,11 @@ public sealed class MainForm : Form
                 : FormWindowState.Maximized);
         _commands.CloseClicked += () => OnWindowThread(Close);
         _commands.Maximized = () => _maximized;
+        _commands.FrameColorsChanged += (surface, border) => OnWindowThread(() =>
+        {
+            BackColor = ColorTranslator.FromHtml(surface);
+            TitleBar.SetBorder(Handle, ColorTranslator.FromHtml(border));
+        });
         _pageWait.Tick += (_, _) => AskIfPageSilent();
         FormClosing += OnClosing;
 

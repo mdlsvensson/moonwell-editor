@@ -213,6 +213,23 @@ export function listKinds(listOf: string | null): Kind[] {
   return kinds.filter((candidate) => candidate === kind);
 }
 
+/** A button position's X and Y fields (`Button Position - Normal (X)` and `(Y)`), which the command card sets together. */
+export type ButtonPair = { x: FieldView; y: FieldView };
+
+/**
+ * The button position pair `field` belongs to, from the object's fields: a field whose label starts with "Button
+ * Position" and ends in "(X)" or "(Y)", and the field with the other letter; null for any other field, or when the
+ * other half is missing.
+ */
+export function buttonPair(field: FieldView, fields: FieldView[]): ButtonPair | null {
+  const match = /^(Button Position.*)\((X|Y)\)$/.exec(field.label);
+  if (!match) return null;
+  const other = `${match[1]}(${match[2] === "X" ? "Y" : "X"})`;
+  const partner = fields.find((each) => each.label === other && each.level === field.level);
+  if (!partner) return null;
+  return match[2] === "X" ? { x: field, y: partner } : { x: partner, y: field };
+}
+
 const pluralNames: Record<Kind, string> = {
   unit: "units",
   item: "items",

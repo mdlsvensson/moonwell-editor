@@ -35,12 +35,17 @@ public sealed record Startup(string? Map);
 /// <param name="Archive">True for an archive (<c>.w3x</c>, <c>.w3m</c>), false for a folder.</param>
 /// <param name="Problems">What was wrong with its files (see <see cref="Session.Problems"/>).</param>
 /// <param name="Counts">How many custom objects it has, by kind key (<c>unit</c>).</param>
+/// <param name="Options">
+/// Its game data option (World Editor's Data Set and Data Version, and the tables the game reads under it); null when
+/// its <c>war3map.w3i</c> is missing or cannot be read.
+/// </param>
 public sealed record MapInfo(
     string Name,
     string Path,
     bool Archive,
     IReadOnlyList<string> Problems,
-    IReadOnlyDictionary<string, int> Counts);
+    IReadOnlyDictionary<string, int> Counts,
+    MapOptions? Options);
 
 /// <summary>The open map and where it stands, for a page that was loaded again (the <c>currentMap</c> command).</summary>
 /// <param name="Map">The open map, as <c>openMap</c> gave it.</param>
@@ -167,6 +172,12 @@ public sealed class Commands
     /// </summary>
     public event Action? CloseClicked;
 
+    /// <summary>
+    /// Raised when the page puts on a theme (the <c>frameColors</c> command): its title bar colour and its border colour,
+    /// as <c>#rrggbb</c>, for the window's frame.
+    /// </summary>
+    public event Action<string, string>? FrameColorsChanged;
+
     /// <summary>Whether the window is maximized, for the page's title bar (the <c>windowState</c> command).</summary>
     public Func<bool> Maximized { get; set; } = () => false;
 
@@ -276,6 +287,7 @@ public sealed class Commands
             "maximizeWindow" => Raise(MaximizeAsked),
             "closeClicked" => Raise(CloseClicked),
             "windowState" => new WindowState(Maximized()),
+            "frameColors" => FrameColors(Text(args, "surface"), Text(args, "border")),
             _ => throw new UnknownCommandException(command),
         };
 
@@ -356,7 +368,7 @@ public sealed class Commands
         }
 
         var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(store.Path));
-        return new MapInfo(name, store.Path, store.IsArchive, session.Problems, counts);
+        return new MapInfo(name, store.Path, store.IsArchive, session.Problems, counts, MapOptions.Read(store));
     }
 
     // An object of a read-only kind is shown too: its view says why it cannot be edited.
@@ -453,6 +465,20 @@ public sealed class Commands
         Map().Delete(Kind(args), Text(args, "id"));
         return Changed<object?>(null);
     }
+
+    private object? FrameColors(string surface, string border)
+    {
+        if (!IsColor(surface) || !IsColor(border))
+        {
+            throw BadRequest("frameColors takes two colours as #rrggbb.");
+        }
+
+        FrameColorsChanged?.Invoke(surface, border);
+        return null;
+    }
+
+    private static bool IsColor(string text) =>
+        text.Length == 7 && text[0] == '#' && text.Skip(1).All(char.IsAsciiHexDigit);
 
     private static object? Raise(Action? handler)
     {

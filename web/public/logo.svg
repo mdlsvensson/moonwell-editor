@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>wc3.dev</title>
+  <path fill="#223249" d="M2 12L16 19V27L2 20Z"/>
+  <path fill="#16161d" d="M16 19L30 12V20L16 27Z"/>
+  <path fill="#2d4f67" d="M16 5L30 12L16 19L2 12Z"/>
+  <path fill="none" stroke="#7e9cd8" stroke-linejoin="round" stroke-linecap="round" stroke-width="0.8" d="M19.5 6.75L5.5 13.75M12.5 6.75L26.5 13.75 M23 8.5L9 15.5M9 8.5L23 15.5 M26.5 10.25L12.5 17.25M5.5 10.25L19.5 17.25"/>
+  <path fill="#e6c384" d="M19.5 10.25L23 12L19.5 13.75L16 12Z"/>
+  <path fill="none" stroke="#7fb4ca" stroke-linejoin="round" stroke-linecap="round" stroke-width="1.6" d="M16 5L30 12V20L16 27L2 20V12Z M2 12L16 19L30 12 M16 19V27"/>
+</svg>

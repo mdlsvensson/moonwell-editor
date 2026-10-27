@@ -1,6 +1,7 @@
 <script lang="ts">
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
+import Settings from "@lucide/svelte/icons/settings";
 import { onMount } from "svelte";
 import {
   type CellEdit,
@@ -14,6 +15,7 @@ import {
   deleteObject,
   type FieldRef,
   type FieldView,
+  frameColors,
   type Kind,
   type MapInfo,
   nextId,
@@ -43,6 +45,7 @@ import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./l
 import KindBar from "./lib/KindBar.svelte";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
 import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
+import SettingsDialog from "./lib/SettingsDialog.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
 import {
@@ -56,6 +59,7 @@ import TableView, { type EditResult } from "./lib/TableView.svelte";
 import TitleBar from "./lib/TitleBar.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
+import { applyTheme, savedTheme, saveTheme, type Theme } from "./lib/themes.ts";
 import { windowTitle } from "./lib/title.ts";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
 import { nameField, savedText } from "./lib/values.ts";
@@ -92,6 +96,20 @@ let map = $state.raw<MapInfo | null>(null);
 let session = $state.raw<SessionState | null>(null);
 let mapProblem = $state("");
 let showProblems = $state(false);
+// The settings dialog, and the theme on the page (Sven, 2026-10-27).
+let settingsOpen = $state(false);
+// Put on before the first paint, so the page never shows the default theme first.
+const startTheme = savedTheme();
+applyTheme(startTheme);
+let theme = $state(startTheme);
+
+/** Puts a theme on the page and the window's frame, and remembers it. */
+function useTheme(chosen: Theme): void {
+  theme = chosen;
+  applyTheme(chosen);
+  saveTheme(chosen);
+  frameColors(chosen.colors.surface, chosen.colors.border).catch(() => {});
+}
 let opening = $state(false);
 
 let kind = $state<Kind>("unit");
@@ -374,6 +392,17 @@ async function edit(field: FieldView, value: string | null): Promise<string | nu
   } catch (error) {
     return message(error);
   }
+}
+
+/** Changes several fields of the object shown as one edit (the command card's X and Y); null when it was taken. */
+async function editFields(edits: { field: FieldView; value: string }[]): Promise<string | null> {
+  const shown = current;
+  if (!shown) return "No object is shown.";
+  const result = await editCells(
+    shown.kind,
+    edits.map(({ field, value }) => ({ id: shown.id, field: field.id, level: field.level, value })),
+  );
+  return "error" in result ? result.error : null;
 }
 
 /**
@@ -764,7 +793,7 @@ function tableKey(event: KeyboardEvent, key: string): boolean {
 }
 
 function onkeydown(event: KeyboardEvent): void {
-  if (unsaved || diskChanged || creating || deleting) return; // and so do the dialogs
+  if (unsaved || diskChanged || creating || deleting || settingsOpen) return; // and so do the dialogs
   const key = event.key.toLowerCase();
   const ctrl = event.ctrlKey && !event.altKey;
   if (page === "table" && tableKey(event, key)) return;
@@ -840,6 +869,7 @@ $effect(() => {
 });
 
 onMount(() => {
+  useTheme(theme);
   // Listen first, then ask: a load that ends in between still reaches the page.
   let stops: (() => void)[] = [];
   try {
@@ -958,6 +988,15 @@ onMount(() => {
     >
       {saving ? "Saving…" : "Save"}
     </button>
+    <button
+      type="button"
+      class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
+      title="Settings"
+      aria-label="Settings"
+      onclick={() => (settingsOpen = true)}
+    >
+      <Settings size={17} />
+    </button>
   </header>
 
   {#if view === "missing" || view === "failed"}
@@ -1074,6 +1113,7 @@ onMount(() => {
             ondelete={askDelete}
             onmenu={(x, y, items) => (menu = { x, y, items })}
             onnotice={(text, warn) => say(text, { warn })}
+            onfields={editFields}
           />
         {:else}
           <p class="mx-[18px] mt-3.5 text-muted">
@@ -1217,4 +1257,8 @@ onMount(() => {
       {/if}
     {/snippet}
   </Dialog>
+{/if}
+
+{#if settingsOpen}
+  <SettingsDialog {theme} ontheme={useTheme} {map} {data} onclose={() => (settingsOpen = false)} />
 {/if}

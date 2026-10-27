@@ -4,8 +4,9 @@
  * the object can be edited) and ↺ to put a changed field back to its standard value.
  */
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
+import CommandCard from "./CommandCard.svelte";
 import FieldEditor from "./FieldEditor.svelte";
-import { type Lookup, listIds, shownValue } from "./fields.ts";
+import { type ButtonPair, type Lookup, listIds, shownValue } from "./fields.ts";
 
 type Props = {
   field: FieldView;
@@ -22,6 +23,10 @@ type Props = {
   onselect: (field: FieldView) => void;
   /** A right click on the field, for its context menu. */
   onmenu: (field: FieldView, x: number, y: number) => void;
+  /** For a button position field, it and its other half, which the command card sets together; null otherwise. */
+  pair?: ButtonPair | null;
+  /** Sets the pair's X and Y as one edit; answers with why it was refused, or null. */
+  onpair?: (pair: ButtonPair, x: number, y: number) => Promise<string | null>;
 };
 
 let {
@@ -36,6 +41,8 @@ let {
   selected,
   onselect,
   onmenu,
+  pair = null,
+  onpair,
 }: Props = $props();
 
 let error = $state("");
@@ -96,6 +103,10 @@ async function reset(): Promise<void> {
   <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
     {#if editable}
       <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error /></span>
+      {#if pair && onpair}
+        {@const both = pair}
+        <CommandCard pair={both} onpick={(x, y) => onpair(both, x, y)} />
+      {/if}
       {#if field.changed}
         <button
           type="button"
