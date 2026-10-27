@@ -37,6 +37,7 @@ import {
   tree,
   undo,
 } from "./lib/api.ts";
+import { loadAssetNames } from "./lib/assetNames.svelte.ts";
 import { BridgeError, call, on } from "./lib/bridge.ts";
 import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
 import Details from "./lib/Details.svelte";
@@ -912,6 +913,7 @@ $effect(() => {
   (async () => {
     try {
       choiceLists = await choices();
+      void loadAssetNames();
       const started = await startup();
       const path = started.map;
       if (path) await openMapWith(() => openMap({ path }));

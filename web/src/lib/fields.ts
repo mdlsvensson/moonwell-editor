@@ -191,6 +191,76 @@ const noneTypes = new Set([
   "lightningEffect",
 ]);
 
+/** The sort of file a field names, by its metadata type, for its names (`assetNames`); undefined for none. */
+export function assetGroup(meta: string | null | undefined): string | undefined {
+  switch (meta) {
+    case "icon":
+      return "icon";
+    case "model":
+    case "modelList":
+      return "model";
+    case "pathingTexture":
+      return "pathing";
+    case "shadowTexture":
+      return "shadow";
+    case "uberSplat":
+      return "splat";
+    case "texture":
+      return "texture";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * A file's key among the names: its path in lower case with backslashes and without the extension of a model, image
+ * or texture, as the app makes it (`units\human\peasant\peasant`).
+ */
+export function assetKey(path: string): string {
+  const key = path.trim().replaceAll("/", "\\").toLowerCase();
+  const dot = key.lastIndexOf(".");
+  if (
+    dot > key.lastIndexOf("\\") &&
+    [".mdl", ".mdx", ".blp", ".dds", ".tga"].includes(key.slice(dot))
+  ) {
+    return key.slice(0, dot);
+  }
+  return key;
+}
+
+// World Editor cuts a long list of names after the last one that fits (seen: 118 characters kept, 130 cut; the
+// agent's reading is 128), and ends it with ", ...".
+const namesLimit = 128;
+
+/** Names joined as World Editor shows them: `A, B, C`, cut with `, ...` when the next would pass its limit. */
+export function namesText(names: string[]): string {
+  let text = "";
+  for (const name of names) {
+    const next = text === "" ? name : `${text}, ${name}`;
+    if (text !== "" && next.length > namesLimit) return `${text}, ...`;
+    text = next;
+  }
+  return text;
+}
+
+let namedBy: (group: string, key: string) => string[] | undefined = () => undefined;
+
+/** Sets where the names of files come from (`assetNames.svelte.ts`). */
+export function setAssetNames(lookup: (group: string, key: string) => string[] | undefined): void {
+  namedBy = lookup;
+}
+
+/**
+ * The names World Editor shows a file field's value by (Sven, 2026-10-27): the objects that use the file, joined and
+ * cut as it does; undefined when the field names no file or no object uses it (World Editor shows the path then).
+ */
+export function assetText(field: Pick<FieldView, "meta" | "value">): string | undefined {
+  const group = assetGroup(field.meta);
+  if (!group || field.value.trim() === "") return undefined;
+  const names = namedBy(group, assetKey(field.value));
+  return names && names.length > 0 ? namesText(names) : undefined;
+}
+
 /**
  * What World Editor shows for a field that holds nothing (Sven, 2026-10-27): 0 for a whole number, 0.000 for a real,
  * False for a true-or-false field, None for one value of a list or a file, sound or order, and nothing for text, flags
@@ -228,6 +298,8 @@ export function shownValue(
   nameOf: NameOf,
 ): string {
   if (field.value.trim() === "") return emptyText(field, choices);
+  const named = assetText(field);
+  if (named !== undefined) return named;
   if (field.type === "choice") {
     const list = field.choice ? choices?.[field.choice] : undefined;
     return list ? choiceText(list, field.value) : field.value;

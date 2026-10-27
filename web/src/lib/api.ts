@@ -337,6 +337,14 @@ export function search(query: string, limit: number): Promise<Hit[]> {
   return call<Hit[]>("search", { query, limit });
 }
 
+/**
+ * The names World Editor shows files by: by sort of file (`icon`, `model`, `pathing`, `shadow`, `splat`, `texture`),
+ * then by the file's key (`assetKey`), the objects that use it, tagged by field ("Holy Light <Research>").
+ */
+export function assetNames(): Promise<Record<string, Record<string, string[]>>> {
+  return call<Record<string, Record<string, string[]>>>("assetNames");
+}
+
 /** Every choice list, by the key a `FieldView`'s `choice` names. */
 export function choices(): Promise<Record<string, ChoiceList>> {
   return call<Record<string, ChoiceList>>("choices");

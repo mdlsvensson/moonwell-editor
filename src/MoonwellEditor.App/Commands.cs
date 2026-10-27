@@ -111,6 +111,9 @@ public sealed class Commands
 
     private string? _source;
     private Data? _data;
+
+    // The names World Editor shows files by, made once per game data.
+    private (Data Data, Dictionary<string, Dictionary<string, List<string>>> Names)? _assetNames;
     private string? _error;
     private int _generation;
     private int _version;
@@ -297,6 +300,7 @@ public sealed class Commands
             "reload" => Reload(Flag(args, "discard")),
             "search" => Map().Search(Text(args, "query"), Number(args, "limit")),
             "choices" => NeedGameData().Choices,
+            "assetNames" => AssetNamesOf(NeedGameData()),
             "fields" => Fields(Kind(args)),
             "table" => TableOf(args),
             "setCells" => SetCells(args),
@@ -426,6 +430,29 @@ public sealed class Commands
     }
 
     // The kind's fields in World Editor's order: by category, then by sort key, then by id.
+    /// <summary>
+    /// The names World Editor shows an icon, model or texture by (<see cref="AssetNames.Of"/>), by sort of file, then
+    /// by file key (the <c>assetNames</c> command).
+    /// </summary>
+    private Dictionary<string, Dictionary<string, List<string>>> AssetNamesOf(Data data)
+    {
+        lock (_lock)
+        {
+            if (_assetNames is { } made && ReferenceEquals(made.Data, data))
+            {
+                return made.Names;
+            }
+        }
+
+        var names = AssetNames.Of(data);
+        lock (_lock)
+        {
+            _assetNames = (data, names);
+        }
+
+        return names;
+    }
+
     private List<FieldDescription> Fields(ObjectKind kind)
     {
         var fields = new List<FieldDescription>();

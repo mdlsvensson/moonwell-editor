@@ -130,13 +130,22 @@ internal static class Builder
         var levelField = fields.FirstOrDefault(field => field.Name == LevelCountName)?.Id;
         var objectKind = KindOf(kind);
         var readers = fields.Select(field => new FieldReader(field, meta[field.Id])).ToList();
-        var baseRows = Index(tables.Objects(kind, null));
+        var baseTable = tables.Objects(kind, null);
+        var baseRows = Index(baseTable);
+        var places = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var place = 0; place < baseTable.Count; place++)
+        {
+            places.TryAdd(baseTable[place].Id, place);
+        }
+
         var setRows = new Dictionary<string, Dictionary<string, ObjectRows>>(StringComparer.Ordinal);
         var result = new List<StandardObject>(objects.Count);
-        foreach (var obj in objects)
+        for (var index = 0; index < objects.Count; index++)
         {
+            var obj = objects[index];
             var rows = PrimaryRows(tables, kind, obj, baseRows, setRows);
-            result.Add(Object(tables, objectKind, levelField, obj, rows, infos, readers, unitUi.GetValueOrDefault(obj.Id)));
+            var standard = Object(tables, objectKind, levelField, obj, rows, infos, readers, unitUi.GetValueOrDefault(obj.Id));
+            result.Add(standard with { Row = places.TryGetValue(obj.Id, out var place) ? place : baseTable.Count + index });
         }
 
         return new KindData(objectKind, levelField, infos, result, effects);
@@ -229,9 +238,14 @@ internal static class Builder
         var special = (ui?.GetValueOrDefault("special") ?? FieldReader.Clean(row.Get("special", "de")?.Value)) == "1";
         var suffix = Resolved(tables, FieldReader.Clean(row.Get("EditorSuffix", "de")?.Value) ?? "");
         // An upgrade keeps a suffix per level; World Editor names it by its first (Glyph of Fortification (Upgrade 1)).
+        // A doodad has no suffix field, and World Editor shows none (the data's "(Default)" is not shown: Wooden Coffin).
         if (kind == ObjectKind.Upgrade)
         {
             suffix = suffix.Split(',')[0].Trim();
+        }
+        else if (kind == ObjectKind.Doodad)
+        {
+            suffix = "";
         }
         var categoryColumn = kind switch
         {
@@ -283,7 +297,8 @@ internal static class Builder
             obj.Sets,
             obj.MissingFrom,
             hostile,
-            sort);
+            sort,
+            Version: FieldReader.Clean(row.Get("version", "de")?.Value) ?? "");
         return standard with { Modes = Modes(row, standard, kind, levelField, infos, readers) };
     }
 

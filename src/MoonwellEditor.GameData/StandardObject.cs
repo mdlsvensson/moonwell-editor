@@ -45,6 +45,12 @@ namespace MoonwellEditor.GameData;
 /// The data column World Editor lists a folder by before the names, as written: a buff's <c>sort</c> (<c>hero</c>
 /// before <c>unit</c>), a destructable's or a doodad's <c>doodClass</c> (tree walls <c>A</c> first); empty for others.
 /// </param>
+/// <param name="Row">
+/// The object's place in its kind's base table (<c>units/unitdata.slk</c> lists the Paladin before the campaign
+/// heroes), the order World Editor lists objects in where it names them by a file; after every row for an object the
+/// base table lacks.
+/// </param>
+/// <param name="Version">The data's <c>version</c> as written (<c>2</c> for what Reforged added); empty for none.</param>
 public sealed record StandardObject(
     string Id,
     string Name,
@@ -62,4 +68,6 @@ public sealed record StandardObject(
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? Sets = null,
     IReadOnlyList<string>? MissingFrom = null,
     bool Hostile = false,
-    string Sort = "");
+    string Sort = "",
+    int Row = 0,
+    string Version = "");

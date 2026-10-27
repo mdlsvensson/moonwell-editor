@@ -8,7 +8,15 @@
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
-import { emptyText, entryOf, type Lookup, namesOf, realText, shownValue } from "./fields.ts";
+import {
+  assetText,
+  emptyText,
+  entryOf,
+  type Lookup,
+  namesOf,
+  realText,
+  shownValue,
+} from "./fields.ts";
 import IdsEditor from "./IdsEditor.svelte";
 import { typing } from "./typing.ts";
 import { checkValue, editorFor } from "./values.ts";
@@ -86,8 +94,13 @@ const editor = $derived(editorFor(field, choices));
 const list = $derived(field.choice ? choices?.[field.choice] : undefined);
 const shown = $derived(shownValue(field, choices, nameOf));
 const multiline = $derived(field.value.includes("\n"));
-// A real shows with three decimals, as World Editor shows it (Sven, 2026-10-27).
-const boxValue = $derived(field.type === "float" ? realText(field.value) : field.value);
+// A real shows with three decimals, and a file by the names of the objects that use it while the box is not being
+// edited (its path while it is), as World Editor shows them (Sven, 2026-10-27).
+let focused = $state(false);
+const named = $derived(assetText(field));
+const boxValue = $derived(
+  field.type === "float" ? realText(field.value) : !focused && named ? named : field.value,
+);
 const title = $derived(
   field.changed
     ? `Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`
@@ -228,16 +241,24 @@ function oninput(event: Event): void {
       value={draft ?? boxValue}
       placeholder={emptyText(field, choices)}
       size={compact
-        ? Math.max(4, Math.min(24, (draft ?? boxValue).length + 1, emptyText(field, choices).length + 1))
+        ? Math.max(
+            4,
+            Math.min(24, Math.max((draft ?? boxValue).length, emptyText(field, choices).length) + 1),
+          )
         : undefined}
       spellcheck={editor === "text"}
       inputmode={editor === "number" ? "decimal" : undefined}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
       aria-invalid={!!error}
+      title={named ? field.value : undefined}
+      onfocus={() => (focused = true)}
       {oninput}
       {onkeydown}
-      onblur={commit}
+      onblur={() => {
+        focused = false;
+        commit();
+      }}
     />
   {/if}
 </span>

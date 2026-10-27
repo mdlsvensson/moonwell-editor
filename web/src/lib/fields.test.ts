@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { ChoiceList, FieldView, ObjectView } from "./api.ts";
 import {
+  assetKey,
+  assetText,
   buttonPair,
   type Category,
   groupFields,
   type Lookup,
   listIds,
   listKinds,
+  namesText,
   type Row,
   searchPrompt,
+  setAssetNames,
   shownValue,
   uses,
 } from "./fields.ts";
@@ -381,5 +385,60 @@ describe("a button position pair", () => {
   it("is null for another field, or without its other half", () => {
     expect(buttonPair(life, [life, x, y])).toBeNull();
     expect(buttonPair(offX, [x, y, offX])).toBeNull();
+  });
+});
+
+describe("files by name", () => {
+  it("key a file by its path in lower case, without a model's or an image's extension", () => {
+    expect(assetKey("Units/Human/Peasant/Peasant.mdl")).toBe(
+      String.raw`units\human\peasant\peasant`,
+    );
+    expect(assetKey(String.raw`ReplaceableTextures\CommandButtons\BTNPeasant.blp`)).toBe(
+      String.raw`replaceabletextures\commandbuttons\btnpeasant`,
+    );
+    expect(assetKey(String.raw`PathTextures\16x16Simple.tga`)).toBe(
+      String.raw`pathtextures\16x16simple`,
+    );
+    // A dot in a folder's name is not an extension.
+    expect(assetKey(String.raw`Abilities\Spells\HolyBolt.v2\Bolt`)).toBe(
+      String.raw`abilities\spells\holybolt.v2\bolt`,
+    );
+  });
+
+  it("join names as World Editor does, cut with ... once the next would pass its limit", () => {
+    expect(namesText(["Castle", "Keep", "Town Hall"])).toBe("Castle, Keep, Town Hall");
+    // The Paladin's icon, as World Editor showed it on 2026-10-27.
+    const heroes = [
+      "Paladin",
+      "Admiral Proudmoore",
+      "Dagren the Orcslayer",
+      "Halahk the Lifebringer",
+      "Magroth the Defender",
+      "Lord Nicholas Buzan",
+      "Lord Maxwell Tyrosus",
+    ];
+    expect(namesText(heroes)).toBe(
+      "Paladin, Admiral Proudmoore, Dagren the Orcslayer, Halahk the Lifebringer, Magroth the Defender, Lord Nicholas Buzan, ...",
+    );
+    expect(namesText(["x".repeat(200)])).toBe("x".repeat(200));
+  });
+
+  it("show a file field by the objects that use it, or by its path when none does", () => {
+    setAssetNames((group, key) =>
+      group === "model" && key === String.raw`units\human\peasant\peasant`
+        ? ["Peasant"]
+        : undefined,
+    );
+    const model = { type: "string", meta: "model" };
+    const peasant = String.raw`units\human\Peasant\Peasant`;
+    const priest = String.raw`units\human\Priest\Priest`;
+    expect(shownValue(field({ id: "umdl", ...model, value: peasant }), null, () => undefined)).toBe(
+      "Peasant",
+    );
+    expect(shownValue(field({ id: "umdl", ...model, value: priest }), null, () => undefined)).toBe(
+      priest,
+    );
+    expect(assetText({ meta: "string", value: peasant })).toBeUndefined();
+    setAssetNames(() => undefined);
   });
 });

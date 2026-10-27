@@ -310,8 +310,9 @@ resolves a value on demand:
   reference. A string that was inline stays inline; a new string is written inline (Moonwell writes strings inline
   and the game reads them). *(Agent's call.)*
 
-The tree, as in World Editor: Custom (this map's new objects) first, then Standard by race, then Melee / Campaign,
-then Units / Buildings / Heroes / Special for units. The object's header shows its chain (Unit › Hero › Paladin ›
+The tree, as in World Editor: Standard by race, then Melee / Campaign, then Units / Buildings / Heroes / Special for
+units, then Custom (this map's new objects) last (corrected 2026-10-27 from World Editor's screen, which had been
+read as Custom first). The object's header shows its chain (Unit › Hero › Paladin ›
 Champion). *(The "Unreal-style object types plus components" was read as a class chain plus a unit's abilities as
 components. Sven, 2026-10-27: that was about Moonwell, not this app. The right panel shows **Uses**, every object
 the object's fields name, and **Used by**, every object whose fields name it.)*
@@ -437,6 +438,52 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The new-object dialog is titled after its base ("New Sorceress hsor") and checks the id as it is typed. The
     button-position card says only "Button Position". The editor opens with an alpha notice (backups; close the map
     in World Editor) until "Don't show this again".
+  - The editor shows the data World Editor shows. Its Object Editor (3.0.1, Asset Mode DE) was compared with the
+    editor field by field on a copy of `we-heavy-archive`'s map (Peasant, Priest, Sorceress, Paladin, Town Hall,
+    Shaman, Claws of Attack +12, Holy Light, Storm Bolt, Devotion Aura's buff, Iron Forged Swords, Ghoul Frenzy, the
+    Ashenvale and Summer Tree Walls, Wooden Coffin, Cave City Cliff). What World Editor showed:
+    - **The unit tree**: Human, Orc, Undead, Night Elf, then Neutral - Naga, then the rest by `hostilePal` in
+      `unitui.slk` (1: Neutral Hostile, 299 units; else Neutral Passive, 197), whatever their race (the tavern
+      heroes are Neutral Passive); 926 units, leaving out the two whose `hiddenInEditor` is 1 (the editor files them
+      under Hidden in World Editor, as it does the hidden abilities). A unit whose `inEditor` is 0 is shown.
+    - **Every other folder** lists by name, compared as written (Call To Arms (Town Hall) before Call to Arms
+      (Peasant)): a buff folder the buffs of hero abilities first (`sort`), a destructable or doodad folder by
+      `doodClass` first (tree walls, then canopy trees, then the rest; the sunken ruins' props after the other props).
+      Buff folders are Buff and Effect; the kind is Destructibles, its folder Trees/Destructibles. A doodad shows no
+      suffix (the data's "(Default)" is not shown). Standard Units come before Custom Units.
+    - **A field that holds nothing** shows 0 (a whole number), 0.000 (a real), False, None (one value of a list, and a
+      file, sound or order field: a model, an icon, a texture, a pathing or shadow texture, a sound, an order string),
+      and nothing for text, flags, object lists and lists of models. The editor shows it as the box's dim placeholder,
+      so nothing is written until a value is typed.
+    - **Reals** show three decimals in every kind, abilities' levels and upgrade effects included (Holy Light 200.000,
+      cooldown 5.500); no field showed two.
+    - **Lists**: a choice value by its other spelling too (`invu` as Invulnerable, `enemy` as Enemy); tilesets by name
+      (All for `*`; its screen gave P Cityscape Ruins, e Lordaeron Capital, R Lordaeron Capital Ruins, u Undercity);
+      a destructable's and a doodad's Category by name (Trees/Destructibles, Props); a unit's Normal Skin and Hero
+      Skin as abilities, by their names without suffixes (Harvest, Call to Arms, Repair); an upgrade by its first
+      level's suffix (Glyph of Fortification (Upgrade 1)).
+    - **Upgrade effects**: Effect N's Base, Mod and Code take the label and type the effect gives them in
+      `units/upgradeeffectmetadata.slk` (Effect 1 - Attack Dice Bonus - Base and - Increment, whole numbers; Ghoul
+      Frenzy's Attack Speed Bonus (%) - Base, a real), and only those the effect uses show (none for an effect of
+      None). The editor keeps one that the map changes.
+    - **Files by name**: an icon, model, texture, pathing map, shadow or ground texture field shows the names of every
+      standard object whose field of that sort holds the same file, in the order of the kind's table (the Paladin's
+      icon: Paladin, Admiral Proudmoore, Dagren the Orcslayer, ...), tagged by the field they come from
+      (`Archmage <Special>`, `Paladin <Score Screen>`, `Priest <Caster>`, `Holy Light <Normal>` and `<Research>`,
+      `Storm Bolt <Missile>`, a buff's `<Target>`, a destructable's or doodad's `<Base>`; a unit's model and projectile
+      art untagged), cut with ", ..." once the next name would pass about 128
+      characters, and its path when no object holds it (the Town Hall's portrait). Icons are named by units, items
+      and abilities, not upgrades (Iron Forged Swords' icon shows the Steel Sword item); a unit's model is not named
+      when its Extra Versions is set (the Priest's and the Sorceress's show their paths). The editor shows the path
+      while the box is being edited, and on hover. The agent's readings: the tags of the fields not seen (an
+      ability's Caster, Special, Effect, Area Effect art), leaving out the abilities Reforged added (version 2: the
+      Steel Sword's icon is shared by seventy of them, which World Editor did not list), and the 128.
+    - **Differences that stay**: the editor groups fields by category in World Editor's metadata order, where World
+      Editor lists them in one alphabetical list ("Art - Model File"); Caster Upgrade Tips show as the data writes them
+      (`"- Purge","- Purge|n- Lightning Shield"`, where World Editor drops the quotes); an object whose strings the
+      export files under another case (`[Boac]` for the Command Aura buff `BOac`) has no name, since Moonwell's
+      reader matches sections by case where World Editor does not; and World Editor names a few objects the export
+      lacks (Holy Light (Item) with a Research icon), so the end of a long list of names can differ.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
