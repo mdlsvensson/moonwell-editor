@@ -37,6 +37,10 @@ namespace MoonwellEditor.GameData;
 /// For a <c>choice</c> field, its metadata type, the key of its list in <see cref="GameData.Choices"/>; null for other
 /// types.
 /// </param>
+/// <param name="Asset">
+/// For a field that names a game file, what it names, from the metadata's type: <c>icon</c>, <c>model</c> (a model or
+/// a list of them) or <c>texture</c>; null for any other field.
+/// </param>
 public sealed record FieldInfo(
     string Id,
     string Label,
@@ -59,4 +63,5 @@ public sealed record FieldInfo(
     int? MaxEntries,
     bool Required,
     bool NoNegative,
-    string? Choice);
+    string? Choice,
+    string? Asset = null);

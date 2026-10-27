@@ -149,7 +149,8 @@ public sealed partial class Session
                 resolver.Name(standard, custom, custom.Id),
                 resolver.Suffix(standard, custom),
                 ["Custom"],
-                custom.HasMods));
+                custom.HasMods,
+                resolver.Icon(standard, custom)));
         }
 
         var originals = map.Originals();
@@ -162,7 +163,8 @@ public sealed partial class Session
                 resolver.Name(standard, changes, standard.Id),
                 resolver.Suffix(standard, changes),
                 Folders.Of(kind, standard),
-                changes?.HasMods ?? false));
+                changes?.HasMods ?? false,
+                resolver.Icon(standard, changes)));
         }
 
         return tree;

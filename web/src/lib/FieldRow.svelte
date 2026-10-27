@@ -3,7 +3,9 @@
  * One row of the details panel for a field with no levels: the changed bar, the label, the value (its editor, when
  * the object can be edited) and ↺ to put a changed field back to its standard value.
  */
-import type { ChoiceList, FieldView, Kind } from "./api.ts";
+
+import AssetPicker from "./AssetPicker.svelte";
+import { type ChoiceList, type FieldView, iconUrl, type Kind } from "./api.ts";
 import CommandCard from "./CommandCard.svelte";
 import FieldEditor from "./FieldEditor.svelte";
 import { type ButtonPair, type Lookup, listIds, shownValue } from "./fields.ts";
@@ -101,11 +103,29 @@ async function reset(): Promise<void> {
   </button>
   <!-- The value starts right after the names, with ↺ after it, as World Editor lays them out (Sven, 2026-10-27). -->
   <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
+    {#if field.asset === "icon" && field.value.trim()}
+      <!-- The icon the field names (Sven, 2026-10-27). -->
+      <img
+        src={iconUrl(field.value)}
+        alt=""
+        class="size-6 shrink-0 rounded-[2px]"
+        draggable="false"
+        onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+      />
+    {/if}
     {#if editable}
       <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error /></span>
       {#if pair && onpair}
         {@const both = pair}
         <CommandCard pair={both} onpick={(x, y) => onpair(both, x, y)} />
+      {/if}
+      {#if field.asset === "icon" || field.asset === "model"}
+        <AssetPicker
+          kind={field.asset}
+          value={field.value}
+          label={field.label}
+          onpick={(path) => onset(field, path)}
+        />
       {/if}
       {#if field.changed}
         <button

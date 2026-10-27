@@ -69,6 +69,12 @@ The app is then `src/MoonwellEditor.App/bin/Release/net10.0-windows/win-x64/publ
 A single-file exe (`-p:PublishSingleFile=true`) builds, but it is not one file yet: the page (`wwwroot`), WebView2's
 `WebView2Loader.dll` and `runtimes` stay beside it. It has not been run.
 
+## Icons and models
+
+The tree's icons and the icon and model pickers read the Warcraft III install's own storage, from
+`C:\Program Files (x86)\Warcraft III`, or the folder in `MOONWELL_EDITOR_GAME`. Without an install the editor works,
+with no icons. `MoonwellEditor.Assets.Tests` reads the install too, and checks nothing when there is none.
+
 ## Tests and checks
 
 ```

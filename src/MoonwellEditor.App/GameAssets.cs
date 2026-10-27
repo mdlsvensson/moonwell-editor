@@ -1,0 +1,146 @@
+using System.Collections.Concurrent;
+using MoonwellEditor.Assets;
+using MoonwellEditor.Files;
+
+namespace MoonwellEditor.App;
+
+/// <summary>
+/// The icons and models the page shows (Sven, 2026-10-27): the open map's own files first (its imports), then the
+/// game's, from the Warcraft III install's storage. Icons go to the page as PNG; models and their textures as the bytes
+/// the files hold. The install is opened in the background once; until then, or without one, nothing is found.
+/// </summary>
+public sealed class GameAssets : IDisposable
+{
+    // The icons decoded lately, by path as asked; the tree asks for the same few hundred again and again.
+    private const int IconsKept = 4000;
+
+    private readonly Func<IMapStore?> _map;
+    private readonly ConcurrentDictionary<string, byte[]?> _icons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _lists = [];
+    private GameFiles? _files;
+
+    /// <summary>Starts opening the install in <paramref name="gameFolder"/>; <paramref name="map"/> gives the open map.</summary>
+    public GameAssets(string gameFolder, Func<IMapStore?> map)
+    {
+        _map = map;
+        GameFolder = gameFolder;
+        Loading = Task.Run(() =>
+        {
+            try
+            {
+                _files = GameFiles.Open(gameFolder);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Error = exception.Message;
+            }
+        });
+    }
+
+    /// <summary>The Warcraft III install's folder.</summary>
+    public string GameFolder { get; }
+
+    /// <summary>The background opening of the install. Awaiting it never throws.</summary>
+    public Task Loading { get; }
+
+    /// <summary>Why the install could not be opened; null when it was, or while it opens.</summary>
+    public string? Error { get; private set; }
+
+    /// <summary>True once the install is open.</summary>
+    public bool Ready => _files != null;
+
+    /// <summary>A file's bytes: the map's file of that name, else the game's; null when neither has it.</summary>
+    public byte[]? File(string path) => FromMap(path) ?? _files?.Read(path);
+
+    /// <summary>An icon (any texture) as PNG; null when there is no such file or it cannot be decoded.</summary>
+    public byte[]? Icon(string path)
+    {
+        if (_icons.TryGetValue(path, out var known))
+        {
+            return known;
+        }
+
+        var bytes = File(path);
+        var image = bytes == null ? null : Textures.Decode(bytes);
+        var png = image == null ? null : Textures.Png(image);
+        if (_files != null || png != null)
+        {
+            // A miss before the install is open is asked again later.
+            if (_icons.Count >= IconsKept)
+            {
+                _icons.Clear();
+            }
+
+            _icons[path] = png;
+        }
+
+        return png;
+    }
+
+    /// <summary>Forgets the decoded icons, for a map opened or reloaded (its imports may differ).</summary>
+    public void MapChanged() => _icons.Clear();
+
+    /// <summary>
+    /// The game's files of a kind, as object data writes their paths: <c>icon</c> (the command and passive buttons,
+    /// <c>ReplaceableTextures\CommandButtons\BTNPeasant.blp</c>) or <c>model</c> (every model but portraits,
+    /// <c>units\human\Peasant\Peasant.mdl</c>). Empty until the install is open.
+    /// </summary>
+    public IReadOnlyList<string> List(string kind)
+    {
+        var files = _files;
+        if (files == null)
+        {
+            return [];
+        }
+
+        lock (_lists)
+        {
+            if (_lists.TryGetValue(kind, out var known))
+            {
+                return known;
+            }
+
+            var found = kind switch
+            {
+                "icon" => files.List("ReplaceableTextures/CommandButtons/", ".blp", ".dds")
+                    .Concat(files.List("ReplaceableTextures/PassiveButtons/", ".blp", ".dds"))
+                    .Select(path => Written(path, ".blp")),
+                "model" => files.List("", ".mdx")
+                    .Where(path => !path.EndsWith("_portrait.mdx", StringComparison.OrdinalIgnoreCase))
+                    .Select(path => Written(path, ".mdl")),
+                _ => [],
+            };
+            return _lists[kind] = found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Loading.Wait();
+        _files?.Dispose();
+    }
+
+    // As World Editor writes a path into object data: back slashes, and the extension it names files by.
+    private static string Written(string path, string extension) =>
+        Path.ChangeExtension(path, extension).Replace('/', '\\');
+
+    // The map's own file of that path, with either slash (imports are named war3mapImported\x.blp and the like).
+    private byte[]? FromMap(string path)
+    {
+        var map = _map();
+        if (map == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return map.ReadImport(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+}

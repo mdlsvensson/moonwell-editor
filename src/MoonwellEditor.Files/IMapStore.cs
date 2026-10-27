@@ -16,6 +16,12 @@ public interface IMapStore
     byte[]? Read(string name);
 
     /// <summary>
+    /// A file the map holds by a path that may be in a folder (an import: <c>war3mapImported\BTNSword.blp</c>), either
+    /// slash; null when it has none, or the path leaves the map.
+    /// </summary>
+    byte[]? ReadImport(string path) => null;
+
+    /// <summary>
     /// Why the map's object or strings file <paramref name="name"/> may not be written, or null when it may (an
     /// archive that holds it under another locale than the neutral one; a folder has no such reason).
     /// </summary>

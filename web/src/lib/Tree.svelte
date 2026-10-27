@@ -6,7 +6,7 @@
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
-import type { Kind, TreeEntry } from "./api.ts";
+import { iconUrl, type Kind, type TreeEntry } from "./api.ts";
 import {
   customKey,
   groupKeys,
@@ -211,6 +211,17 @@ function clearOnEscape(event: KeyboardEvent): void {
               }}
             >
               <span class="w-3 shrink-0"></span>
+              <!-- Its icon, as World Editor shows one beside each object (Sven, 2026-10-27). -->
+              {#if entry.icon}
+                <img
+                  src={iconUrl(entry.icon)}
+                  alt=""
+                  class="size-[18px] shrink-0 rounded-[2px]"
+                  loading="lazy"
+                  draggable="false"
+                  onerror={(event) => ((event.currentTarget as HTMLImageElement).style.visibility = "hidden")}
+                />
+              {/if}
               <span class="truncate {entry.baseId ? 'text-accent-hi' : ''}">
                 {entry.name}
                 {#if entry.suffix}<span class="text-muted">{entry.suffix}</span>{/if}

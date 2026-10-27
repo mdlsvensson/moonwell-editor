@@ -168,6 +168,11 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             ],
             units.Where(entry => entry.Path.SequenceEqual(["Human", "Campaign", "Heroes"])).Select(entry => entry.Name));
 
+        // Each object carries its icon for the tree; a custom one its base's unless the map changes it.
+        Assert.EndsWith("BTNPeasant.blp", units.Single(entry => entry.Id == "hpea").Icon, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual("", units[0].Icon);
+        Assert.Equal("", session.Tree(ObjectKind.Doodad)[^1].Icon);
+
         // The map's custom objects stay first.
         Assert.Equal(["Custom"], units[0].Path);
     }

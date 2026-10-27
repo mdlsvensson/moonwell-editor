@@ -78,6 +78,13 @@ public sealed class MapArchive : IMapStore
     /// files come from memory while the archive's <see cref="Stamp"/> is the one they were read with; when it changed,
     /// the archive is read again. Any other file is read from the archive when asked for.
     /// </summary>
+    public byte[]? ReadImport(string path)
+    {
+        var name = path.Trim().Replace('/', '\\').TrimStart('\\');
+        return name.Length == 0 ? null : Read(name);
+    }
+
+    /// <inheritdoc />
     public byte[]? Read(string name)
     {
         if (Stamp() != _contents.Stamp)

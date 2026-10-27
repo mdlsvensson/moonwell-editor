@@ -38,6 +38,23 @@ public sealed class MapFolder : IMapStore
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 
+    /// <inheritdoc />
+    public byte[]? ReadImport(string path)
+    {
+        var separator = System.IO.Path.DirectorySeparatorChar;
+        var relative = path.Trim().Replace('\\', separator).Replace('/', separator).TrimStart(separator);
+        if (relative.Length == 0 || relative.IndexOfAny(System.IO.Path.GetInvalidPathChars()) >= 0)
+        {
+            return null;
+        }
+
+        var root = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(Path)) + separator;
+        var full = System.IO.Path.GetFullPath(System.IO.Path.Combine(root, relative));
+        return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(full)
+            ? File.ReadAllBytes(full)
+            : null;
+    }
+
     /// <summary>Null: a folder's files may always be written.</summary>
     public string? WriteProblem(string name) => null;
 

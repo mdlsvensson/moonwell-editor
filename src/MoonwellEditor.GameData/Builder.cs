@@ -127,7 +127,14 @@ internal static class Builder
             field.Rules.MaxEntries,
             field.Rules.Required,
             field.Rules.NoNegative,
-            field.Choice?.Type);
+            field.Choice?.Type,
+            Cell(meta, "type") switch
+            {
+                "icon" => "icon",
+                "model" or "modelList" => "model",
+                "texture" => "texture",
+                _ => null,
+            });
     }
 
     /// <summary>

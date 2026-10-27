@@ -73,6 +73,8 @@ export type TreeEntry = {
   path: string[];
   /** True when the map has a modification of the object. */
   changed: boolean;
+  /** Its icon's path (`ReplaceableTextures\CommandButtons\BTNPeasant.blp`); "" or absent for none. */
+  icon?: string;
 };
 
 /** One link of an object's chain; `id` is "" for a link that is not an object (the kind, a hero, a building). */
@@ -106,6 +108,8 @@ export type FieldView = {
   warning: string | null;
   /** The standard values per graphics mode (`sd`, `hd`, `de`) when they differ; null when they do not. */
   modes: Record<string, string> | null;
+  /** What game file the field names: `icon`, `model` or `texture`; absent or null for none. */
+  asset?: "icon" | "model" | "texture" | null;
 };
 
 /** One object with every field that applies to it. */
@@ -413,4 +417,25 @@ export async function closeClicked(): Promise<void> {
 /** Gives the window's frame the theme's title bar and border colours (`#rrggbb`). */
 export async function frameColors(surface: string, border: string): Promise<void> {
   await call<null>("frameColors", { surface, border });
+}
+
+/** Where the page loads the game's and the map's files from (the window serves this host). */
+const assetHost = "https://game.moonwelleditor";
+
+/** The URL of an icon (any texture) as PNG, by the path object data writes. */
+export function iconUrl(path: string): string {
+  return `${assetHost}/icon?path=${encodeURIComponent(path)}`;
+}
+
+/** The URL of a game or map file's bytes (a model, a texture), by the path object data writes. */
+export function fileUrl(path: string): string {
+  return `${assetHost}/file?path=${encodeURIComponent(path)}`;
+}
+
+/** The game's icons or models, for the pickers; `ready` is false while the install opens or when there is none. */
+export type AssetList = { ready: boolean; error: string | null; folder: string; paths: string[] };
+
+/** Lists the game's icons or models, as object data writes their paths. */
+export function assetList(kind: "icon" | "model"): Promise<AssetList> {
+  return call<AssetList>("assetList", { kind });
 }

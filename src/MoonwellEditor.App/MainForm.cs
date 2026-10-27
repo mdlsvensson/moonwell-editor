@@ -9,6 +9,9 @@ public sealed class MainForm : Form
 {
     private const string Host = "app.moonwelleditor";
 
+    // The game's and the map's icons and models, which the page loads from here (see GameAssets).
+    private const string AssetHost = "game.moonwelleditor";
+
     // Made again when the browser process ends (see OnProcessFailed).
     private WebView2 _web = NewWeb();
 
@@ -56,6 +59,9 @@ public sealed class MainForm : Form
             startupMap,
             AskForArchive);
         _bridge = new Bridge(_commands.Run);
+        _commands.Assets = new GameAssets(
+            Environment.GetEnvironmentVariable("MOONWELL_EDITOR_GAME") ?? Assets.GameFiles.DefaultFolder,
+            () => _commands.Store);
         _commands.GameDataChanged += state => Notify("gameData", state);
         _commands.SessionChanged += state => Notify("sessionChanged", state);
         _commands.CloseAsking += () => OnWindowThread(_closeGuard.PageAsking);
@@ -306,6 +312,8 @@ public sealed class MainForm : Form
             }
         };
         core.ProcessFailed += OnProcessFailed;
+        core.AddWebResourceRequestedFilter($"https://{AssetHost}/*", CoreWebView2WebResourceContext.All);
+        core.WebResourceRequested += (_, e) => ServeAsset(environment, e);
 
 #if !DEBUG
         // The page is not a web page to reload or go back from: a reload would drop what is typed, and the page would
@@ -338,6 +346,40 @@ public sealed class MainForm : Form
         var wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
         core.SetVirtualHostNameToFolderMapping(Host, wwwroot, CoreWebView2HostResourceAccessKind.Allow);
         core.Navigate($"https://{Host}/index.html");
+    }
+
+    // https://game.moonwelleditor/icon?path=... answers with the icon as PNG, /file?path=... with the file's bytes, 404
+    // when there is none. Read on a background thread: the first icons wait for the install to open.
+    private void ServeAsset(CoreWebView2Environment environment, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        var assets = _commands.Assets;
+        var uri = new Uri(e.Request.Uri);
+        var path = System.Web.HttpUtility.ParseQueryString(uri.Query)["path"];
+        if (assets == null || string.IsNullOrWhiteSpace(path) || uri.AbsolutePath is not ("/icon" or "/file"))
+        {
+            e.Response = environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+            return;
+        }
+
+        var deferral = e.GetDeferral();
+        var icon = uri.AbsolutePath == "/icon";
+        Task.Run(async () =>
+        {
+            await assets.Loading;
+            return icon ? assets.Icon(path) : assets.File(path);
+        }).ContinueWith(task => OnWindowThread(() =>
+        {
+            var bytes = task.IsCompletedSuccessfully ? task.Result : null;
+            e.Response = bytes == null
+                ? environment.CreateWebResourceResponse(null, 404, "Not Found", "Access-Control-Allow-Origin: *")
+                : environment.CreateWebResourceResponse(
+                    new MemoryStream(bytes),
+                    200,
+                    "OK",
+                    $"Content-Type: {(icon ? "image/png" : "application/octet-stream")}\r\n"
+                    + "Access-Control-Allow-Origin: *\r\nCache-Control: max-age=3600");
+            deferral.Complete();
+        }));
     }
 
     // The page's process ended or hung: the page is loaded again, and shows the open map through the currentMap

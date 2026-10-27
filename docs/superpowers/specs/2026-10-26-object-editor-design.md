@@ -397,8 +397,24 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - In the tree, Standard opens and closes like Custom, and both headings look the same.
   - A folder lists its units by `unitClass` in `unitui.slk` (`HUnit01`, `HUnit02`...), World Editor's order, and a
     unit's campaign and special come from that table too: the skin text gives the High Elf Archmage (`Haah`)
-    campaign 0 against the table's 1, so it is in Human > Campaign > Heroes. Whether World Editor lists it at all
-    (it is missing from the melee_v0 and custom_v0 sets) is open.
+    campaign 0 against the table's 1, so it is in Human > Campaign > Heroes. World Editor shows a campaign hero by
+    its proper name (Haah as Kelen the Seeker), and sorts units of one class (or none) by that name; a class of one
+    space (Garek's) comes first.
+  - An ability's Effects (`effectList`) are buff ids, as its Buffs are: the editor types them as a buff list
+    (Moonwell's reader leaves `effectList` a plain text).
+  - The title bar has back and forward at the left (and the mouse's back and forward buttons walk the history too).
+    Uses and Used by open and close; the tooltip preview's place is back, for a later version.
+  - Button positions get a command card (4 wide, 3 high): a click sets X and Y as one edit; other values are typed.
+  - Settings (the gear in the header): a theme (Vitesse Dark, Kanagawa Wave and Dragon, Gruvbox Dark, Dracula,
+    Catppuccin Mocha and Macchiato, Tokyo Night, Nord, One Dark, Rose Pine, Everforest Dark, Solarized Dark),
+    remembered in the window's storage, and the open map's details, with its Data Set and Data Version from
+    `war3map.w3i` and the tables the game reads under them. The values shown are still the base tables'.
+  - The logo is wc3.dev's mark (`wc3-dev/public/favicon.svg`), as the exe's icon, the page's and the title bar's.
+  - Icons and models come from the Warcraft III install's CASC storage (the usual folder, or
+    `MOONWELL_EDITOR_GAME`), read by the editor's own reader (`MoonwellEditor.Assets`, ported from a scratch reader;
+    CascLib's .NET wrapper is an alpha with a native DLL), the map's imports first. The tree shows each object's
+    icon; icon fields show theirs and get a picker of the game's command and passive buttons; model fields get a
+    picker with a turning preview (war3-model, with the CAMS and LITE chunks of the game's MDX 1800 models left out).
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

@@ -139,6 +139,32 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
         return standard is { Name.Length: > 0 } ? standard.Name : fallback;
     }
 
+    /// <summary>
+    /// The path of the object's icon (its Art field; an upgrade's at level 1): the map's when it sets one, else the
+    /// standard object's; empty for a kind without icons.
+    /// </summary>
+    public string Icon(StandardObject? standard, MapObject? map)
+    {
+        var id = kind switch
+        {
+            ObjectKind.Unit => "uico",
+            ObjectKind.Item => "iico",
+            ObjectKind.Ability => "aart",
+            ObjectKind.Buff => "fart",
+            ObjectKind.Upgrade => "gar1",
+            _ => null,
+        };
+        var field = id == null ? null : data.Field(id);
+        if (field == null)
+        {
+            return "";
+        }
+
+        var level = field.PerLevel ? 1 : 0;
+        var value = MapValue(field, level, map);
+        return !string.IsNullOrEmpty(value) ? value : standard == null ? "" : StandardValue(field, level, standard);
+    }
+
     /// <summary>The object's suffix: the map's when it sets one, else the standard object's.</summary>
     public string Suffix(StandardObject? standard, MapObject? map)
     {
@@ -186,7 +212,8 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
             mapValue != null,
             field.Skin,
             mapValue == null ? null : Warning(field, mapValue),
-            modes);
+            modes,
+            field.Asset);
     }
 
     /// <summary>

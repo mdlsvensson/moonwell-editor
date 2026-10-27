@@ -71,6 +71,13 @@ public sealed record FieldDescription(
     string? Choice,
     string? ListOf);
 
+/// <summary>The game's files of a kind, for the icon and model pickers (the <c>assetList</c> command).</summary>
+/// <param name="Ready">True once the Warcraft III install is open.</param>
+/// <param name="Error">Why it could not be opened; null when it was, or while it opens.</param>
+/// <param name="Folder">The install's folder.</param>
+/// <param name="Paths">The files, as object data writes their paths; empty until the install is open.</param>
+public sealed record AssetList(bool Ready, string? Error, string Folder, IReadOnlyList<string> Paths);
+
 /// <summary>The window's state, for the page's title bar (the <c>windowState</c> command and event).</summary>
 /// <param name="Maximized">True when the window is maximized.</param>
 public sealed record WindowState(bool Maximized);
@@ -177,6 +184,12 @@ public sealed class Commands
     /// as <c>#rrggbb</c>, for the window's frame.
     /// </summary>
     public event Action<string, string>? FrameColorsChanged;
+
+    /// <summary>The icons and models of the game and the open map; null when the window has none (the tests).</summary>
+    public GameAssets? Assets { get; set; }
+
+    /// <summary>The open map's files; null until a map is open.</summary>
+    public IMapStore? Store => _store;
 
     /// <summary>Whether the window is maximized, for the page's title bar (the <c>windowState</c> command).</summary>
     public Func<bool> Maximized { get; set; } = () => false;
@@ -288,6 +301,7 @@ public sealed class Commands
             "closeClicked" => Raise(CloseClicked),
             "windowState" => new WindowState(Maximized()),
             "frameColors" => FrameColors(Text(args, "surface"), Text(args, "border")),
+            "assetList" => AssetsOf(Text(args, "kind")),
             _ => throw new UnknownCommandException(command),
         };
 
@@ -318,6 +332,7 @@ public sealed class Commands
         var store = MapStore.Open(path);
         var session = Session.Open(store, data);
         _store = store;
+        Assets?.MapChanged();
         _session = session;
         try
         {
@@ -336,6 +351,7 @@ public sealed class Commands
         var session = Map();
         RefuseUnsaved(discard, "reload the map");
         session.Reload();
+        Assets?.MapChanged();
         return Changed(Info(_store!, session));
     }
 
@@ -464,6 +480,19 @@ public sealed class Commands
     {
         Map().Delete(Kind(args), Text(args, "id"));
         return Changed<object?>(null);
+    }
+
+    private AssetList AssetsOf(string kind)
+    {
+        if (kind is not ("icon" or "model"))
+        {
+            throw BadRequest($"The kind {kind} is not icon or model.");
+        }
+
+        var assets = Assets;
+        return assets == null
+            ? new AssetList(false, "This window shows no game files.", "", [])
+            : new AssetList(assets.Ready, assets.Error, assets.GameFolder, assets.List(kind));
     }
 
     private object? FrameColors(string surface, string border)
