@@ -7,6 +7,6 @@ describe("windowTitle", () => {
   });
 
   it("puts the map's path first", () => {
-    expect(windowTitle("C:\Maps\Arena.w3x")).toBe(`C:\Maps\Arena.w3x — ${appName}`);
+    expect(windowTitle("C:\\Maps\\Arena.w3x")).toBe("C:\\Maps\\Arena.w3x — Moonwell Editor");
   });
 });

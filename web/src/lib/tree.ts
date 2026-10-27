@@ -53,6 +53,17 @@ export const kindNames: Record<Kind, string> = {
   upgrade: "Upgrades",
 };
 
+/** Each kind's colour, as a text class: its icon and its objects' names show in it. */
+export const kindText: Record<Kind, string> = {
+  unit: "text-kind-unit",
+  item: "text-kind-item",
+  destructable: "text-kind-destructable",
+  doodad: "text-kind-doodad",
+  ability: "text-kind-ability",
+  buff: "text-kind-buff",
+  upgrade: "text-kind-upgrade",
+};
+
 /** True when an object's id, name or suffix holds `filter`, ignoring case; an empty filter keeps every object. */
 export function entryMatches(entry: TreeEntry, filter: string): boolean {
   const needle = filter.trim().toLowerCase();
@@ -82,14 +93,15 @@ export function treeLines(
   const open = (key: string) => needle !== "" || isOpen(key);
   const result: Line[] = [];
 
+  // The Custom group shows only while the kind has custom objects (Sven, 2026-10-27).
   const custom = shown.filter(isCustom);
-  if (custom.length > 0 || !needle) {
+  if (custom.length > 0) {
     const key = customKey(kind);
     const customOpen = open(key);
     result.push({
       type: "group",
       key,
-      name: "Custom · this map",
+      name: "Custom",
       depth: -1,
       open: customOpen,
       count: custom.length,

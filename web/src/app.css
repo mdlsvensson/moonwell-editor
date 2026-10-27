@@ -27,6 +27,14 @@
   --warn-lo: #43242b;
   --cyan: #5eaab5;
   --purple: #6872ab;
+  /* One colour per kind of object, for its icon and its name (from Vitesse Dark's palette). */
+  --kind-unit: #6394bf;
+  --kind-item: #d4976c;
+  --kind-destructable: #80a665;
+  --kind-doodad: #b8a965;
+  --kind-ability: #5eaab5;
+  --kind-buff: #a28dcd;
+  --kind-upgrade: #c98a7d;
   --font-ui: "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Nunito Variable", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
@@ -51,6 +59,13 @@
   --color-warn-lo: var(--warn-lo);
   --color-cyan: var(--cyan);
   --color-purple: var(--purple);
+  --color-kind-unit: var(--kind-unit);
+  --color-kind-item: var(--kind-item);
+  --color-kind-destructable: var(--kind-destructable);
+  --color-kind-doodad: var(--kind-doodad);
+  --color-kind-ability: var(--kind-ability);
+  --color-kind-buff: var(--kind-buff);
+  --color-kind-upgrade: var(--kind-upgrade);
   --font-sans: var(--font-ui);
   --font-heading: var(--font-heading);
   --font-mono: var(--font-mono);

@@ -36,7 +36,7 @@ const allOpen = () => true;
 describe("the tree's rows", () => {
   it("put the custom objects first, then the standard ones grouped by path", () => {
     expect(shape(treeLines(entries, "unit", "", allOpen))).toEqual([
-      "[-] Custom · this map 2",
+      "[-] Custom 2",
       "h000",
       "h001",
       "# Standard",
@@ -57,7 +57,7 @@ describe("the tree's rows", () => {
   it("leave out what is inside a closed group", () => {
     const open = (key: string) => key === "unit:Custom" || key === "unit:human";
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
-      "[-] Custom · this map 2",
+      "[-] Custom 2",
       "h000",
       "h001",
       "# Standard",
@@ -65,6 +65,11 @@ describe("the tree's rows", () => {
       "[+] Melee 3",
       "[+] orc 1",
     ]);
+  });
+
+  it("have no Custom group while the kind has no custom objects", () => {
+    const standard = entries.filter((entry) => entry.path[0] !== "Custom");
+    expect(shape(treeLines(standard, "unit", "", allOpen))[0]).toBe("# Standard");
   });
 
   it("open every group while filtering, and keep only the matches", () => {

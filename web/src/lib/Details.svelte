@@ -15,6 +15,7 @@ import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import FieldRow from "./FieldRow.svelte";
 import { groupFields, isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
 import LevelGrid from "./LevelGrid.svelte";
+import { kindText } from "./tree.ts";
 
 type Props = {
   view: ObjectView;
@@ -156,7 +157,7 @@ function clearOnEscape(event: KeyboardEvent): void {
       {#each view.chain as link, index (index)}
         {#if index > 0}<span class="mx-0.5">›</span>{/if}
         {#if index === view.chain.length - 1 && link.id}
-          <b class="font-semibold text-accent-hi">{link.name}</b>
+          <b class="font-semibold {kindText[view.kind]}">{link.name}</b>
         {:else if link.id}
           <button
             type="button"

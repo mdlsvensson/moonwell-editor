@@ -1,20 +1,18 @@
 <script lang="ts">
 /**
  * The seven kinds of object as a row of icon buttons in the header, in the Object Editor's tab order. The kind's name
- * is the button's tooltip and its name for screen readers. The icons follow World Editor's tabs: a knight for its
- * helmet, a box for its chest, a pine, a castle for its tower, a fist, a flexed arm (World Editor uses the fist
- * twice), a shield.
+ * is the button's tooltip and its name for screen readers; each kind has its own icon and colour (Sven, 2026-10-27).
  */
-import BicepsFlexed from "@lucide/svelte/icons/biceps-flexed";
-import Castle from "@lucide/svelte/icons/castle";
-import ChessKnight from "@lucide/svelte/icons/chess-knight";
+import ChessRook from "@lucide/svelte/icons/chess-rook";
+import FlaskRound from "@lucide/svelte/icons/flask-round";
 import HandFist from "@lucide/svelte/icons/hand-fist";
-import Package from "@lucide/svelte/icons/package";
-import Shield from "@lucide/svelte/icons/shield";
-import TreePine from "@lucide/svelte/icons/tree-pine";
+import ShieldPlus from "@lucide/svelte/icons/shield-plus";
+import Sparkles from "@lucide/svelte/icons/sparkles";
+import TreePalm from "@lucide/svelte/icons/tree-palm";
+import User from "@lucide/svelte/icons/user";
 import type { Component } from "svelte";
 import { type Kind, kinds } from "./api.ts";
-import { kindNames } from "./tree.ts";
+import { kindNames, kindText } from "./tree.ts";
 
 type Props = {
   kind: Kind;
@@ -25,13 +23,13 @@ type Props = {
 let { kind, disabled, onkind }: Props = $props();
 
 const icons: Record<Kind, Component<{ size?: number }>> = {
-  unit: ChessKnight,
-  item: Package,
-  destructable: TreePine,
-  doodad: Castle,
+  unit: User,
+  item: FlaskRound,
+  destructable: TreePalm,
+  doodad: ChessRook,
   ability: HandFist,
-  buff: BicepsFlexed,
-  upgrade: Shield,
+  buff: Sparkles,
+  upgrade: ShieldPlus,
 };
 </script>
 
@@ -40,9 +38,9 @@ const icons: Record<Kind, Component<{ size?: number }>> = {
     {@const Icon = icons[each]}
     <button
       type="button"
-      class="rounded-[5px] p-1.5 disabled:opacity-50 {each === kind
-        ? 'bg-accent-lo text-accent-hi'
-        : 'text-muted hover:bg-hover hover:text-fg'}"
+      class="rounded-[5px] p-1.5 disabled:opacity-50 {kindText[each]} {each === kind
+        ? 'bg-raised ring-1 ring-current'
+        : 'opacity-70 hover:bg-hover hover:opacity-100'}"
       title={kindNames[each]}
       aria-label={kindNames[each]}
       aria-pressed={each === kind}

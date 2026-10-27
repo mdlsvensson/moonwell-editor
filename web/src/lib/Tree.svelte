@@ -24,6 +24,8 @@ type Props = {
 let { kind, entries, error, selected, onselect, filter = $bindable("") }: Props = $props();
 
 const rowHeight = 26;
+// The Standard heading and the Custom group look the same (Sven, 2026-10-27).
+const headingClass = "flex items-end pb-1 text-xs tracking-[.06em] text-muted uppercase";
 const overscan = 12;
 
 // Groups the user opened or closed, by `kind:path`; any other is closed, except Custom, which starts open.
@@ -133,16 +135,14 @@ function clearOnEscape(event: KeyboardEvent): void {
       <div class="absolute inset-x-0 top-0" style:transform="translateY({first * rowHeight}px)">
         {#each visible as line (line.key)}
           {#if line.type === "heading"}
-            <div
-              class="flex items-end px-2.5 pb-1 text-xs tracking-[.06em] text-muted uppercase"
-              style:height="{rowHeight}px"
-            >
+            <div class="{headingClass} px-2.5" style:height="{rowHeight}px">
               {line.text}
             </div>
           {:else if line.type === "group" && line.depth < 0}
+            <!-- Custom: a heading like Standard, with its arrow in the margin so the two words line up. -->
             <button
               type="button"
-              class="flex w-full items-end gap-1 px-2.5 pb-1 text-left text-xs tracking-[.06em] text-muted uppercase hover:text-body"
+              class="{headingClass} relative w-full pr-2.5 pl-2.5 text-left"
               style:height="{rowHeight}px"
               aria-expanded={line.open}
               onclick={() => {
@@ -150,9 +150,11 @@ function clearOnEscape(event: KeyboardEvent): void {
                 focusTree();
               }}
             >
-              {#if line.open}<ChevronDown size={12} />{:else}<ChevronRight size={12} />{/if}
+              <span class="absolute bottom-1 left-0 flex h-4 w-2.5 items-center justify-center">
+                {#if line.open}<ChevronDown size={10} />{:else}<ChevronRight size={10} />{/if}
+              </span>
               {line.name}
-              <span class="ml-auto font-mono text-[11px] text-faint normal-case">{line.count}</span>
+              <span class="ml-auto font-mono text-[11px] tracking-normal text-faint normal-case">{line.count}</span>
             </button>
           {:else if line.type === "group"}
             <button
