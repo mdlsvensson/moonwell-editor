@@ -2,8 +2,10 @@
 /**
  * A 3D preview of a game model: it plays the model's Stand animation, lit and textured, and turns slowly; a drag turns
  * it by hand. war3-model parses and draws the model with WebGL. Each model gets its own canvas and GL context, and
- * both go when the path changes or the preview closes. Particles and ribbons are drawn as war3-model draws them; the
- * game's HD models are not the aim. The team colour and hero glow take a player's colour, and a row of the 24 colours
+ * both go when the path changes or the preview closes. Particles and ribbons are drawn as war3-model draws them. The
+ * Reforged (HD) and Definitive Edition models are drawn with war3-model's HD shader (the diffuse, normal and ORM maps,
+ * lit, with the team colour), once their skins are read again (see `readSkins`); their emissive maps, reflections and
+ * popcorn particles are not drawn. The team colour and hero glow take a player's colour, and a row of the 24 colours
  * can pick it (Sven, 2026-10-27).
  */
 import { decodeDds, parseHeaders } from "dds-parser";
@@ -13,6 +15,11 @@ import { decodeBLP, getBLPImageData, ModelRenderer, parseMDL, parseMDX } from "w
 import {
   type Extent,
   frame,
+  hdTextureUse,
+  posed,
+  readSkins,
+  type Skinnable,
+  skinGeosets,
   solidExtent,
   standSequence,
   stripChunks,
@@ -77,6 +84,9 @@ const replaceable: Record<number, string> = {
   36: "ReplaceableTextures\\RuinsTree\\RuinsTree.blp",
   37: "ReplaceableTextures\\OutlandMushroomTree\\MushroomTree.blp",
 };
+
+/** One pixel of a flat normal map (straight out) and of an ORM map (unshadowed, rough, not metal, no team colour). */
+const flat = { normal: [128, 128, 255, 255], orm: [255, 200, 0, 0] };
 
 const fieldOfView = Math.PI / 4;
 /** Radians a second the model turns by itself. */
@@ -173,6 +183,7 @@ function show(
     }
     const sequence = standSequence(model.Sequences.map((s) => s.Name));
     if (sequence >= 0) renderer.setSequence(sequence);
+    const pose = skinnedPose(model, renderer);
 
     const images = [...new Set(model.Textures.map((t) => t.Image).filter((image) => image))];
     const failed = await Promise.all(
@@ -180,9 +191,14 @@ function show(
     );
     if (stopped) return;
     missing = failed.filter((image): image is string => image !== null);
+    // Without its normal or ORM map the HD shader reads black from it and draws the geoset dark; a flat one stands in.
+    for (const image of missing) {
+      const use = hdTextureUse(model, image);
+      if (use) setImage(image, new ImageData(new Uint8ClampedArray(flat[use]), 1, 1));
+    }
 
     const extents: (Extent | undefined)[] = [
-      solidExtent(model, model.Sequences[sequence]?.Interval),
+      solidExtent(model, model.Sequences[sequence]?.Interval, pose),
       sequenceExtent(model, sequence),
       { min: model.Info.MinimumExtent, max: model.Info.MaximumExtent },
     ];
@@ -337,13 +353,39 @@ function show(
   };
 }
 
-/** The model from an MDX file (without the chunks war3-model cannot read), or from MDL text. */
+/**
+ * The model from an MDX file (without the chunks war3-model cannot read, and with the HD skins it misreads read again),
+ * or from MDL text.
+ */
 function parse(bytes: ArrayBuffer): Model {
   const head = new TextDecoder("latin1").decode(
     new Uint8Array(bytes, 0, Math.min(4, bytes.byteLength)),
   );
-  if (head === "MDLX") return parseMDX(stripChunks(bytes, unreadChunks));
-  return parseMDL(new TextDecoder().decode(bytes));
+  if (head !== "MDLX") return parseMDL(new TextDecoder().decode(bytes));
+  const kept = stripChunks(bytes, unreadChunks);
+  const model = parseMDX(kept);
+  skinGeosets(model.Geosets as Skinnable[], readSkins(kept));
+  return model;
+}
+
+/**
+ * For an HD model, each geoset's vertices where the animation's first frame puts them; undefined for a Classic model,
+ * whose bind pose is the way it stands.
+ */
+function skinnedPose(
+  model: Model,
+  renderer: ModelRenderer,
+): ((geoset: number) => Float32Array | undefined) | undefined {
+  if (!model.Geosets.some((geoset) => geoset.SkinWeights?.length)) return undefined;
+  // war3-model works out its bones' matrices in update; with no time passed that is the animation's first frame.
+  renderer.update(0);
+  const nodes = (renderer as unknown as { rendererData?: { nodes?: { matrix: Float32Array }[] } })
+    .rendererData?.nodes;
+  if (!nodes) return undefined;
+  return (index) => {
+    const geoset = model.Geosets[index];
+    return geoset && posed(geoset, (bone) => nodes[bone]?.matrix);
+  };
 }
 
 function sequenceExtent(model: Model, index: number): Extent | undefined {
@@ -360,8 +402,10 @@ function clearColour(element: HTMLElement): [number, number, number] {
 
 /**
  * Adds light to war3-model's shaders for classic models, which it draws unlit: a light from the camera's upper left,
- * on normals turned by each vertex's first bone. It rewrites the shader text as the renderer hands it to this context;
- * a war3-model whose shaders read differently is drawn unlit, as before.
+ * on normals turned by each vertex's first bone. Brightens its HD shader, which lights a model by one lamp (here at the
+ * camera) with almost no light elsewhere, so an HD model stands about as bright as a classic one. It rewrites the
+ * shader text as the renderer hands it to this context; a war3-model whose shaders read differently is drawn as it
+ * draws it.
  */
 function lightShaders(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
   const source = gl.shaderSource.bind(gl);
@@ -369,6 +413,7 @@ function lightShaders(gl: WebGLRenderingContext | WebGL2RenderingContext): void 
 }
 
 function lit(text: string): string {
+  if (text.includes("uniform sampler2D uOrmSampler;")) return brightHd(text);
   if (text.includes("#version 300 es") || text.includes("aSkin")) return text;
   if (text.includes("attribute vec3 aNormal;") && text.includes("vNormal = aNormal;")) {
     const turned = text.includes("attribute vec4 aGroup;")
@@ -396,6 +441,21 @@ function lit(text: string): string {
       .replace(test, `gl_FragColor.rgb *= shade();\n\n    ${test}`);
   }
   return text;
+}
+
+/**
+ * The HD fragment shader with more light: the lamp's light about the strength of a classic model's, an even light
+ * from all round (war3-model's is 3 in 100) in place of the sky it would reflect, and no tone mapping, which dulls
+ * the colours. Unchanged unless all three lines are found.
+ */
+function brightHd(text: string): string {
+  const lines: [RegExp, string][] = [
+    [/vec3 radiance = uLightColor;/, "vec3 radiance = uLightColor * 2.2;"],
+    [/vec3 ambient = vec3\(\.03\);/, "vec3 ambient = vec3(.4);"],
+    [/color = color \/ \(vec3\(1\.\) \+ color\);/, ""],
+  ];
+  if (!lines.every(([line]) => line.test(text))) return text;
+  return lines.reduce((out, [line, instead]) => out.replace(line, instead), text);
 }
 
 function message(e: unknown): string {
