@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ChoiceList, FieldView, ObjectView } from "./api.ts";
 import {
-  abilityIds,
   type Category,
   groupFields,
+  type Lookup,
   listIds,
   listKinds,
   type Row,
   shownValue,
+  uses,
 } from "./fields.ts";
 
 /** A field with plain defaults; `over` sets what a test cares about. */
@@ -292,15 +293,35 @@ describe("object lists", () => {
     expect(listKinds(null)).toEqual([]);
   });
 
-  it("give an object's abilities from every ability list, once each", () => {
+  it("give the objects every list field names, once each, with the fields that name them", () => {
     const view = {
       fields: [
-        field({ id: "uabi", type: "objectList", listOf: "Ability", value: "Aatk,AInv" }),
-        field({ id: "uhab", type: "objectList", listOf: "Ability", value: "AHhb,AInv" }),
-        field({ id: "ubui", type: "objectList", listOf: "Unit", value: "hfoo" }),
-        field({ id: "udaa", type: "objectRef", listOf: "Ability", value: "" }),
+        field({
+          id: "uabi",
+          label: "Abilities",
+          type: "objectList",
+          listOf: "Ability",
+          value: "Aatk,AInv",
+        }),
+        field({
+          id: "uhab",
+          label: "Hero Abilities",
+          type: "objectList",
+          listOf: "Ability",
+          value: "AHhb,AInv",
+        }),
+        field({ id: "utra", label: "Trains", type: "objectList", listOf: "Unit", value: "hfoo" }),
+        field({ id: "udaa", label: "Default", type: "objectRef", listOf: "Ability", value: "" }),
       ],
     } as ObjectView;
-    expect(abilityIds(view)).toEqual(["Aatk", "AInv", "AHhb"]);
+    const names: Record<string, string> = { Aatk: "Attack", AHhb: "Holy Light", hfoo: "Footman" };
+    const lookup: Lookup = (listOf, id) =>
+      names[id] ? { kind: listOf === "Unit" ? "unit" : "ability", name: names[id] } : undefined;
+    expect(uses(view, lookup)).toEqual([
+      { kind: "ability", id: "Aatk", name: "Attack", fields: ["Abilities"] },
+      { kind: "ability", id: "AInv", name: "", fields: ["Abilities", "Hero Abilities"] },
+      { kind: "ability", id: "AHhb", name: "Holy Light", fields: ["Hero Abilities"] },
+      { kind: "unit", id: "hfoo", name: "Footman", fields: ["Trains"] },
+    ]);
   });
 });

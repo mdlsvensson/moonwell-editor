@@ -232,6 +232,7 @@ public sealed class Commands
             "currentMap" => Current(),
             "tree" => Map().Tree(Kind(args)),
             "object" => ObjectOf(Kind(args), Text(args, "id")),
+            "usedBy" => Map().UsedBy(Kind(args), Text(args, "id")),
             "setField" => SetField(args),
             "resetField" => ResetField(args),
             "createObject" => Changed(Map().Create(Kind(args), Text(args, "baseId"), OptionalText(args, "id"))),

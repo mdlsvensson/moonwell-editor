@@ -241,6 +241,14 @@ export function object(kind: Kind, id: string): Promise<ObjectView> {
   return call<ObjectView>("object", { kind, id });
 }
 
+/** An object whose fields name another object; `fields` are the labels of the fields that do. */
+export type Reference = { kind: Kind; id: string; name: string; fields: string[] };
+
+/** Every object, of any kind, whose fields name this one (Used by). */
+export function usedBy(kind: Kind, id: string): Promise<Reference[]> {
+  return call<Reference[]>("usedBy", { kind, id });
+}
+
 /** Sets a field, typed as text, and answers with the object as it is now. */
 export function setField(target: FieldRef, value: string): Promise<ObjectView> {
   const { kind, id, field, level } = target;

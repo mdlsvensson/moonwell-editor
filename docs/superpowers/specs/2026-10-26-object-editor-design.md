@@ -311,8 +311,9 @@ resolves a value on demand:
 
 The tree, as in World Editor: Custom (this map's new objects) first, then Standard by race, then Melee / Campaign,
 then Units / Buildings / Heroes / Special for units. The object's header shows its chain (Unit › Hero › Paladin ›
-Champion). *(The "Unreal-style object types plus components" Sven likes is read as: a class chain on every object,
-and a unit's abilities shown as components you click into. Agent's reading; Sven to confirm.)*
+Champion). *(The "Unreal-style object types plus components" was read as a class chain plus a unit's abilities as
+components. Sven, 2026-10-27: that was about Moonwell, not this app. The right panel shows **Uses**, every object
+the object's fields name, and **Used by**, every object whose fields name it.)*
 
 ## Editing
 
@@ -449,6 +450,7 @@ Every call below is the agent's:
 - A field set back to its base is removed, only when the base is the same in every graphics mode.
 - Backups of the last 10 saves next to the map.
 - The base tables only in the first version; the balance set is a later switch.
-- "Unreal-style types plus components" read as the class chain plus abilities as components.
+- ~~"Unreal-style types plus components" read as the class chain plus abilities as components.~~ Corrected by Sven,
+  2026-10-27: Uses and Used by instead.
 - A Moonwell map is edited in its `map/` source folder, never its build output.
 - Stack details: xUnit, Svelte 5, Tailwind 4, Biome, Vitest; Google Sans, Nunito, JetBrains Mono; Lucide.

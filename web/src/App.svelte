@@ -940,7 +940,7 @@ onMount(() => {
       </section>
       <aside
         class="min-h-0 overflow-auto border-l border-line bg-surface p-3"
-        aria-label="Components"
+        aria-label="Uses and used by"
       >
         {#if current}
           <SidePanel view={current} {lookup} onopen={(each, id) => show(each, id)} />

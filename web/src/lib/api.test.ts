@@ -47,6 +47,7 @@ describe("each wrapper calls its command with the app's argument names", () => {
     ["currentMap", () => api.currentMap(), "currentMap", {}],
     ["tree", () => api.tree("ability"), "tree", { kind: "ability" }],
     ["object", () => api.object("unit", "hfoo"), "object", { kind: "unit", id: "hfoo" }],
+    ["usedBy", () => api.usedBy("ability", "AHhb"), "usedBy", { kind: "ability", id: "AHhb" }],
     [
       "setField",
       () => api.setField(footmanLife, "500"),

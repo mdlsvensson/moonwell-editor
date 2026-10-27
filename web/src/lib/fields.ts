@@ -213,14 +213,26 @@ export function listKinds(listOf: string | null): Kind[] {
   return kinds.filter((candidate) => candidate === kind);
 }
 
-/** The abilities an object's ability lists hold (a unit's normal and hero abilities, an item's), once each. */
-export function abilityIds(view: ObjectView): string[] {
-  const ids: string[] = [];
+/** One object another object's fields name: its kind, id and name ("" when unknown), and the fields that name it. */
+export type Used = { kind: Kind; id: string; name: string; fields: string[] };
+
+/**
+ * The objects an object's list fields name (its abilities, the units it trains, its requirements …), once each, in
+ * field order, with the labels of the fields that name them. An id the trees do not know keeps the list's first kind.
+ */
+export function uses(view: ObjectView, lookup: Lookup): Used[] {
+  const found = new Map<string, Used>();
   for (const field of view.fields) {
-    if (field.listOf !== "Ability") continue;
+    if (field.listOf === null) continue;
     for (const id of listIds(field.value)) {
-      if (!ids.includes(id)) ids.push(id);
+      const known = lookup(field.listOf, id);
+      const kind = known?.kind ?? listKinds(field.listOf)[0];
+      if (!kind) continue;
+      const key = `${kind}:${id}`;
+      const used = found.get(key) ?? { kind, id, name: known?.name ?? "", fields: [] };
+      if (!used.fields.includes(field.label)) used.fields.push(field.label);
+      found.set(key, used);
     }
   }
-  return ids;
+  return [...found.values()];
 }
