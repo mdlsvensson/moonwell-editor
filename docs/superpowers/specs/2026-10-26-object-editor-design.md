@@ -415,6 +415,28 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     CascLib's .NET wrapper is an alpha with a native DLL), the map's imports first. The tree shows each object's
     icon; icon fields show theirs and get a picker of the game's command and passive buttons; model fields get a
     picker with a turning preview (war3-model, with the CAMS and LITE chunks of the game's MDX 1800 models left out).
+  - The values and objects follow the map's Data Set and Data Version, as World Editor's do: the values of the
+    balance set the option reads (Moonwell's reader gives each object's differences per set), and no standard object
+    that set leaves out. The Shaman's hit points read 350, 260, 335 and 355 under the four options, as seen in the
+    game. Values show as World Editor shows them: True or False, a list by its objects' names, a real with three
+    decimals (a real typed as `0.150` is not a change from `0.15`).
+  - A graphics mode (Classic, Reforged, Definitive Edition; the default is Definitive Edition, remembered): icons and
+    models come from the mode's own tier first (`_HD.w3mod`, `_DE.w3mod`), and a value the game keeps per mode is the
+    mode's (the Priest's icon is `BTNPriest` in Classic, `BTNPriestV1` otherwise). The icon picker lists the mode's
+    tier too.
+  - The right panel opens with the object's model (a team colour to pick from the 24 players') and its tooltip as the
+    game shows it, then Uses and Used by; each opens and closes.
+  - The title bar: the logo, back and forward (held or right-clicked, a list of the history; going back puts the
+    fields' scroll where it was), the map's name from its info file, Folder or Archive, Exp or RoC (an archive by its
+    extension, a folder by its info file's format), then its path. Its buttons share one hover and reach the top:
+    the window's top edge is a drag region the window hit-tests as its border.
+  - Settings in tabs: General (graphics mode, theme as a dropdown with each palette), Hotkeys (every action's keys,
+    changed by pressing the new one; remembered), Map, Game data.
+  - Changed fields are marked beside the details' scroll bar. Ctrl C copies from the panel last used (a selected
+    field in the details, else the object); the tree's selection looks strong only while the tree is in use.
+  - The new-object dialog is titled after its base ("New Sorceress hsor") and checks the id as it is typed. The
+    button-position card says only "Button Position". The editor opens with an alpha notice (backups; close the map
+    in World Editor) until "Don't show this again".
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
