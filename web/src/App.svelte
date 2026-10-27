@@ -1211,6 +1211,7 @@ onMount(() => {
     bind:showProblems
     {data}
     dataView={view}
+    options={map?.options ?? null}
     {connection}
     {notice}
   />

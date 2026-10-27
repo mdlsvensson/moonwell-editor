@@ -26,6 +26,14 @@ namespace MoonwellEditor.GameData;
 /// the modes: key, then <c>sd</c> (Classic), <c>hd</c> (Reforged) and <c>de</c> (Definitive Edition), the empty string
 /// for no value. <paramref name="Values"/> holds the <c>de</c> value, as Moonwell does.
 /// </param>
+/// <param name="Sets">
+/// For each balance set the object exists in (<c>melee_v0</c>, <c>custom_v0</c>, <c>custom_v1</c>), the keys whose
+/// value differs from <paramref name="Values"/> under it, as Moonwell's reader gives them (the empty string for a key
+/// the set has no value for); null or a missing set for none.
+/// </param>
+/// <param name="MissingFrom">
+/// The balance sets the object does not exist under, and <c>base</c> when the base tables lack it; null for none.
+/// </param>
 public sealed record StandardObject(
     string Id,
     string Name,
@@ -39,4 +47,6 @@ public sealed record StandardObject(
     bool Hidden,
     string? Code,
     IReadOnlyDictionary<string, string> Values,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Modes,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? Sets = null,
+    IReadOnlyList<string>? MissingFrom = null);

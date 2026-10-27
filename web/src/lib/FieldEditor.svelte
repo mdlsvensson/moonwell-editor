@@ -8,7 +8,7 @@
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
-import { type Lookup, shownValue } from "./fields.ts";
+import { type Lookup, realText, shownValue } from "./fields.ts";
 import IdsEditor from "./IdsEditor.svelte";
 import { typing } from "./typing.ts";
 import { checkValue, editorFor } from "./values.ts";
@@ -86,6 +86,8 @@ const editor = $derived(editorFor(field, choices));
 const list = $derived(field.choice ? choices?.[field.choice] : undefined);
 const shown = $derived(shownValue(field, choices, nameOf));
 const multiline = $derived(field.value.includes("\n"));
+// A real shows with three decimals, as World Editor shows it (Sven, 2026-10-27).
+const boxValue = $derived(field.type === "float" ? realText(field.value) : field.value);
 const title = $derived(
   field.changed
     ? `Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`
@@ -122,7 +124,13 @@ export async function commit(): Promise<boolean> {
     error = checked.problem;
     return false;
   }
-  if (checked.value === field.value) {
+  // A real typed as World Editor shows it (0.150) is the value it already holds (0.15).
+  if (
+    checked.value === field.value ||
+    (field.type === "float" &&
+      field.value.trim() !== "" &&
+      Number(checked.value) === Number(field.value))
+  ) {
     setDraft(null);
     error = "";
     return true;
@@ -218,8 +226,8 @@ function oninput(event: Event): void {
   {:else}
     <input
       class="{boxClass} px-1.5"
-      value={draft ?? field.value}
-      size={compact ? Math.max(4, Math.min(24, (draft ?? field.value).length + 1)) : undefined}
+      value={draft ?? boxValue}
+      size={compact ? Math.max(4, Math.min(24, (draft ?? boxValue).length + 1)) : undefined}
       spellcheck={editor === "text"}
       inputmode={editor === "number" ? "decimal" : undefined}
       data-field="{field.id}:{field.level}"

@@ -9,7 +9,7 @@ namespace MoonwellEditor.Model;
 /// standard value. A custom object takes its standard values from its standard base, never from the map's changes to
 /// that base, as the game does.
 /// </summary>
-internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
+internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings, string? valueSet = null)
 {
     private const string KeyPrefix = "WESTRING_";
 
@@ -301,7 +301,14 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings)
     /// </summary>
     internal string StandardValue(FieldInfo field, int level, StandardObject standard)
     {
-        var text = standard.Values.GetValueOrDefault(Key(field, level), "");
+        // The map's balance set's value where it has its own (World Editor shows the values the map's data set
+        // reads; Sven, 2026-10-27), else the base tables'.
+        var key = Key(field, level);
+        var text = valueSet != null
+                   && standard.Sets?.GetValueOrDefault(valueSet) is { } set
+                   && set.TryGetValue(key, out var own)
+            ? own
+            : standard.Values.GetValueOrDefault(key, "");
         if (field.Store is "real" or "unreal"
             && float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
         {

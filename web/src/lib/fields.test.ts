@@ -265,16 +265,17 @@ describe("the value shown", () => {
 
   it("names the objects of a list where they are known", () => {
     expect(show({ type: "objectList", listOf: "Ability", value: "AHhb,AHds,A0zz" })).toBe(
-      "Holy Light (AHhb), Divine Shield (AHds), A0zz",
+      "Holy Light, Divine Shield, A0zz",
     );
-    expect(show({ type: "objectRef", listOf: "Ability", value: "AHds" })).toBe(
-      "Divine Shield (AHds)",
-    );
+    expect(show({ type: "objectRef", listOf: "Ability", value: "AHds" })).toBe("Divine Shield");
   });
 
-  it("says yes or no for a true-or-false field", () => {
-    expect(show({ type: "bool", value: "1" })).toBe("Yes");
-    expect(show({ type: "bool", value: "0" })).toBe("No");
+  it("says True or False for a true-or-false field, and a real with three decimals, as World Editor does", () => {
+    expect(show({ type: "bool", value: "1" })).toBe("True");
+    expect(show({ type: "bool", value: "0" })).toBe("False");
+    expect(show({ type: "float", value: "0.15" })).toBe("0.150");
+    expect(show({ type: "float", value: "190" })).toBe("190.000");
+    expect(show({ type: "float", value: "" })).toBe("");
   });
 
   it("is the value for any other field", () => {

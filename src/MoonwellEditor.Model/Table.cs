@@ -123,7 +123,7 @@ public sealed partial class Session
                 ?? throw new EditException("noField", $"{ObjectKinds.Key(kind)} has no field {column.Field}."));
         }
 
-        var resolver = new Resolver(kind, data, _strings);
+        var resolver = ResolverOf(kind, data);
         var rows = new List<TableRow>();
         foreach (var id in ids)
         {

@@ -44,6 +44,7 @@ public sealed partial class Session
         _stamp = loaded.Stamp;
         _unreadable = loaded.Unreadable;
         _stringsReadOnly = loaded.StringsReadOnly;
+        ReadOptions();
         _search = new SearchIndex(game, _kinds, _strings);
         _savedObjects = Describe();
     }
@@ -58,6 +59,31 @@ public sealed partial class Session
 
     /// <summary>The strings file as edited, or null when the map has none.</summary>
     internal WtsFile? Strings => _strings;
+
+    // The tables the map's game data option reads (MapOptions): the balance set its values come from (null for the
+    // base tables) and the one that decides which standard objects exist ("base" for the base tables).
+    private string? _valueSet;
+    private string _objectSet = "base";
+
+    /// <summary>The map's game data option, from its info file; null when it has none the editor can read.</summary>
+    public MapOptions? Options { get; private set; }
+
+    // Read at open and on reload, as the info file may have changed.
+    private void ReadOptions()
+    {
+        Options = MapOptions.Read(_store);
+        _valueSet = Options is { Values: not "base" } ? Options.Values : null;
+        _objectSet = Options?.Objects ?? "base";
+    }
+
+    /// <summary>A resolver of the kind that reads the map's balance set.</summary>
+    private Resolver ResolverOf(ObjectKind kind, KindData data) => new(kind, data, _strings, _valueSet);
+
+    /// <summary>
+    /// True when the standard object exists under the map's game data option: World Editor does not list one the
+    /// option's tables leave out (the High Elf Archmage under Reign of Chaos).
+    /// </summary>
+    internal bool Exists(StandardObject standard) => standard.MissingFrom?.Contains(_objectSet) != true;
 
     /// <summary>A text as the map shows it: a <c>TRIGSTR_n</c> as its strings file has it, any other as it is.</summary>
     public string Text(string value) =>
@@ -142,7 +168,7 @@ public sealed partial class Session
     {
         var map = _kinds[kind];
         var data = _game.Kind(kind);
-        var resolver = new Resolver(kind, data, _strings);
+        var resolver = ResolverOf(kind, data);
         var tree = new List<TreeEntry>();
         foreach (var custom in map.Customs())
         {
@@ -159,7 +185,7 @@ public sealed partial class Session
         }
 
         var originals = map.Originals();
-        foreach (var standard in Folders.Sorted(kind, data.Objects))
+        foreach (var standard in Folders.Sorted(kind, data.Objects.Where(Exists)))
         {
             var changes = originals.GetValueOrDefault(standard.Id);
             tree.Add(new TreeEntry(
@@ -191,7 +217,7 @@ public sealed partial class Session
             return null;
         }
 
-        return new Resolver(kind, data, _strings).View(id, standard, found, map.ReadOnly(found));
+        return ResolverOf(kind, data).View(id, standard, found, map.ReadOnly(found));
     }
 
     /// <summary>

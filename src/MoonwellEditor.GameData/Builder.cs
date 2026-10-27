@@ -208,7 +208,9 @@ internal static class Builder
             hidden,
             obj.Code,
             obj.Values,
-            new Dictionary<string, IReadOnlyDictionary<string, string>>());
+            new Dictionary<string, IReadOnlyDictionary<string, string>>(),
+            obj.Sets,
+            obj.MissingFrom);
         return standard with { Modes = Modes(row, standard, kind, levelField, infos, readers) };
     }
 

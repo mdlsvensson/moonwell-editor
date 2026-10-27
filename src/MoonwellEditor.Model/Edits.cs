@@ -226,7 +226,7 @@ public sealed partial class Session
         }
 
         var info = target.Field;
-        var resolver = new Resolver(target.Kind, target.Data, _strings);
+        var resolver = ResolverOf(target.Kind, target.Data);
         var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
 
         // A yes/no field the data has no value for is No in the game, so setting No is no change.
@@ -261,7 +261,7 @@ public sealed partial class Session
 
         if (info.PerLevel)
         {
-            var levels = new Resolver(kind, data, _strings).Levels(standard, found);
+            var levels = ResolverOf(kind, data).Levels(standard, found);
             if (level < 1 || level > levels)
             {
                 throw new EditException(

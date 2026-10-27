@@ -103,6 +103,7 @@ public sealed partial class Session
 
         _kinds = loaded.Kinds;
         _strings = loaded.Strings;
+        ReadOptions();
         _problems = loaded.Problems;
         _baseline = loaded.Baseline;
         _stamp = loaded.Stamp;

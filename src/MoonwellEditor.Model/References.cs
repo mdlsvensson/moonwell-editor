@@ -29,7 +29,7 @@ public sealed partial class Session
         {
             var map = _kinds[each];
             var data = _game.Kind(each);
-            var resolver = new Resolver(each, data, _strings);
+            var resolver = ResolverOf(each, data);
             var originals = map.Originals();
 
             // The standard objects the map leaves as they are, from the index.

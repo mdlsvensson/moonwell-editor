@@ -1,11 +1,11 @@
 <script lang="ts">
 /**
  * The status bar: whether the map has unsaved edits, a short notice (what a save wrote, what went wrong), the map's
- * problems (a count; a click lists them), and the game data in use (the base tables: no balance set is applied yet).
+ * problems (a count; a click lists them), and the game data in use: the tables the map's data set reads.
  */
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
-import type { SessionState } from "./api.ts";
+import type { MapOptions, SessionState } from "./api.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
 import { noticeTitle } from "./values.ts";
 
@@ -23,6 +23,8 @@ type Props = {
   showProblems: boolean;
   data: GameDataState | null;
   dataView: GameDataView | null;
+  /** The open map's game data option; null with no map, or none the editor can read (the base tables). */
+  options?: MapOptions | null;
   /** Why the page cannot talk to the app; "" when it can. */
   connection: string;
   notice: Notice | null;
@@ -34,15 +36,19 @@ let {
   showProblems = $bindable(),
   data,
   dataView,
+  options = null,
   connection,
   notice,
 }: Props = $props();
 
-// The values come from the game's base tables: a map's balance set is a later switch (see the spec).
+// The values come from the tables the map's data set reads, as World Editor's do (Sven, 2026-10-27).
+const tables = $derived(!options || options.values === "base" ? "base tables" : options.values);
 const dataTitle = $derived(
   dataView === "ready"
-    ? `${data?.source ?? ""}\nThe values shown are the game's base tables; a map's balance set ` +
-        "(melee_v0, custom_v0, custom_v1) is not applied yet."
+    ? `${data?.source ?? ""}\n` +
+        (options
+          ? `${options.dataSet} · ${options.dataVersion}: the values of ${tables}, the objects of ${options.objects === "base" ? "the base tables" : options.objects}.`
+          : "The values of the game's base tables (the map's data set is unknown).")
     : (data?.source ?? ""),
 );
 
@@ -102,7 +108,7 @@ const folderName = $derived(
     {#if dataView === "loading"}
       Loading the game data from <span class="font-mono">{folderName}</span>…
     {:else if dataView === "ready"}
-      Game data <span class="font-mono">{folderName}</span> · base tables
+      Game data <span class="font-mono">{folderName}</span> · {tables}
     {:else if dataView === "failed"}
       <span class="text-warn">Game data failed to load</span>
     {:else if dataView === "missing"}

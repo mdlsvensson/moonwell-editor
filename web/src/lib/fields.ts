@@ -157,6 +157,13 @@ export type Lookup = (listOf: string, id: string) => { kind: Kind; name: string 
  * ids with the objects' names where known, Yes or No for a true-or-false field, else the value itself. Only the
  * field's type, choice list, list kind and value are read, so a table cell shows the same way.
  */
+/** A real number as World Editor shows it, with three decimals (`0.150`, `190.000`); other text as it is. */
+export function realText(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "" || !Number.isFinite(Number(trimmed))) return value;
+  return Number(trimmed).toFixed(3);
+}
+
 export function shownValue(
   field: Pick<FieldView, "type" | "choice" | "listOf" | "value">,
   choices: Record<string, ChoiceList> | null,
@@ -166,19 +173,19 @@ export function shownValue(
     const list = field.choice ? choices?.[field.choice] : undefined;
     return list ? choiceText(list, field.value) : field.value;
   }
+  // As World Editor shows them (Sven, 2026-10-27): a list by its objects' names (an unknown id as it is), True or
+  // False, and a real number with three decimals.
   if (field.type === "objectList" || field.type === "objectRef") {
     const listOf = field.listOf ?? "";
     return listIds(field.value)
-      .map((id) => {
-        const name = nameOf(listOf, id);
-        return name ? `${name} (${id})` : id;
-      })
+      .map((id) => nameOf(listOf, id) || id)
       .join(", ");
   }
   if (field.type === "bool") {
-    if (field.value === "1") return "Yes";
-    if (field.value === "0") return "No";
+    if (field.value === "1") return "True";
+    if (field.value === "0") return "False";
   }
+  if (field.type === "float") return realText(field.value);
   return field.value;
 }
 
