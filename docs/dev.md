@@ -11,12 +11,6 @@ npm install
 ```
 
 The game data is read by Moonwell's `Moonwell.GameData` package, restored from nuget.org like the other packages.
-Until 0.3.0-preview.1 is on nuget.org, restore it once from Moonwell's packed file (`dotnet pack` in Moonwell makes
-it), which puts it in the local package cache:
-
-```
-dotnet restore MoonwellEditor.slnx --source <folder with Moonwell.GameData.0.3.0-preview.1.nupkg> --source https://api.nuget.org/v3/index.json
-```
 
 ## Run the app with live reload
 

@@ -433,7 +433,8 @@ anti-goals hold.
 ## Open questions (Sven's, not blocking the first plan)
 
 1. Licence and repository for the public release (a GitHub repository, pushing and publishing are each his call).
-2. Publishing `Moonwell.GameData` to nuget.org (packed, not pushed yet), needed before a plain clone builds.
+2. ~~Publishing `Moonwell.GameData` to nuget.org.~~ Done: 0.3.0-preview.1, by Moonwell's v0.3.0-preview.1 release
+   (2026-10-27).
 3. What annoys him most in the Object Editor, if anything beyond the goals above.
 
 ## Calls to check
