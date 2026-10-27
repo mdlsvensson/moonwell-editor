@@ -4,6 +4,8 @@
  * changes are remembered in the window's storage; the table's own keys (arrows, Enter, Ctrl A) are not here.
  */
 
+import { t } from "./text.ts";
+
 export type Action =
   | "save"
   | "undo"
@@ -22,20 +24,20 @@ export type Action =
 
 /** Every action, in the order the settings list them, with its name and its keys out of the box. */
 export const actionList: { action: Action; name: string; keys: string[] }[] = [
-  { action: "save", name: "Save the map", keys: ["Ctrl+S"] },
-  { action: "undo", name: "Undo", keys: ["Ctrl+Z"] },
-  { action: "redo", name: "Redo", keys: ["Ctrl+Y", "Ctrl+Shift+Z"] },
-  { action: "newObject", name: "New object based on this one", keys: ["Ctrl+Shift+N"] },
-  { action: "copyObject", name: "Copy this custom object", keys: ["Ctrl+Shift+D"] },
-  { action: "copy", name: "Copy (the field selected, else the object)", keys: ["Ctrl+C"] },
-  { action: "cut", name: "Cut the object", keys: ["Ctrl+X"] },
-  { action: "paste", name: "Paste", keys: ["Ctrl+V"] },
-  { action: "rename", name: "Rename (the name field)", keys: ["F2"] },
-  { action: "deleteObject", name: "Delete the custom object", keys: ["Delete"] },
-  { action: "filterFields", name: "Filter the fields", keys: ["Ctrl+F"] },
-  { action: "fieldIds", name: "Show field ids", keys: ["Ctrl+D"] },
-  { action: "back", name: "Back", keys: ["Alt+ArrowLeft"] },
-  { action: "forward", name: "Forward", keys: ["Alt+ArrowRight"] },
+  { action: "save", name: t("hotkey.save"), keys: ["Ctrl+S"] },
+  { action: "undo", name: t("hotkey.undo"), keys: ["Ctrl+Z"] },
+  { action: "redo", name: t("hotkey.redo"), keys: ["Ctrl+Y", "Ctrl+Shift+Z"] },
+  { action: "newObject", name: t("hotkey.newObject"), keys: ["Ctrl+Shift+N"] },
+  { action: "copyObject", name: t("hotkey.copyObject"), keys: ["Ctrl+Shift+D"] },
+  { action: "copy", name: t("hotkey.copy"), keys: ["Ctrl+C"] },
+  { action: "cut", name: t("hotkey.cut"), keys: ["Ctrl+X"] },
+  { action: "paste", name: t("hotkey.paste"), keys: ["Ctrl+V"] },
+  { action: "rename", name: t("hotkey.rename"), keys: ["F2"] },
+  { action: "deleteObject", name: t("hotkey.deleteObject"), keys: ["Delete"] },
+  { action: "filterFields", name: t("hotkey.filterFields"), keys: ["Ctrl+F"] },
+  { action: "fieldIds", name: t("hotkey.fieldIds"), keys: ["Ctrl+D"] },
+  { action: "back", name: t("hotkey.back"), keys: ["Alt+ArrowLeft"] },
+  { action: "forward", name: t("hotkey.forward"), keys: ["Alt+ArrowRight"] },
 ];
 
 export type Keymap = Record<Action, string[]>;

@@ -7,6 +7,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import { type OpenEntry, openEntries } from "./openMenu.ts";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 
 type Props = {
   /** The button's text; without one the button is just the folder icon, with "Open map…" as its tooltip. */
@@ -38,8 +39,8 @@ function pick(entry: OpenEntry): void {
   type="button"
   class={buttonClass}
   {disabled}
-  title={label ? undefined : "Open map…"}
-  aria-label={label ? undefined : "Open map…"}
+  title={label ? undefined : t("openMenu.button")}
+  aria-label={label ? undefined : t("openMenu.button")}
   aria-haspopup="menu"
   aria-expanded={open}
   bind:this={button}
@@ -53,7 +54,7 @@ function pick(entry: OpenEntry): void {
 </button>
 {#if open && button}
   <Popover anchor={button} onclose={() => (open = false)}>
-    <div class="flex flex-col" role="menu" aria-label="Open map" bind:this={menu}>
+    <div class="flex flex-col" role="menu" aria-label={t("openMenu.label")} bind:this={menu}>
       {#each openEntries as entry (entry.label)}
         <button
           type="button"

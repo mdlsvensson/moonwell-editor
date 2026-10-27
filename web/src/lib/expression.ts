@@ -3,6 +3,7 @@
  * and then applied to each selected cell's current value.
  */
 import type { FieldInfo } from "./api.ts";
+import { t } from "./text.ts";
 
 /** What to do to a cell: set it to the operand, or change its number by it (`percent` is a change in percent). */
 export type Expression = {
@@ -34,7 +35,7 @@ const operators: Record<string, Expression["op"]> = {
  */
 export function parseExpression(text: string): Expression | { error: string } {
   const typed = text.trim();
-  if (typed === "") return { error: "Type a value or an expression such as +5, -10% or *1.1." };
+  if (typed === "") return { error: t("expression.empty") };
   if (typed.startsWith("=")) return { op: "set", operand: typed.slice(1).trim() };
 
   const op = operators[typed.charAt(0)];
@@ -79,7 +80,7 @@ export function applyExpression(
   const isInt = type === "int";
   if (!isInt && type !== "float") {
     if (e.op !== "set") {
-      return { error: "Only number fields take a calculation; type a plain value." };
+      return { error: t("expression.notNumberField") };
     }
     return e.operand;
   }
@@ -88,17 +89,20 @@ export function applyExpression(
     if (isInt) {
       const number = Number(e.operand);
       if (!wholeNumber.test(e.operand) || number < int32Min || number > int32Max) {
-        return { error: `"${e.operand}" is not a whole number in range.` };
+        return { error: t("expression.notWholeInRange", { value: e.operand }) };
       }
       return String(number);
     }
-    if (!plainNumber.test(e.operand)) return { error: `"${e.operand}" is not a number.` };
+    if (!plainNumber.test(e.operand))
+      return { error: t("expression.notNumber", { value: e.operand }) };
     return e.operand;
   }
 
   const trimmed = current.trim();
-  if (!plainNumber.test(trimmed)) return { error: `The value "${current}" is not a number.` };
-  if (!plainNumber.test(e.operand)) return { error: `"${e.operand}" is not a number.` };
+  if (!plainNumber.test(trimmed))
+    return { error: t("expression.currentNotNumber", { value: current }) };
+  if (!plainNumber.test(e.operand))
+    return { error: t("expression.notNumber", { value: e.operand }) };
   const value = Number(trimmed);
   const operand = Number(e.operand);
 
@@ -114,19 +118,19 @@ export function applyExpression(
       result = value * operand;
       break;
     case "div":
-      if (operand === 0) return { error: "Cannot divide by 0." };
+      if (operand === 0) return { error: t("expression.divideByZero") };
       result = value / operand;
       break;
     default:
       result = value + (value * operand) / 100;
       break;
   }
-  if (!Number.isFinite(result)) return { error: "The result is not a number." };
+  if (!Number.isFinite(result)) return { error: t("expression.resultNotNumber") };
 
   if (isInt) {
     const whole = roundWhole(result);
     if (whole < int32Min || whole > int32Max) {
-      return { error: `${whole} is outside the whole-number range.` };
+      return { error: t("expression.outOfRange", { value: whole }) };
     }
     return String(whole === 0 ? 0 : whole);
   }

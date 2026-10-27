@@ -9,6 +9,7 @@ import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { iconUrl, type ObjectView } from "./api.ts";
 import { graphics } from "./graphics.svelte.ts";
+import { t } from "./text.ts";
 import { type Cost, tooltipLines, tooltipOf } from "./tooltip.ts";
 
 type Props = {
@@ -55,17 +56,17 @@ let broken = $state("");
     <button
       type="button"
       class="rounded p-0.5 text-faint hover:bg-hover hover:text-fg disabled:opacity-40"
-      aria-label="Level before"
+      aria-label={t("tooltip.levelBefore")}
       disabled={shown <= 1}
       onclick={() => (level = shown - 1)}
     >
       <ChevronLeft size={14} />
     </button>
-    <span class="min-w-16 text-center">Level {shown} of {view.levels}</span>
+    <span class="min-w-16 text-center">{t("tooltip.level", { level: shown, levels: view.levels })}</span>
     <button
       type="button"
       class="rounded p-0.5 text-faint hover:bg-hover hover:text-fg disabled:opacity-40"
-      aria-label="Level after"
+      aria-label={t("tooltip.levelAfter")}
       disabled={shown >= view.levels}
       onclick={() => (level = shown + 1)}
     >
@@ -76,7 +77,7 @@ let broken = $state("");
 
 <div class="rounded-md border border-line bg-black/85 px-2.5 py-2 text-[13px] leading-snug text-white shadow-lg">
   {#if empty || !tip}
-    <p class="m-0 text-[12.5px] text-white/40">No tooltip</p>
+    <p class="m-0 text-[12.5px] text-white/40">{t("tooltip.none")}</p>
   {:else}
     <div class="flex items-start gap-2">
       {#if tip.icon && broken !== tip.icon}

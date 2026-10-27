@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreeEntry } from "./api.ts";
+import { t } from "./text.ts";
 import { groupKeys, groupName, type Line, nextObject, treeLines } from "./tree.ts";
 
 function entry(id: string, path: string[], name = id): TreeEntry {
@@ -35,7 +36,7 @@ const allOpen = () => true;
 describe("the tree's rows", () => {
   it("put the standard objects grouped by path first, then the custom ones, as World Editor does", () => {
     expect(shape(treeLines(entries, "unit", "", allOpen))).toEqual([
-      "[-] Standard 4",
+      `[-] ${t("tree.standard")} 4`,
       "[-] human 3",
       "[-] Melee 3",
       "[-] Units 2",
@@ -47,7 +48,7 @@ describe("the tree's rows", () => {
       "[-] Melee 1",
       "[-] Units 1",
       "ogru",
-      "[-] Custom 2",
+      `[-] ${t("tree.custom")} 2`,
       "h000",
       "h001",
     ]);
@@ -56,11 +57,11 @@ describe("the tree's rows", () => {
   it("leave out what is inside a closed group", () => {
     const open = (key: string) => ["unit:Custom", "unit:Standard", "unit:human"].includes(key);
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
-      "[-] Standard 4",
+      `[-] ${t("tree.standard")} 4`,
       "[-] human 3",
       "[+] Melee 3",
       "[+] orc 1",
-      "[-] Custom 2",
+      `[-] ${t("tree.custom")} 2`,
       "h000",
       "h001",
     ]);
@@ -68,14 +69,14 @@ describe("the tree's rows", () => {
 
   it("have no Custom group while the kind has no custom objects", () => {
     const standard = entries.filter((entry) => entry.path[0] !== "Custom");
-    expect(shape(treeLines(standard, "unit", "", allOpen))[0]).toBe("[-] Standard 4");
+    expect(shape(treeLines(standard, "unit", "", allOpen))[0]).toBe(`[-] ${t("tree.standard")} 4`);
   });
 
   it("hide every standard object while Standard is closed", () => {
     const open = (key: string) => key !== "unit:Standard";
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
-      "[+] Standard 4",
-      "[-] Custom 2",
+      `[+] ${t("tree.standard")} 4`,
+      `[-] ${t("tree.custom")} 2`,
       "h000",
       "h001",
     ]);
@@ -84,7 +85,7 @@ describe("the tree's rows", () => {
   it("open every group while filtering, and keep only the matches", () => {
     const closed = () => false;
     expect(shape(treeLines(entries, "unit", "KNI", closed))).toEqual([
-      "[-] Standard 1",
+      `[-] ${t("tree.standard")} 1`,
       "[-] human 1",
       "[-] Melee 1",
       "[-] Units 1",

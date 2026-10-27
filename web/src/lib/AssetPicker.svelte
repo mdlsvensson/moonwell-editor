@@ -11,6 +11,7 @@ import { inFolders, inList, listOf, modelFolders, ranked } from "./assets.ts";
 import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 
 type Props = {
   kind: "icon" | "model";
@@ -70,8 +71,8 @@ function focusOnMount(element: HTMLInputElement): void {
 <button
   type="button"
   class="shrink-0 rounded p-1 text-faint hover:bg-hover hover:text-fg {open ? 'text-accent-hi' : ''}"
-  title={kind === "icon" ? "Pick an icon" : "Pick a model"}
-  aria-label="Pick the {label}"
+  title={kind === "icon" ? t("assetPicker.pickIcon") : t("assetPicker.pickModel")}
+  aria-label={t("assetPicker.pickThe", { field: label })}
   aria-haspopup="dialog"
   aria-expanded={open}
   bind:this={button}
@@ -84,21 +85,23 @@ function focusOnMount(element: HTMLInputElement): void {
     <div class="flex flex-col gap-2 {kind === 'icon' ? 'w-[430px]' : 'w-[640px]'}">
       <input
         class="w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-        placeholder={kind === "icon" ? "Search icons by name or path…" : "Search models by name or path…"}
-        aria-label="Search"
+        placeholder={kind === "icon" ? t("assetPicker.searchIcons") : t("assetPicker.searchModels")}
+        aria-label={t("assetPicker.search")}
         bind:value={query}
         use:focusOnMount
       />
       {#if problem}
         <p class="m-0 text-[12.5px] text-warn">{problem}</p>
       {:else if !list}
-        <p class="m-0 text-[12.5px] text-muted">Reading the game's {kind === "icon" ? "icons" : "models"}…</p>
+        <p class="m-0 text-[12.5px] text-muted">
+          {kind === "icon" ? t("assetPicker.readingIcons") : t("assetPicker.readingModels")}
+        </p>
       {:else if !list.ready}
         <p class="m-0 text-[12.5px] text-warn">
-          {list.error ?? "The game's files are still being opened; try again in a moment."}
+          {list.error ?? t("assetPicker.notReady")}
         </p>
       {:else if shown.length === 0}
-        <p class="m-0 text-[12.5px] text-muted">Nothing matches “{query}”.</p>
+        <p class="m-0 text-[12.5px] text-muted">{t("assetPicker.noMatch", { query })}</p>
       {/if}
 
       {#if kind === "icon"}
@@ -118,7 +121,7 @@ function focusOnMount(element: HTMLInputElement): void {
         </div>
       {:else}
         <div class="flex gap-2">
-          <div class="flex max-h-[300px] min-w-0 flex-1 flex-col overflow-auto pr-1" role="listbox" aria-label="Models">
+          <div class="flex max-h-[300px] min-w-0 flex-1 flex-col overflow-auto pr-1" role="listbox" aria-label={t("assetPicker.models")}>
             {#each shown as path (path)}
               <button
                 type="button"
@@ -145,7 +148,7 @@ function focusOnMount(element: HTMLInputElement): void {
               </p>
             {:else}
               <div class="flex size-[240px] items-center justify-center rounded border border-dashed border-line text-[12px] text-faint">
-                No model
+                {t("assetPicker.noModel")}
               </div>
             {/if}
           </div>

@@ -19,6 +19,7 @@ import {
   sortRows,
   topLeft,
 } from "./grid.ts";
+import { t } from "./text.ts";
 
 function cell(value: string, over: Partial<TableCell> = {}): TableCell {
   return { value, base: value, changed: false, applies: true, warning: null, ...over };
@@ -310,11 +311,10 @@ describe("pasteEdits", () => {
       { id: "h000", field: "udty2", level: 0, value: "alive" },
     ]);
     expect(paste([["0", "Fortified"]])).toEqual({
-      error:
-        'Name h000 · Attack type: "Fortified" is not one of its values (None, Normal, Pierce).',
+      error: `Name h000 · Attack type: ${t("grid.notOneOfValues", { text: "Fortified", values: "None, Normal, Pierce" })}`,
     });
     expect(paste([["7"]])).toEqual({
-      error: 'Name h000 · Is a building: takes Yes or No (1 or 0), not "7".',
+      error: `Name h000 · Is a building: ${t("grid.takesYesNo", { text: "7" })}`,
     });
     // A flags list is pasted as it is.
     expect(
@@ -488,11 +488,11 @@ describe("bulkEdits", () => {
     const set = (col: number, text: string) =>
       bulkEdits(sel(0, col, 1, col), choiceRows(), choiceColumns, choiceFields, text, choices);
     expect(set(0, "7")).toEqual({
-      error: 'Name h000 · Is a building: takes Yes or No (1 or 0), not "7".',
+      error: `Name h000 · Is a building: ${t("grid.takesYesNo", { text: "7" })}`,
     });
     expect(set(0, "y")).toHaveProperty("error");
     expect(set(1, "Bogus")).toEqual({
-      error: 'Name h000 · Attack type: "Bogus" is not one of its values (None, Normal, Pierce).',
+      error: `Name h000 · Attack type: ${t("grid.notOneOfValues", { text: "Bogus", values: "None, Normal, Pierce" })}`,
     });
     expect(set(2, "Fortress")).toHaveProperty("error");
     // With no choice lists loaded, a choice takes the text; a yes/no field still refuses.
@@ -738,10 +738,10 @@ describe("editRefusal", () => {
     const column: Column = { field: "uhpm", level: 0 };
     const readOnly = row("h000", ["1"], { readOnly: "The file is damaged." });
     expect(editRefusal(readOnly, cell("1"), column, fields)).toBe(
-      "Read only: The file is damaged.",
+      t("grid.readOnly", { reason: "The file is damaged." }),
     );
     expect(editRefusal(row("h000", [""]), cell("", { applies: false }), column, fields)).toBe(
-      "Hit points does not apply to Name h000.",
+      t("grid.doesNotApplyTo", { field: "Hit points", object: "Name h000" }),
     );
     expect(editRefusal(row("h000", ["1"]), cell("1"), column, fields)).toBeNull();
   });

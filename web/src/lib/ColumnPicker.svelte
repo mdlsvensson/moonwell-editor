@@ -9,6 +9,7 @@ import type { Column, FieldInfo } from "./api.ts";
 import { categoryName } from "./fields.ts";
 import Popover from "./Popover.svelte";
 import { columnKey, searchFields } from "./table.ts";
+import { t } from "./text.ts";
 
 type Props = {
   anchor: HTMLElement;
@@ -52,8 +53,8 @@ const small =
   <div class="flex w-[340px] flex-col gap-1">
     <input
       class="w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-      placeholder="Find a field: name, id or category…"
-      aria-label="Find a field"
+      placeholder={t("columnPicker.placeholder")}
+      aria-label={t("columnPicker.label")}
       bind:this={input}
       bind:value={query}
       {onkeydown}
@@ -62,9 +63,9 @@ const small =
       <p class="m-0 px-1 text-[12px] text-changed" role="status">{note}</p>
     {/if}
     {#if found.length === 0}
-      <p class="m-0 px-1 py-1 text-muted">No field matches.</p>
+      <p class="m-0 px-1 py-1 text-muted">{t("columnPicker.noMatch")}</p>
     {/if}
-    <ul class="m-0 list-none p-0" aria-label="Fields">
+    <ul class="m-0 list-none p-0" aria-label={t("columnPicker.fields")}>
       {#each found as field (field.id)}
         {@const added = isShown(field)}
         <li class="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-hover">
@@ -78,28 +79,28 @@ const small =
               type="button"
               class={small}
               disabled={added}
-              title={added ? "Level 1 is a column" : "Add level 1"}
+              title={added ? t("columnPicker.levelOneShown") : t("columnPicker.addLevelOne")}
               onclick={() => onadd(field, false)}
             >
-              Level 1
+              {t("columnPicker.levelOne")}
             </button>
             <button
               type="button"
               class={small}
-              title="Add every level, up to the most any shown row has"
+              title={t("columnPicker.allLevelsTitle")}
               onclick={() => onadd(field, true)}
             >
-              All levels
+              {t("columnPicker.allLevels")}
             </button>
           {:else}
             <button
               type="button"
               class={small}
               disabled={added}
-              title={added ? "Already a column" : "Add the column"}
+              title={added ? t("columnPicker.alreadyShown") : t("columnPicker.addTitle")}
               onclick={() => onadd(field, false)}
             >
-              {added ? "Shown" : "Add"}
+              {added ? t("columnPicker.shown") : t("columnPicker.add")}
             </button>
           {/if}
         </li>

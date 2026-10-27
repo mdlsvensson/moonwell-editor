@@ -6,6 +6,7 @@
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FieldEditor from "./FieldEditor.svelte";
 import { isChanged, type Lookup, namesOf, type Row, shownValue } from "./fields.ts";
+import { t } from "./text.ts";
 
 type Props = {
   rows: Row[];
@@ -56,8 +57,8 @@ const columns = $derived(
 );
 
 function cellTitle(field: FieldView, shown: string): string {
-  const lines = [`Level ${field.level}: ${shown}`];
-  if (field.changed) lines.push(`Standard: ${standardOf(field)}`);
+  const lines = [t("levelGrid.cellTitle", { level: field.level, value: shown })];
+  if (field.changed) lines.push(t("field.standard", { value: standardOf(field) }));
   if (field.warning) lines.push(field.warning);
   return lines.join("\n");
 }
@@ -124,9 +125,11 @@ async function reset(field: FieldView): Promise<void> {
                       <button
                         type="button"
                         class="px-1 text-xs text-changed opacity-40 group-hover:opacity-100 hover:text-fg focus:opacity-100"
-                        title="Level {field.level} back to the standard value: {standardOf(field) ||
-                          '(empty)'}"
-                        aria-label="Reset {row.label} level {field.level}"
+                        title={t("levelGrid.resetTitle", {
+                          level: field.level,
+                          value: standardOf(field) || t("field.empty"),
+                        })}
+                        aria-label={t("levelGrid.resetLabel", { field: row.label, level: field.level })}
                         onclick={() => reset(field)}
                       >
                         ↺

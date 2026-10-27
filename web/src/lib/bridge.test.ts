@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { call, on } from "./bridge.ts";
+import { t } from "./text.ts";
 
 type Listener = (event: { data: string }) => void;
 
@@ -68,7 +69,7 @@ describe("call", () => {
 
     const pending = call("ping");
 
-    await expect(pending).rejects.toThrow("not running inside the Moonwell Editor window");
+    await expect(pending).rejects.toThrow(t("error.notInWindow"));
   });
 
   it("rejects every waiting call when an error reply has no id", async () => {

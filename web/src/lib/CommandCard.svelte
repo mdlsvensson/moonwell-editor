@@ -7,6 +7,7 @@
 import LayoutGrid from "@lucide/svelte/icons/layout-grid";
 import type { ButtonPair } from "./fields.ts";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 
 type Props = {
   pair: ButtonPair;
@@ -33,8 +34,8 @@ async function pick(x: number, y: number): Promise<void> {
 <button
   type="button"
   class="shrink-0 rounded p-1 text-faint hover:bg-hover hover:text-fg {open ? 'text-accent-hi' : ''}"
-  title="Pick the place on the command card"
-  aria-label="Pick {pair.x.label.replace(/\s*\(X\)$/, '')} on the command card"
+  title={t("commandCard.pickTitle")}
+  aria-label={t("commandCard.pickLabel", { field: pair.x.label.replace(/\s*\(X\)$/, "") })}
   aria-haspopup="dialog"
   aria-expanded={open}
   bind:this={button}
@@ -45,8 +46,8 @@ async function pick(x: number, y: number): Promise<void> {
 {#if open && button}
   <Popover anchor={button} onclose={() => (open = false)}>
     <div class="p-1">
-      <p class="m-0 mb-2 text-xs text-muted">Button Position</p>
-      <div class="grid grid-cols-4 gap-1" role="grid" aria-label="Command card">
+      <p class="m-0 mb-2 text-xs text-muted">{t("commandCard.heading")}</p>
+      <div class="grid grid-cols-4 gap-1" role="grid" aria-label={t("commandCard.label")}>
         {#each rows as y (y)}
           {#each columns as x (x)}
             {@const here = at.x === x && at.y === y}
@@ -55,7 +56,7 @@ async function pick(x: number, y: number): Promise<void> {
               class="flex size-10 items-center justify-center rounded border font-mono text-[11px] {here
                 ? 'border-accent bg-accent-lo text-accent-hi'
                 : 'border-line bg-bg text-faint hover:border-muted hover:text-fg'}"
-              title="X {x}, Y {y}"
+              title={t("commandCard.cell", { x, y })}
               aria-pressed={here}
               onclick={() => pick(x, y)}
             >

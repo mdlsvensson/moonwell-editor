@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChoiceList, FieldView, ObjectView } from "./api.ts";
+import { t, tCount } from "./text.ts";
 import {
   addId,
   checkValue,
@@ -144,7 +145,7 @@ describe("checkValue", () => {
   it("refuses 1.5 in a whole-number field before it is sent", () => {
     expect(checkValue(life, "1.5")).toEqual({
       ok: false,
-      problem: 'Hit Points (Base) takes a whole number, not "1.5".',
+      problem: t("value.notWhole", { field: "Hit Points (Base)", text: "1.5" }),
     });
   });
 
@@ -229,16 +230,20 @@ describe("savedText", () => {
         backup: "C:\\Maps\\Arena.backup\\2026-10-26 12-00-00",
         note: "",
       }),
-    ).toBe("Saved 2 files · backup in Arena.backup\\2026-10-26 12-00-00");
-    expect(savedText({ written: ["war3map.w3u"], backup: "", note: "" })).toBe("Saved 1 file");
-    expect(savedText({ written: [], backup: "", note: "" })).toBe("Nothing to save");
+    ).toBe(
+      `${tCount("save.saved", 2)} · ${t("save.backup", { folder: "Arena.backup\\2026-10-26 12-00-00" })}`,
+    );
+    expect(savedText({ written: ["war3map.w3u"], backup: "", note: "" })).toBe(
+      tCount("save.saved", 1),
+    );
+    expect(savedText({ written: [], backup: "", note: "" })).toBe(t("save.nothing"));
   });
 
   it("adds the note of a save whose replace reported an error after the map was saved", () => {
     const note =
       "The map archive C:\\Maps\\Arena.w3x was saved, but replacing it reported an error";
     expect(savedText({ written: ["war3map.w3u"], backup: "", note })).toBe(
-      `Saved 1 file · ${note}`,
+      `${tCount("save.saved", 1)} · ${note}`,
     );
   });
 });

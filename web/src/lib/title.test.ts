@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "./text.ts";
 import { appName, windowTitle } from "./title.ts";
 
 describe("windowTitle", () => {
@@ -7,6 +8,8 @@ describe("windowTitle", () => {
   });
 
   it("puts the map's path first", () => {
-    expect(windowTitle("C:\\Maps\\Arena.w3x")).toBe("C:\\Maps\\Arena.w3x — Moonwell Editor");
+    expect(windowTitle("C:\\Maps\\Arena.w3x")).toBe(
+      t("app.windowTitle", { path: "C:\\Maps\\Arena.w3x", app: t("app.name") }),
+    );
   });
 });

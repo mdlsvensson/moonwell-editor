@@ -3,6 +3,7 @@
  * tree pane draws only the rows in view, so it works from this flat list.
  */
 import type { Kind, TreeEntry } from "./api.ts";
+import { t } from "./text.ts";
 
 /**
  * One drawn row: a group that opens and closes (depth -1 for the Custom and Standard headings, which open and close
@@ -54,13 +55,13 @@ export function groupKeys(kind: Kind, entry: TreeEntry): string[] {
 
 /** The kinds' names, as the kind buttons show them. */
 export const kindNames: Record<Kind, string> = {
-  unit: "Units",
-  item: "Items",
-  destructable: "Destructibles",
-  doodad: "Doodads",
-  ability: "Abilities",
-  buff: "Buffs/Effects",
-  upgrade: "Upgrades",
+  unit: t("kind.unit"),
+  item: t("kind.item"),
+  destructable: t("kind.destructable"),
+  doodad: t("kind.doodad"),
+  ability: t("kind.ability"),
+  buff: t("kind.buff"),
+  upgrade: t("kind.upgrade"),
 };
 
 /** Each kind's colour, as a text class: its icon and its objects' names show in it. */
@@ -126,7 +127,7 @@ export function treeLines(
     result.push({
       type: "group",
       key: standardKey(kind),
-      name: "Standard",
+      name: t("tree.standard"),
       depth: -1,
       open: standardOpen,
       count: root.count,
@@ -160,7 +161,7 @@ export function treeLines(
     result.push({
       type: "group",
       key,
-      name: "Custom",
+      name: t("tree.custom"),
       depth: -1,
       open: customOpen,
       count: custom.length,

@@ -15,6 +15,7 @@ import type {
   TableRow,
 } from "./api.ts";
 import { applyExpression, parseExpression } from "./expression.ts";
+import { t } from "./text.ts";
 
 /** A cell of the shown table: a row and a column, both from 0. */
 export type Cell = { row: number; col: number };
@@ -204,8 +205,9 @@ export function editRefusal(
   column: Column,
   fields: FieldInfo[],
 ): string | null {
-  if (row.readOnly !== null) return `Read only: ${row.readOnly}`;
-  if (!cell.applies) return `${columnName(column, fields)} does not apply to ${row.name}.`;
+  if (row.readOnly !== null) return t("grid.readOnly", { reason: row.readOnly });
+  if (!cell.applies)
+    return t("grid.doesNotApplyTo", { field: columnName(column, fields), object: row.name });
   return null;
 }
 
@@ -298,7 +300,7 @@ function plainValue(
     const typed = text.trim().toLowerCase();
     if (yes.includes(typed)) return { value: "1" };
     if (no.includes(typed)) return { value: "0" };
-    return { error: `takes Yes or No (1 or 0), not "${text}".` };
+    return { error: t("grid.takesYesNo", { text }) };
   }
   const list = field?.type === "choice" && field.choice ? choices?.[field.choice] : undefined;
   if (!list || list.flags) return { value: text };
@@ -310,7 +312,7 @@ function plainValue(
   if (entry) return { value: entry.value };
   const labels = list.entries.slice(0, labelsShown).map((each) => each.label);
   const more = list.entries.length > labelsShown ? ", …" : "";
-  return { error: `"${text}" is not one of its values (${labels.join(", ")}${more}).` };
+  return { error: t("grid.notOneOfValues", { text, values: `${labels.join(", ")}${more}` }) };
 }
 
 /**
@@ -447,11 +449,11 @@ export function bulkEdits(
   const targets: Target[] = [];
   for (const at of cellsOf(s)) {
     const target = targetOf(at, rows, columns);
-    if (!target) return { error: "The selection is outside the table." };
+    if (!target) return { error: t("grid.selectionOutside") };
     const refused = readOnlyRefusal(target, fields);
     if (refused) return refused;
     if (!target.cell.applies)
-      return { error: `${whereOf(target, fields)}: the field does not apply.` };
+      return { error: t("grid.fieldDoesNotApply", { where: whereOf(target, fields) }) };
     targets.push(target);
   }
 
@@ -459,7 +461,7 @@ export function bulkEdits(
   for (const target of targets) {
     const field = fieldOf(target.column, fields);
     const where = whereOf(target, fields);
-    if (!field) return { error: `${where}: unknown field.` };
+    if (!field) return { error: t("grid.unknownField", { where }) };
     if (!numberTypes.includes(field.type)) {
       const plain = plainValue(field, barValue(text), choices);
       if ("error" in plain) return { error: `${where}: ${plain.error}` };

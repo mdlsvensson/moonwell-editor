@@ -6,6 +6,7 @@
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ChoiceList, FieldView } from "./api.ts";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 import { formatFlags, parseFlags } from "./values.ts";
 
 type Props = {
@@ -34,7 +35,10 @@ const options = $derived([
   ...list.entries,
   ...ticked
     .filter((value) => !list.entries.some((entry) => entry.value === value))
-    .map((value) => ({ value, label: list.store === "int" ? `Bit ${value}` : value })),
+    .map((value) => ({
+      value,
+      label: list.store === "int" ? t("flags.bit", { bit: value }) : value,
+    })),
 ]);
 
 async function toggle(value: string, on: boolean): Promise<void> {

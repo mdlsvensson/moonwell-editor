@@ -5,14 +5,15 @@
  * window's storage.
  */
 import type { FieldView, ObjectView } from "./api.ts";
+import { t } from "./text.ts";
 
 export type GraphicsMode = "sd" | "hd" | "de";
 
 /** The modes with World Editor's names, in its order. */
 export const graphicsModes: { mode: GraphicsMode; name: string }[] = [
-  { mode: "sd", name: "Classic" },
-  { mode: "hd", name: "Reforged" },
-  { mode: "de", name: "Definitive Edition" },
+  { mode: "sd", name: t("graphics.sd") },
+  { mode: "hd", name: t("graphics.hd") },
+  { mode: "de", name: t("graphics.de") },
 ];
 
 const storageKey = "moonwell-editor.graphics";

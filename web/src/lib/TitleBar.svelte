@@ -24,6 +24,7 @@ import {
 } from "./api.ts";
 import logo from "./logo.svg";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 
 /** One visited object, for the history list: its place in the history and what to call it. */
 export type Visit = { at: number; name: string; id: string };
@@ -97,8 +98,8 @@ const buttonClass =
     type="button"
     class="{buttonClass} w-8"
     tabindex="-1"
-    title="{which === 'back' ? 'Back (Alt ←)' : 'Forward (Alt →)'}; hold for the history"
-    aria-label={which === "back" ? "Back" : "Forward"}
+    title={which === "back" ? t("titleBar.backTitle") : t("titleBar.forwardTitle")}
+    aria-label={which === "back" ? t("titleBar.back") : t("titleBar.forward")}
     disabled={list.length === 0}
     onpointerdown={(event) => event.button === 0 && press(which)}
     onpointerup={(event) => event.button === 0 && release(which)}
@@ -127,27 +128,27 @@ const buttonClass =
     {#if map}
       <b class="shrink-0 font-semibold text-fg">{title}</b>
       <span class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted">
-        {map.archive ? "Archive" : "Folder"}
+        {map.archive ? t("titleBar.archive") : t("titleBar.folder")}
       </span>
       {#if map.expansion !== null && map.expansion !== undefined}
         <span
           class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted"
-          title={map.expansion ? "A Frozen Throne (expansion) map" : "A Reign of Chaos map"}
+          title={map.expansion ? t("titleBar.expansionTitle") : t("titleBar.rocTitle")}
         >
-          {map.expansion ? "Expansion" : "RoC"}
+          {map.expansion ? t("titleBar.expansion") : t("titleBar.roc")}
         </span>
       {/if}
       <span class="min-w-0 truncate text-faint">{map.path}</span>
     {:else}
-      <span class="text-muted">Moonwell Editor</span>
+      <span class="text-muted">{t("app.name")}</span>
     {/if}
   </span>
   <button
     type="button"
     class="{buttonClass} w-[46px]"
     tabindex="-1"
-    title="Minimize"
-    aria-label="Minimize"
+    title={t("titleBar.minimize")}
+    aria-label={t("titleBar.minimize")}
     onclick={minimizeWindow}
   >
     <Minus size={14} strokeWidth={1.5} />
@@ -156,8 +157,8 @@ const buttonClass =
     type="button"
     class="{buttonClass} w-[46px]"
     tabindex="-1"
-    title={maximized ? "Restore" : "Maximize"}
-    aria-label={maximized ? "Restore" : "Maximize"}
+    title={maximized ? t("titleBar.restore") : t("titleBar.maximize")}
+    aria-label={maximized ? t("titleBar.restore") : t("titleBar.maximize")}
     onclick={maximizeWindow}
   >
     {#if maximized}
@@ -170,8 +171,8 @@ const buttonClass =
     type="button"
     class="{buttonClass} w-[46px]"
     tabindex="-1"
-    title="Close"
-    aria-label="Close"
+    title={t("titleBar.close")}
+    aria-label={t("titleBar.close")}
     onclick={closeClicked}
   >
     <X size={15} strokeWidth={1.5} />
@@ -188,7 +189,7 @@ const buttonClass =
   {@const list = listing === "back" ? back : forward}
   {#if anchor}
     <Popover {anchor} onclose={() => (listing = null)}>
-      <div class="flex flex-col" role="menu" aria-label="History">
+      <div class="flex flex-col" role="menu" aria-label={t("titleBar.history")}>
         {#each list as visit (visit.at)}
           <button
             type="button"

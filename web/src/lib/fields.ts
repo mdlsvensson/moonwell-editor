@@ -10,6 +10,7 @@ import {
   kinds,
   type ObjectView,
 } from "./api.ts";
+import { t } from "./text.ts";
 
 /** One row of the details panel: a field, or a per-level field with all its levels. */
 export type Row = {
@@ -47,22 +48,22 @@ export const categoryOrder = [
 ];
 
 const categoryNames: Record<string, string> = {
-  stats: "Stats",
-  combat: "Combat",
-  abil: "Abilities",
-  art: "Art",
-  move: "Movement",
-  path: "Pathing",
-  sound: "Sound",
-  tech: "Techtree",
-  text: "Text",
-  editor: "Editor",
-  data: "Data",
+  stats: t("category.stats"),
+  combat: t("category.combat"),
+  abil: t("category.abil"),
+  art: t("category.art"),
+  move: t("category.move"),
+  path: t("category.path"),
+  sound: t("category.sound"),
+  tech: t("category.tech"),
+  text: t("category.text"),
+  editor: t("category.editor"),
+  data: t("category.data"),
 };
 
 /** A category's name to show: the known ones by name, another with a capital letter, none as "Other". */
 export function categoryName(key: string): string {
-  if (key === "") return "Other";
+  if (key === "") return t("category.noCategory");
   return categoryNames[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
 }
 
@@ -382,20 +383,20 @@ export function buttonPair(field: FieldView, fields: FieldView[]): ButtonPair | 
 }
 
 const pluralNames: Record<Kind, string> = {
-  unit: "units",
-  item: "items",
-  destructable: "destructables",
-  doodad: "doodads",
-  ability: "abilities",
-  buff: "buffs",
-  upgrade: "upgrades",
+  unit: t("kindPlural.unit"),
+  item: t("kindPlural.item"),
+  destructable: t("kindPlural.destructable"),
+  doodad: t("kindPlural.doodad"),
+  ability: t("kindPlural.ability"),
+  buff: t("kindPlural.buff"),
+  upgrade: t("kindPlural.upgrade"),
 };
 
 /** The picker's prompt for a list of these kinds: "Search buffs by name or id…" (Sven, 2026-10-27). */
 export function searchPrompt(kinds: Kind[]): string {
   const names = kinds.map((kind) => pluralNames[kind]);
-  const what = names.length === 0 ? "objects" : names.join(" and ");
-  return `Search ${what} by name or id…`;
+  const what = names.length === 0 ? t("picker.searchObjects") : names.join(t("picker.searchJoin"));
+  return t("picker.search", { what });
 }
 
 /** One object another object's fields name: its kind, id and name ("" when unknown), and the fields that name it. */

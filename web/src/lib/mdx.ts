@@ -4,6 +4,8 @@
  * rest once those two are taken out. A preview needs neither.
  */
 
+import { t } from "./text.ts";
+
 /** The chunks a preview drops before parsing: cameras and lights. */
 export const unreadChunks = ["CAMS", "LITE"];
 
@@ -15,13 +17,13 @@ export const unreadChunks = ["CAMS", "LITE"];
 export function stripChunks(buffer: ArrayBuffer, tags: readonly string[]): ArrayBuffer {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
-  if (bytes.length < 4 || tagAt(bytes, 0) !== "MDLX") throw new Error("Not an MDX model");
+  if (bytes.length < 4 || tagAt(bytes, 0) !== "MDLX") throw new Error(t("model.notMdx"));
   const kept: Uint8Array[] = [bytes.subarray(0, 4)];
   let at = 4;
   while (at < bytes.length) {
-    if (at + 8 > bytes.length) throw new Error("The model file is cut short");
+    if (at + 8 > bytes.length) throw new Error(t("model.cutShort"));
     const end = at + 8 + view.getUint32(at + 4, true);
-    if (end > bytes.length) throw new Error("The model file is cut short");
+    if (end > bytes.length) throw new Error(t("model.cutShort"));
     if (!tags.includes(tagAt(bytes, at))) kept.push(bytes.subarray(at, end));
     at = end;
   }

@@ -12,6 +12,7 @@ import TreePalm from "@lucide/svelte/icons/tree-palm";
 import User from "@lucide/svelte/icons/user";
 import type { Component } from "svelte";
 import { type Kind, kinds } from "./api.ts";
+import { t } from "./text.ts";
 import { kindNames, kindText } from "./tree.ts";
 
 type Props = {
@@ -33,7 +34,7 @@ const icons: Record<Kind, Component<{ size?: number }>> = {
 };
 </script>
 
-<div class="flex shrink-0 gap-0.5" role="group" aria-label="Kinds">
+<div class="flex shrink-0 gap-0.5" role="group" aria-label={t("kindBar.label")}>
   {#each kinds as each (each)}
     {@const Icon = icons[each]}
     <button

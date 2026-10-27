@@ -5,6 +5,7 @@
 import type { Column, FieldInfo, Kind, TableRow, TreeEntry } from "./api.ts";
 import { categoryName } from "./fields.ts";
 import { columnKey, defaultColumns, sortRows } from "./grid.ts";
+import { t } from "./text.ts";
 import { entryMatches, groupName, isCustom } from "./tree.ts";
 
 /** The group of the map's custom objects (their path is `["Custom"]`). */
@@ -53,7 +54,7 @@ export function groupChips(entries: TreeEntry[]): GroupChip[] {
   }
   return [...counts].map(([key, count]) => ({
     key,
-    name: key === customGroup ? "Custom" : groupName(key),
+    name: key === customGroup ? t("tree.custom") : groupName(key),
     count,
   }));
 }

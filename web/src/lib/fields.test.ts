@@ -16,6 +16,7 @@ import {
   shownValue,
   uses,
 } from "./fields.ts";
+import { t } from "./text.ts";
 
 /** A field with plain defaults; `over` sets what a test cares about. */
 function field(over: Partial<FieldView> & { id: string }): FieldView {
@@ -206,9 +207,9 @@ describe("the order", () => {
       field({ id: "d", category: "custom" }),
     ];
     expect(groupFields(fields, "", false).map((category) => category.name)).toEqual([
-      "Abilities",
-      "Movement",
-      "Other",
+      t("category.abil"),
+      t("category.move"),
+      t("category.noCategory"),
       "Custom",
     ]);
   });
@@ -366,9 +367,15 @@ describe("object lists", () => {
 
 describe("the picker's prompt", () => {
   it("names the kinds the list holds", () => {
-    expect(searchPrompt(listKinds("Buff"))).toBe("Search buffs by name or id…");
-    expect(searchPrompt(listKinds("object"))).toBe("Search units and upgrades by name or id…");
-    expect(searchPrompt([])).toBe("Search objects by name or id…");
+    expect(searchPrompt(listKinds("Buff"))).toBe(
+      t("picker.search", { what: t("kindPlural.buff") }),
+    );
+    expect(searchPrompt(listKinds("object"))).toBe(
+      t("picker.search", {
+        what: `${t("kindPlural.unit")}${t("picker.searchJoin")}${t("kindPlural.upgrade")}`,
+      }),
+    );
+    expect(searchPrompt([])).toBe(t("picker.search", { what: t("picker.searchObjects") }));
   });
 });
 

@@ -63,6 +63,7 @@ import TableView, { type EditResult } from "./lib/TableView.svelte";
 import TitleBar, { type Visit } from "./lib/TitleBar.svelte";
 import Tree from "./lib/Tree.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
+import { t, tCount, tParts } from "./lib/text.ts";
 import { applyTheme, savedTheme, saveTheme, type Theme } from "./lib/themes.ts";
 import { windowTitle } from "./lib/title.ts";
 import { hasTyped, sendTyped } from "./lib/typing.ts";
@@ -309,7 +310,7 @@ function dropping(
 /** "Open map…" › Folder… or Archive…: asks about unsaved edits first, then the entry's dialog picks the map. */
 async function openAnother(entry: OpenEntry): Promise<void> {
   try {
-    await dropping("Save them before opening another map?", true, (discard) =>
+    await dropping(t("ask.beforeOpen"), true, (discard) =>
       openMapWith(() => openFrom(entry, discard)),
     );
   } catch (error) {
@@ -412,7 +413,7 @@ async function refreshObject(): Promise<void> {
  */
 async function edit(field: FieldView, value: string | null): Promise<string | null> {
   const shown = current;
-  if (!shown) return "No object is shown.";
+  if (!shown) return t("notice.noObject");
   const target: FieldRef = { kind: shown.kind, id: shown.id, field: field.id, level: field.level };
   try {
     const view = await queued(() =>
@@ -429,7 +430,7 @@ async function edit(field: FieldView, value: string | null): Promise<string | nu
 /** Changes several fields of the object shown as one edit (the command card's X and Y); null when it was taken. */
 async function editFields(edits: { field: FieldView; value: string }[]): Promise<string | null> {
   const shown = current;
-  if (!shown) return "No object is shown.";
+  if (!shown) return t("notice.noObject");
   const result = await editCells(
     shown.kind,
     edits.map(({ field, value }) => ({ id: shown.id, field: field.id, level: field.level, value })),
@@ -460,10 +461,10 @@ async function undoOrRedo(again: boolean): Promise<void> {
   try {
     const done = await queued(again ? redo : undo);
     if (!done) {
-      say(again ? "Nothing to redo" : "Nothing to undo");
+      say(again ? t("notice.nothingToRedo") : t("notice.nothingToUndo"));
       return;
     }
-    say(again ? "Redone" : "Undone");
+    say(again ? t("notice.redone") : t("notice.undone"));
     await Promise.all([refreshTrees(), refreshObject()]);
   } catch (error) {
     say(message(error), { warn: true });
@@ -479,13 +480,15 @@ async function saveMap(): Promise<boolean> {
     const report = await queued(save);
     const files = report.written.join(", ");
     say(savedText(report), {
-      title: report.backup ? `${files}\nBackup: ${report.backup}` : files || undefined,
+      title: report.backup
+        ? t("notice.savedTitleBackup", { files, backup: report.backup })
+        : files || undefined,
       warn: report.note !== "",
     });
     return true;
   } catch (error) {
     if (error instanceof BridgeError && error.code === "changedOnDisk") diskChanged = error.message;
-    else say(`Not saved: ${message(error)}`, { warn: true });
+    else say(t("notice.notSaved", { error: message(error) }), { warn: true });
     return false;
   } finally {
     saving = false;
@@ -504,9 +507,7 @@ function askReload(): void {
 /** Reads the map again from disk, after asking about unsaved edits (with no Save after a refused one). */
 async function reloadMap(afterDiskChange = false): Promise<void> {
   if (!map) return;
-  const question = afterDiskChange
-    ? "Reloading the map from disk drops them."
-    : "Save them before reloading the map from disk?";
+  const question = afterDiskChange ? t("ask.reloadDrops") : t("ask.beforeReload");
   try {
     const done = await dropping(question, !afterDiskChange, async (discard) => {
       const info = await queued(() => reload(discard));
@@ -515,7 +516,7 @@ async function reloadMap(afterDiskChange = false): Promise<void> {
     });
     if (!done) return;
     await Promise.all([refreshTrees(), refreshObject()]);
-    say("Reloaded the map from disk");
+    say(t("notice.reloaded"));
   } catch (error) {
     say(message(error), { warn: true });
   }
@@ -525,11 +526,11 @@ async function reloadMap(afterDiskChange = false): Promise<void> {
 async function startNew(): Promise<void> {
   const shown = current;
   if (!shown) {
-    say("Pick an object to base the new one on.");
+    say(t("notice.pickBase"));
     return;
   }
   if (shown.readOnly) {
-    say(`Read only: ${shown.readOnly}`, { warn: true });
+    say(t("notice.readOnly", { reason: shown.readOnly }), { warn: true });
     return;
   }
   const baseId = shown.baseId ?? shown.id;
@@ -551,9 +552,9 @@ async function startNew(): Promise<void> {
 function idProblem(each: Kind, typed: string): string | null {
   const id = typed.trim();
   if (id === "") return null;
-  if (!/^[0-9A-Za-z]{4}$/.test(id)) return "An id is four letters or digits.";
+  if (!/^[0-9A-Za-z]{4}$/.test(id)) return t("notice.idInvalid");
   const taken = trees[each]?.find((entry) => entry.id === id);
-  return taken ? `${id} is taken by ${taken.name || id}.` : null;
+  return taken ? t("notice.idTaken", { id, name: taken.name || id }) : null;
 }
 
 async function create(): Promise<void> {
@@ -578,8 +579,8 @@ async function create(): Promise<void> {
     await show(each, id);
     say(
       from
-        ? `${from.cut ? "Moved" : "Pasted"} ${from.name} (${from.id}) as ${id}`
-        : `Made ${id}, based on ${baseName}`,
+        ? t(from.cut ? "notice.moved" : "notice.pasted", { name: from.name, from: from.id, id })
+        : t("notice.made", { id, base: baseName }),
     );
   } catch (error) {
     asked.error = message(error);
@@ -597,18 +598,18 @@ function clip(each: Kind, id: string, cut: boolean): void {
   const entry = entryOf(each, id);
   if (!entry) return;
   if (cut && !entry.baseId) {
-    say("Only custom objects can be cut.");
+    say(t("notice.onlyCustomCut"));
     return;
   }
   clipboard = { kind: each, id, name: entry.name, baseId: entry.baseId ?? id, cut };
-  say(`${cut ? "Cut" : "Copied"} ${entry.name} (${id}) · Ctrl V pastes it as a new object`);
+  say(t(cut ? "notice.cut" : "notice.copied", { name: entry.name, id }));
 }
 
 /** Ctrl V: the id dialog for a copy of the object copied or cut, with the next free id. */
 async function paste(): Promise<void> {
   const from = clipboard;
   if (!from || !map) {
-    say("Nothing is copied: copy an object first (Ctrl C).");
+    say(t("notice.nothingCopied"));
     return;
   }
   let id = "";
@@ -627,20 +628,19 @@ async function resetObject(each: Kind, id: string): Promise<void> {
   try {
     const view = current?.kind === each && current.id === id ? current : await object(each, id);
     if (view.readOnly) {
-      say(`Read only: ${view.readOnly}`, { warn: true });
+      say(t("notice.readOnly", { reason: view.readOnly }), { warn: true });
       return;
     }
     const edits = view.fields
       .filter((field) => field.changed)
       .map((field) => ({ id, field: field.id, level: field.level, value: null }));
     if (edits.length === 0) {
-      say(`${view.name} has no changed fields.`);
+      say(t("notice.noChangedFields", { name: view.name }));
       return;
     }
     await queued(() => setCells(each, edits));
     await Promise.all([refreshTrees(each), refreshObject()]);
-    const count = `${edits.length} ${edits.length === 1 ? "field" : "fields"}`;
-    say(`Reset ${count} of ${view.name} · Ctrl Z brings them back`);
+    say(tCount("notice.reset", edits.length, { name: view.name }));
   } catch (error) {
     say(message(error), { warn: true });
   }
@@ -655,24 +655,35 @@ async function objectMenu(each: Kind, id: string, x: number, y: number): Promise
     x,
     y,
     items: [
-      { label: "Copy", shortcut: "Ctrl C", run: () => clip(each, id, false) },
-      { label: "Cut", shortcut: "Ctrl X", disabled: !custom, run: () => clip(each, id, true) },
+      { label: t("menu.copy"), shortcut: "Ctrl C", run: () => clip(each, id, false) },
       {
-        label: clipboard ? `Paste ${clipboard.name}` : "Paste",
+        label: t("menu.cut"),
+        shortcut: "Ctrl X",
+        disabled: !custom,
+        run: () => clip(each, id, true),
+      },
+      {
+        label: clipboard ? t("menu.pasteObject", { name: clipboard.name }) : t("menu.paste"),
         shortcut: "Ctrl V",
         disabled: !clipboard || clipboard.kind !== each,
         run: paste,
       },
       { separator: true },
-      { label: "Rename", shortcut: "F2", run: focusName },
+      { label: t("menu.rename"), shortcut: "F2", run: focusName },
       {
-        label: "Reset to defaults",
+        label: t("menu.reset"),
         disabled: !entry.changed && !custom,
         run: () => resetObject(each, id),
       },
       { separator: true },
-      { label: "New based on this…", shortcut: "Ctrl Shift N", run: startNew },
-      { label: "Delete…", shortcut: "Del", disabled: !custom, danger: true, run: askDelete },
+      { label: t("menu.newBased"), shortcut: "Ctrl Shift N", run: startNew },
+      {
+        label: t("menu.delete"),
+        shortcut: "Del",
+        disabled: !custom,
+        danger: true,
+        run: askDelete,
+      },
     ],
   };
   await show(each, id);
@@ -686,7 +697,7 @@ async function copyShown(): Promise<void> {
     const id = await queued(() => copyObject(shown.kind, shown.id));
     await refreshTrees(shown.kind);
     await show(shown.kind, id);
-    say(`Copied ${shown.name} (${shown.id}) to ${id}`);
+    say(t("notice.copiedTo", { name: shown.name, from: shown.id, id }));
   } catch (error) {
     say(message(error), { warn: true });
   }
@@ -703,11 +714,11 @@ function deleteOrCopyKey(copy: boolean): void {
   const shown = current;
   if (!shown) return;
   if (!shown.baseId) {
-    say(copy ? "Only custom objects can be copied." : "Only custom objects can be deleted.");
+    say(copy ? t("notice.onlyCustomCopy") : t("notice.onlyCustomDelete"));
     return;
   }
   if (shown.readOnly) {
-    say(`Read only: ${shown.readOnly}`, { warn: true });
+    say(t("notice.readOnly", { reason: shown.readOnly }), { warn: true });
     return;
   }
   if (copy) copyShown();
@@ -720,7 +731,7 @@ async function deleteAsked(): Promise<void> {
   if (!asked) return;
   try {
     await queued(() => deleteObject(asked.kind, asked.id));
-    say(`Deleted ${asked.name} (${asked.id}) · Ctrl Z brings it back`);
+    say(t("notice.deleted", { name: asked.name, id: asked.id }));
     await refreshTrees(asked.kind);
     if (current?.kind === asked.kind && current.id === asked.id && asked.baseId) {
       await show(asked.kind, asked.baseId);
@@ -735,7 +746,7 @@ async function focusName(): Promise<void> {
   const shown = current;
   if (!shown) return;
   if (shown.readOnly) {
-    say(`Read only: ${shown.readOnly}`, { warn: true });
+    say(t("notice.readOnly", { reason: shown.readOnly }), { warn: true });
     return;
   }
   const field = nameField(shown);
@@ -986,7 +997,7 @@ onMount(() => {
           // It asks when the window saw the map dirty (the page may not have heard yet) or a box holds a typed value
           // (even one the app may refuse); otherwise it closes at once, once what was typed has been sent.
           const always = request.dirty || hasTyped();
-          if ((await settle("Save them before closing the window?", true, always)) !== "stopped") {
+          if ((await settle(t("ask.beforeClose"), true, always)) !== "stopped") {
             await closeWindow();
           }
         } finally {
@@ -1048,15 +1059,15 @@ onMount(() => {
       <button
         type="button"
         class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
-        title="Reload the map from disk"
-        aria-label="Reload the map from disk"
+        title={t("header.reload")}
+        aria-label={t("header.reload")}
         onclick={askReload}
       >
         <RotateCw size={17} />
       </button>
     {/if}
-    <div class="ml-auto flex shrink-0 gap-0.5" role="group" aria-label="Views">
-      {#each [{ key: "details", name: "Details" }, { key: "table", name: "Table" }] as const as each (each.key)}
+    <div class="ml-auto flex shrink-0 gap-0.5" role="group" aria-label={t("header.views")}>
+      {#each [{ key: "details", name: t("header.details") }, { key: "table", name: t("header.table") }] as const as each (each.key)}
         <button
           type="button"
           class="rounded-[5px] px-2.5 py-1.5 {page === each.key
@@ -1073,25 +1084,25 @@ onMount(() => {
         type="button"
         class="rounded-[5px] px-2.5 py-1.5 text-muted opacity-50"
         disabled
-        title="Coming in a later version"
+        title={t("header.compareTitle")}
       >
-        Compare
+        {t("header.compare")}
       </button>
     </div>
     <button
       type="button"
       class="shrink-0 rounded-[5px] bg-accent px-3 py-[5px] font-bold text-bg hover:bg-accent-hi disabled:opacity-40"
       disabled={!map || saving || !session?.dirty}
-      title="Save the map (Ctrl S)"
+      title={t("header.saveTitle")}
       onclick={saveMap}
     >
-      {saving ? "Saving…" : "Save"}
+      {saving ? t("header.saving") : t("header.save")}
     </button>
     <button
       type="button"
       class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
-      title="Settings"
-      aria-label="Settings"
+      title={t("header.settings")}
+      aria-label={t("header.settings")}
       onclick={() => (settingsOpen = true)}
     >
       <Settings size={17} />
@@ -1101,14 +1112,13 @@ onMount(() => {
   {#if view === "missing" || view === "failed"}
     <main class="grid min-h-0 place-items-center" data-testid="first-start">
       <div class="flex max-w-lg flex-col gap-3 px-6">
-        <h1 class="font-heading text-2xl font-bold text-fg">Welcome to Moonwell Editor</h1>
+        <h1 class="font-heading text-2xl font-bold text-fg">{t("welcome.title")}</h1>
         <p>
-          The editor needs the game's own data to show the standard units, items and abilities. Point
-          it at a game data folder (a <span class="font-mono text-fg">war3.w3mod</span> export).
+          {#each tParts("welcome.text") as part, index (index)}{#if part.slot === "file"}<span class="font-mono text-fg">war3.w3mod</span>{:else}{part.text}{/if}{/each}
         </p>
         {#if view === "failed" && data}
           <p class="text-warn" data-testid="game-data-error">
-            <span class="font-mono">{data.source}</span> did not load: {data.error}
+            {#each tParts("welcome.failed", { error: data.error ?? "" }) as part, index (index)}{#if part.slot === "folder"}<span class="font-mono">{data.source}</span>{:else}{part.text}{/if}{/each}
           </p>
         {/if}
         {#if problem}
@@ -1121,7 +1131,7 @@ onMount(() => {
             onclick={choose}
           >
             <FolderOpen size={16} />
-            Choose the game data folder…
+            {t("welcome.choose")}
           </button>
         </div>
       </div>
@@ -1129,20 +1139,17 @@ onMount(() => {
   {:else if !map}
     <main class="grid min-h-0 place-items-center" data-testid="no-map">
       <div class="flex max-w-lg flex-col items-start gap-3 px-6">
-        <h1 class="font-heading text-2xl font-bold text-fg">No map is open</h1>
+        <h1 class="font-heading text-2xl font-bold text-fg">{t("noMap.title")}</h1>
         {#if view === "ready"}
-          <p>
-            Open a map folder (a World Editor folder map, or a Moonwell project's map folder) or a map
-            archive (.w3x, .w3m) to browse its objects.
-          </p>
+          <p>{t("noMap.text")}</p>
         {:else}
-          <p>Loading the game data… A map can be opened once it is ready.</p>
+          <p>{t("noMap.loading")}</p>
         {/if}
         {#if mapProblem}
           <p class="text-warn" data-testid="map-error">{mapProblem}</p>
         {/if}
         <OpenMapMenu
-          label={opening ? "Opening…" : "Open map…"}
+          label={opening ? t("noMap.opening") : t("noMap.open")}
           buttonClass="inline-flex items-center gap-2 rounded-md border border-accent bg-raised px-3 py-1.5 text-fg hover:bg-hover disabled:opacity-50"
           disabled={view !== "ready" || opening}
           onpick={openAnother}
@@ -1151,7 +1158,7 @@ onMount(() => {
     </main>
   {:else}
     {#if page === "table"}
-      <main class="min-h-0" aria-label="Table">
+      <main class="min-h-0" aria-label={t("main.table")}>
         <TableView
           bind:this={tableView}
           {kind}
@@ -1179,7 +1186,7 @@ onMount(() => {
     >
       <aside
         class="min-h-0 overflow-hidden border-r border-line bg-surface"
-        aria-label="Objects"
+        aria-label={t("main.objects")}
         onpointerdown={() => (zone = "tree")}
         onfocusin={() => (zone = "tree")}
       >
@@ -1197,7 +1204,7 @@ onMount(() => {
       <!-- The details panel scrolls its own fields, under a header and a bar that stay put. -->
       <section
         class="flex min-h-0 flex-col overflow-hidden"
-        aria-label="Details"
+        aria-label={t("main.details")}
         onpointerdown={() => (zone = "details")}
         onfocusin={() => (zone = "details")}
       >
@@ -1228,13 +1235,13 @@ onMount(() => {
           />
         {:else}
           <p class="mx-[18px] mt-3.5 text-muted">
-            Pick an object in the tree.
+            {t("main.pickObject")}
           </p>
         {/if}
       </section>
       <aside
         class="min-h-0 overflow-auto border-l border-line bg-surface p-3"
-        aria-label="Uses and used by"
+        aria-label={t("main.side")}
       >
         {#if current}
           <SidePanel view={shown ?? current} {lookup} onopen={(each, id) => show(each, id)} />
@@ -1280,13 +1287,13 @@ onMount(() => {
   {@const typedProblem = idProblem(asked.kind, asked.id)}
   <Dialog
     title={asked.from
-      ? `${asked.from.cut ? "Move" : "Paste"} ${asked.from.name}`
-      : `New ${asked.baseName}`}
+      ? t(asked.from.cut ? "dialog.new.move" : "dialog.new.paste", { name: asked.from.name })
+      : t("dialog.new.title", { name: asked.baseName })}
     note={asked.from ? asked.from.id : asked.baseId}
     oncancel={() => (creating = null)}
   >
     <label class="flex items-center gap-2">
-      Id
+      {t("dialog.new.id")}
       <input
         class="w-28 rounded-[5px] border bg-bg px-2 py-1 font-mono text-fg outline-none focus:border-accent {asked.error ||
         typedProblem
@@ -1308,9 +1315,13 @@ onMount(() => {
       <p class="mt-2 mb-0 text-[12.5px] text-warn" role="alert">{asked.error || typedProblem}</p>
     {/if}
     {#snippet actions()}
-      {@render button("Cancel", () => (creating = null))}
+      {@render button(t("dialog.cancel"), () => (creating = null))}
       {@render button(
-        asked.busy ? "Making…" : asked.from ? "Paste" : "Make",
+        asked.busy
+          ? t("dialog.new.making")
+          : asked.from
+            ? t("dialog.new.pasteButton")
+            : t("dialog.new.make"),
         () => !typedProblem && create(),
         "primary",
       )}
@@ -1320,27 +1331,24 @@ onMount(() => {
 
 {#if deleting}
   {@const asked = deleting}
-  <Dialog title="Delete {asked.name}?" oncancel={() => (deleting = null)}>
+  <Dialog title={t("dialog.delete.title", { name: asked.name })} oncancel={() => (deleting = null)}>
     <p class="m-0">
-      The map loses the custom {asked.kind}
-      <b class="font-semibold text-fg">{asked.name}</b>
-      <span class="font-mono text-[12.5px] text-muted">{asked.id}</span>. Ctrl Z brings it back until the map is
-      closed.
+      {#each tParts("dialog.delete.text", { kind: asked.kind }) as part, index (index)}{#if part.slot === "name"}<b class="font-semibold text-fg">{asked.name}</b>{:else if part.slot === "id"}<span class="font-mono text-[12.5px] text-muted">{asked.id}</span>{:else}{part.text}{/if}{/each}
     </p>
     {#snippet actions()}
-      {@render button("Cancel", () => (deleting = null))}
-      {@render button("Delete", deleteAsked, "danger")}
+      {@render button(t("dialog.cancel"), () => (deleting = null))}
+      {@render button(t("dialog.delete.button"), deleteAsked, "danger")}
     {/snippet}
   </Dialog>
 {/if}
 
 {#if confirmingReload}
-  <Dialog title="Reload the map from disk?" oncancel={() => (confirmingReload = false)}>
-    <p class="m-0">The editor reads the map's files again, as they are on disk now.</p>
+  <Dialog title={t("dialog.reload.title")} oncancel={() => (confirmingReload = false)}>
+    <p class="m-0">{t("dialog.reload.text")}</p>
     {#snippet actions()}
-      {@render button("Cancel", () => (confirmingReload = false))}
+      {@render button(t("dialog.cancel"), () => (confirmingReload = false))}
       {@render button(
-        "Reload",
+        t("dialog.reload.button"),
         () => {
           confirmingReload = false;
           reloadMap();
@@ -1352,12 +1360,12 @@ onMount(() => {
 {/if}
 
 {#if diskChanged}
-  <Dialog title="The map changed on disk" oncancel={() => (diskChanged = "")}>
+  <Dialog title={t("dialog.diskChanged.title")} oncancel={() => (diskChanged = "")}>
     <p class="m-0">{diskChanged}</p>
     {#snippet actions()}
-      {@render button("Cancel", () => (diskChanged = ""))}
+      {@render button(t("dialog.cancel"), () => (diskChanged = ""))}
       {@render button(
-        "Reload…",
+        t("dialog.diskChanged.reload"),
         () => {
           diskChanged = "";
           reloadMap(true);
@@ -1371,17 +1379,21 @@ onMount(() => {
 {#if unsaved}
   {@const asked = unsaved}
   {@const count = session?.changedObjects ?? 0}
-  <Dialog title="Unsaved changes" oncancel={() => asked.answer("cancel")}>
+  <Dialog title={t("dialog.unsaved.title")} oncancel={() => asked.answer("cancel")}>
     <p class="m-0">
-      The map has unsaved changes{count > 0
-        ? ` (${count} ${count === 1 ? "object" : "objects"})`
-        : ""}. {asked.question}
+      {count > 0
+        ? tCount("dialog.unsaved.textCount", count, { question: asked.question })
+        : t("dialog.unsaved.text", { question: asked.question })}
     </p>
     {#snippet actions()}
-      {@render button("Cancel", () => asked.answer("cancel"))}
-      {@render button("Discard", () => asked.answer("discard"), asked.canSave ? "plain" : "danger")}
+      {@render button(t("dialog.cancel"), () => asked.answer("cancel"))}
+      {@render button(
+        t("dialog.unsaved.discard"),
+        () => asked.answer("discard"),
+        asked.canSave ? "plain" : "danger",
+      )}
       {#if asked.canSave}
-        {@render button("Save", () => asked.answer("save"), "primary")}
+        {@render button(t("dialog.unsaved.save"), () => asked.answer("save"), "primary")}
       {/if}
     {/snippet}
   </Dialog>

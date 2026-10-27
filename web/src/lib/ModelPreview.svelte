@@ -27,6 +27,7 @@ import {
   unreadChunks,
 } from "./mdx.ts";
 import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
+import { t, tCount } from "./text.ts";
 
 type Props = {
   /** The model's game path as object data spells it, with .mdl, .mdx or no extension. */
@@ -121,7 +122,7 @@ function show(
   canvas.height = Math.round(px * ratio);
   canvas.className = "block size-full touch-none cursor-grab";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Preview of ${at}`);
+  canvas.setAttribute("aria-label", t("model.previewOf", { path: at }));
   canvas.style.visibility = "hidden";
   into.prepend(canvas);
   const gl =
@@ -160,19 +161,19 @@ function show(
   canvas.addEventListener("pointercancel", up);
 
   async function load(): Promise<void> {
-    if (!gl) return fail("This page cannot draw 3D (WebGL is off)");
+    if (!gl) return fail(t("model.noWebGl"));
     const response = await fetch(url(at), { signal: abort.signal });
-    if (response.status === 404) return fail("No model at that path");
-    if (!response.ok) return fail(`The model could not be loaded (HTTP ${response.status})`);
+    if (response.status === 404) return fail(t("model.notFound"));
+    if (!response.ok) return fail(t("model.loadFailedHttp", { status: response.status }));
     const bytes = await response.arrayBuffer();
     if (stopped) return;
     let model: Model;
     try {
       model = parse(bytes);
     } catch (e) {
-      return fail(`The model could not be read: ${message(e)}`);
+      return fail(t("model.readFailed", { error: message(e) }));
     }
-    if (model.Geosets.length === 0) return fail("The model has nothing to draw");
+    if (model.Geosets.length === 0) return fail(t("model.nothingToDraw"));
     for (const texture of model.Textures) {
       const swap = texture.ReplaceableId && replaceable[texture.ReplaceableId];
       if (!texture.Image && swap) texture.Image = swap;
@@ -183,13 +184,15 @@ function show(
       renderer.initGL(gl);
       renderer.setTeamColor(colour);
     } catch (e) {
-      return fail(`The model could not be drawn: ${message(e)}`);
+      return fail(t("model.drawFailed", { error: message(e) }));
     }
     const sequence = standSequence(model.Sequences.map((s) => s.Name));
     if (sequence >= 0) renderer.setSequence(sequence);
     const pose = skinnedPose(model, renderer);
 
-    const images = [...new Set(model.Textures.map((t) => t.Image).filter((image) => image))];
+    const images = [
+      ...new Set(model.Textures.map((texture) => texture.Image).filter((image) => image)),
+    ];
     const failed = await Promise.all(
       images.map(async (image) => ((await loadTexture(image)) ? null : image)),
     );
@@ -320,7 +323,7 @@ function show(
   }
 
   load().catch((e) => {
-    if (!stopped) fail(`The model could not be loaded: ${message(e)}`);
+    if (!stopped) fail(t("model.loadFailed", { error: message(e) }));
   });
 
   return {
@@ -474,7 +477,7 @@ function message(e: unknown): string {
     style="width: {size}px; height: {size}px"
   >
     {#if status === "loading"}
-      <p class="absolute inset-0 m-0 flex items-center justify-center text-xs text-faint">Loading model…</p>
+      <p class="absolute inset-0 m-0 flex items-center justify-center text-xs text-faint">{t("model.loading")}</p>
     {:else if status === "error"}
       <p
         class="absolute inset-0 m-0 flex items-center justify-center p-3 text-center text-xs text-warn"
@@ -487,15 +490,15 @@ function message(e: unknown): string {
         class="absolute right-0 bottom-0 m-0 truncate px-2 py-1 text-[11px] text-faint"
         title={missing.join("\n")}
       >
-        {missing.length === 1 ? "1 texture missing" : `${missing.length} textures missing`}
+        {tCount("model.texturesMissing", missing.length)}
       </p>
     {/if}
     {#if status === "ready" && !turning}
       <button
         type="button"
         class="absolute bottom-1.5 left-1.5 rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100"
-        title="Turn the model again"
-        aria-label="Turn the model again"
+        title={t("model.turnAgain")}
+        aria-label={t("model.turnAgain")}
         onclick={() => (turning = true)}
       >
         <RotateCw size={14} />
@@ -503,7 +506,7 @@ function message(e: unknown): string {
     {/if}
   </div>
   {#if picker}
-    <div class="grid grid-cols-12 gap-0.5" role="radiogroup" aria-label="Team colour">
+    <div class="grid grid-cols-12 gap-0.5" role="radiogroup" aria-label={t("model.teamColour")}>
       {#each teamColors as colour, index (colour.name)}
         {@const chosen = playerIndex(teamColor) === index}
         <button
@@ -512,8 +515,8 @@ function message(e: unknown): string {
             ? 'relative z-10 border-bg outline-2 outline-fg'
             : 'border-line hover:border-muted'}"
           style="background-color: {colour.hex}"
-          title="Player {index + 1}: {colour.name}"
-          aria-label="Player {index + 1}, {colour.name}"
+          title={t("model.playerTitle", { player: index + 1, colour: colour.name })}
+          aria-label={t("model.playerLabel", { player: index + 1, colour: colour.name })}
           role="radio"
           aria-checked={chosen}
           onclick={() => (teamColor = index)}

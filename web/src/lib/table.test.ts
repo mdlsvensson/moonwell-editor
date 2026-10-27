@@ -23,6 +23,7 @@ import {
   toggleGroup,
   writeColumns,
 } from "./table.ts";
+import { t } from "./text.ts";
 
 function entry(id: string, path: string[], over: Partial<TreeEntry> = {}): TreeEntry {
   return {
@@ -88,7 +89,7 @@ function memory(throws = false): Store & { items: Map<string, string> } {
 describe("the row chips", () => {
   it("are Custom first, then the tree's top groups in order, with counts", () => {
     expect(groupChips(entries)).toEqual([
-      { key: "Custom", name: "Custom", count: 2 },
+      { key: "Custom", name: t("tree.custom"), count: 2 },
       { key: "human", name: "Human", count: 2 },
       { key: "orc", name: "Orc", count: 1 },
       { key: "neutral", name: "Neutral", count: 1 },
@@ -96,7 +97,11 @@ describe("the row chips", () => {
   });
 
   it("show Custom also when the map has no custom objects", () => {
-    expect(groupChips(standardOnly)[0]).toEqual({ key: "Custom", name: "Custom", count: 0 });
+    expect(groupChips(standardOnly)[0]).toEqual({
+      key: "Custom",
+      name: t("tree.custom"),
+      count: 0,
+    });
   });
 
   it("start on the custom objects when the map has any", () => {

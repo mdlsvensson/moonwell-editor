@@ -18,6 +18,7 @@ import {
   shownValue,
 } from "./fields.ts";
 import IdsEditor from "./IdsEditor.svelte";
+import { t } from "./text.ts";
 import { typing } from "./typing.ts";
 import { checkValue, editorFor } from "./values.ts";
 
@@ -103,7 +104,7 @@ const boxValue = $derived(
 );
 const title = $derived(
   field.changed
-    ? `Standard: ${shownValue({ ...field, value: field.base }, choices, nameOf)}`
+    ? t("field.standard", { value: shownValue({ ...field, value: field.base }, choices, nameOf) })
     : undefined,
 );
 // Values start at the left of their box, and a box in the details panel is as wide as its value (between 8 characters
@@ -230,7 +231,7 @@ function oninput(event: Event): void {
       value={draft ?? field.value}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
-      title="Enter sends it; Shift Enter starts a new line"
+      title={t("field.multilineTitle")}
       {oninput}
       {onkeydown}
       onblur={commit}

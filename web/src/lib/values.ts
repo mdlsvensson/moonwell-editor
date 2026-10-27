@@ -4,6 +4,7 @@
  */
 import type { ChoiceList, FieldView, Kind, ObjectView, SaveReport } from "./api.ts";
 import { entryOf, listIds, listKinds } from "./fields.ts";
+import { t, tCount } from "./text.ts";
 
 /** The editors a field can get. */
 export type Editor = "number" | "toggle" | "select" | "flags" | "ids" | "text";
@@ -83,13 +84,13 @@ export function checkValue(field: FieldView, text: string): Checked {
     if (wholeNumber.test(trimmed) && number >= -2147483648 && number <= 2147483647) {
       return { ok: true, value: trimmed };
     }
-    return { ok: false, problem: `${field.label} takes a whole number, not "${text}".` };
+    return { ok: false, problem: t("value.notWhole", { field: field.label, text }) };
   }
   if (field.type === "float") {
     if (realNumber.test(trimmed) && Number.isFinite(Number(trimmed))) {
       return { ok: true, value: trimmed };
     }
-    return { ok: false, problem: `${field.label} takes a number (such as 1.5), not "${text}".` };
+    return { ok: false, problem: t("value.notReal", { field: field.label, text }) };
   }
   return { ok: true, value: text };
 }
@@ -143,11 +144,11 @@ export function noticeTitle(notice: { text: string; title?: string }): string {
  */
 export function savedText(report: SaveReport): string {
   const count = report.written.length;
-  if (count === 0) return "Nothing to save";
-  const parts = [`Saved ${count} ${count === 1 ? "file" : "files"}`];
+  if (count === 0) return t("save.nothing");
+  const parts = [tCount("save.saved", count)];
   if (report.backup !== "") {
     const folders = report.backup.split(/[\\/]/).filter(Boolean);
-    parts.push(`backup in ${folders.slice(-2).join("\\")}`);
+    parts.push(t("save.backup", { folder: folders.slice(-2).join("\\") }));
   }
   if (report.note !== "") parts.push(report.note);
   return parts.join(" · ");

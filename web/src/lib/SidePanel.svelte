@@ -12,6 +12,7 @@ import { type Lookup, uses } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
 import TooltipPreview from "./TooltipPreview.svelte";
+import { t } from "./text.ts";
 import { kindNames, kindText } from "./tree.ts";
 
 type Props = {
@@ -83,7 +84,7 @@ $effect(() => {
       title="{kindNames[item.kind]} · {item.fields.join(', ')}"
       onclick={() => onopen(item.kind, item.id)}
     >
-      <span class="truncate {item.name ? kindText[item.kind] : 'text-muted'}">{item.name || "Unknown"}</span>
+      <span class="truncate {item.name ? kindText[item.kind] : 'text-muted'}">{item.name || t("side.unknown")}</span>
       <span class="ml-auto shrink-0 font-mono text-[12.5px] text-faint">{item.id}</span>
     </button>
   {/each}
@@ -109,7 +110,7 @@ $effect(() => {
 {/snippet}
 
 <div bind:clientWidth={width}>
-  {@render heading("model", "Model", null, "mt-1")}
+  {@render heading("model", t("side.model"), null, "mt-1")}
   {#if !closed.model}
     {#if model}
       <ModelPreview
@@ -120,34 +121,34 @@ $effect(() => {
         picker
       />
     {:else}
-      <p class="text-[12.5px] text-faint">Its fields name no model.</p>
+      <p class="text-[12.5px] text-faint">{t("side.noModel")}</p>
     {/if}
   {/if}
 </div>
 
-{@render heading("tooltip", "Tooltip", null, "mt-5")}
+{@render heading("tooltip", t("side.tooltip"), null, "mt-5")}
 {#if !closed.tooltip}
   <TooltipPreview {view} bind:level />
 {/if}
 
-{@render heading("uses", "Uses", used.length, "mt-5")}
+{@render heading("uses", t("side.uses"), used.length, "mt-5")}
 {#if closed.uses}
   <!-- Closed. -->
 {:else if used.length === 0}
-  <p class="text-[12.5px] text-faint">Its fields name no other object.</p>
+  <p class="text-[12.5px] text-faint">{t("side.usesNone")}</p>
 {:else}
   {@render list(used)}
 {/if}
 
-{@render heading("usedBy", "Used by", users?.length ?? null, "mt-5")}
+{@render heading("usedBy", t("side.usedBy"), users?.length ?? null, "mt-5")}
 {#if closed.usedBy}
   <!-- Closed. -->
 {:else if problem}
   <p class="text-[12.5px] text-warn">{problem}</p>
 {:else if users === null}
-  <p class="text-[12.5px] text-faint">Looking…</p>
+  <p class="text-[12.5px] text-faint">{t("side.looking")}</p>
 {:else if users.length === 0}
-  <p class="text-[12.5px] text-faint">No object's fields name it.</p>
+  <p class="text-[12.5px] text-faint">{t("side.usedByNone")}</p>
 {:else}
   {@render list(users)}
 {/if}

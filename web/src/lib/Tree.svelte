@@ -9,6 +9,7 @@ import { tick, untrack } from "svelte";
 import { iconUrl, type Kind, type TreeEntry } from "./api.ts";
 import { graphics } from "./graphics.svelte.ts";
 import { prefs } from "./prefs.svelte.ts";
+import { t } from "./text.ts";
 import {
   customKey,
   groupKeys,
@@ -130,8 +131,8 @@ function clearOnEscape(event: KeyboardEvent): void {
   <div class="border-b border-line px-2.5 py-2">
     <input
       class="w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-      placeholder="Filter the tree (name or id)…"
-      aria-label="Filter the tree"
+      placeholder={t("tree.filterPlaceholder")}
+      aria-label={t("tree.filterLabel")}
       bind:value={filter}
       onkeydown={clearOnEscape}
     />
@@ -140,15 +141,15 @@ function clearOnEscape(event: KeyboardEvent): void {
   {#if error}
     <p class="px-2.5 text-warn">{error}</p>
   {:else if !entries}
-    <p class="px-2.5 text-muted">Loading the tree…</p>
+    <p class="px-2.5 text-muted">{t("tree.loading")}</p>
   {:else if lines.length === 0}
-    <p class="px-2.5 text-muted">Nothing matches “{filter}”.</p>
+    <p class="px-2.5 text-muted">{t("tree.noMatch", { filter })}</p>
   {/if}
 
   <div
     class="min-h-0 flex-1 overflow-auto outline-none"
     role="tree"
-    aria-label="{kindNames[kind]} tree"
+    aria-label={t("tree.label", { kind: kindNames[kind] })}
     tabindex="0"
     bind:this={scroller}
     bind:clientHeight={height}
@@ -249,7 +250,7 @@ function clearOnEscape(event: KeyboardEvent): void {
               {#if entry.changed && !entry.baseId}
                 <span
                   class="size-1.5 shrink-0 rounded-full bg-changed"
-                  title="The map changes this standard object"
+                  title={t("tree.changedStandard")}
                 ></span>
               {/if}
               <span class="ml-auto pl-2 font-mono text-[12.5px] text-faint">{entry.id}</span>

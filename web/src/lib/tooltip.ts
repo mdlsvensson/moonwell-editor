@@ -3,6 +3,7 @@
  * coloured runs, and the `<id,Field>` placeholders an ability's text names filled from its own fields.
  */
 import type { FieldView, Kind, ObjectView } from "./api.ts";
+import { t } from "./text.ts";
 
 /** A stretch of tooltip text in one colour; `placeholder` marks a `<id,Field>` the preview cannot fill. */
 export type Run = { text: string; color: string | null; placeholder?: boolean };
@@ -181,9 +182,9 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "utub",
     hotkey: "uhot",
     costs: [
-      { label: "Gold", ids: ["ugol"] },
-      { label: "Lumber", ids: ["ulum"] },
-      { label: "Food", ids: ["ufoo"] },
+      { label: t("tooltip.gold"), ids: ["ugol"] },
+      { label: t("tooltip.lumber"), ids: ["ulum"] },
+      { label: t("tooltip.food"), ids: ["ufoo"] },
     ],
   },
   item: {
@@ -192,8 +193,8 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "utub",
     hotkey: "uhot",
     costs: [
-      { label: "Gold", ids: ["igol", "ugol"] },
-      { label: "Lumber", ids: ["ilum", "ulum"] },
+      { label: t("tooltip.gold"), ids: ["igol", "ugol"] },
+      { label: t("tooltip.lumber"), ids: ["ilum", "ulum"] },
     ],
   },
   ability: {
@@ -202,8 +203,8 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "aub1",
     hotkey: "ahky",
     costs: [
-      { label: "Mana", ids: ["amcs"] },
-      { label: "Cooldown", ids: ["acdn"] },
+      { label: t("tooltip.mana"), ids: ["amcs"] },
+      { label: t("tooltip.cooldown"), ids: ["acdn"] },
     ],
   },
   buff: { icon: "fart", title: "ftip", text: "fube", hotkey: "", costs: [] },
@@ -213,8 +214,8 @@ const recipes: Partial<Record<Kind, Recipe>> = {
     text: "gub1",
     hotkey: "ghk1",
     costs: [
-      { label: "Gold", ids: ["gglb"], step: "gglm" },
-      { label: "Lumber", ids: ["glmb"], step: "glmm" },
+      { label: t("tooltip.gold"), ids: ["gglb"], step: "gglm" },
+      { label: t("tooltip.lumber"), ids: ["glmb"], step: "glmm" },
     ],
   },
 };

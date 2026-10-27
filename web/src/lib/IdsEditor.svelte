@@ -8,6 +8,7 @@ import X from "@lucide/svelte/icons/x";
 import { type FieldView, type Hit, type Kind, search } from "./api.ts";
 import { type Lookup, listIds, listKinds, searchPrompt } from "./fields.ts";
 import Popover from "./Popover.svelte";
+import { t } from "./text.ts";
 import { addId, removeId } from "./values.ts";
 
 type Props = {
@@ -115,7 +116,7 @@ function focusOnMount(element: HTMLInputElement): void {
         <button
           type="button"
           class="rounded-l px-1.5 hover:text-accent-hi"
-          title="Open {found.name}"
+          title={t("ids.open", { name: found.name })}
           onclick={() => onopen(found.kind, object.id)}
         >
           <!-- A skin list names its abilities without their suffixes, as World Editor shows it. -->
@@ -128,7 +129,7 @@ function focusOnMount(element: HTMLInputElement): void {
       <button
         type="button"
         class="px-0.5 text-faint hover:text-warn"
-        aria-label="Take {object.found?.name ?? object.id} out"
+        aria-label={t("ids.takeOut", { name: object.found?.name ?? object.id })}
         onclick={() => onset(removeId(field.value, at))}
       >
         <X size={12} />
@@ -138,8 +139,10 @@ function focusOnMount(element: HTMLInputElement): void {
   <button
     type="button"
     class="inline-flex items-center rounded border border-dashed border-line px-1 py-px text-muted hover:border-accent hover:text-fg focus:border-accent focus:outline-none"
-    aria-label={single ? `Choose the ${field.label}` : `Add to ${field.label}`}
-    title={single ? "Choose…" : "Add…"}
+    aria-label={single
+      ? t("ids.chooseLabel", { field: field.label })
+      : t("ids.addLabel", { field: field.label })}
+    title={single ? t("ids.choose") : t("ids.add")}
     data-field="{field.id}:{field.level}"
     bind:this={addButton}
     onclick={() => (open ? close() : (open = true))}
@@ -152,7 +155,7 @@ function focusOnMount(element: HTMLInputElement): void {
     <input
       class="w-[300px] rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
       placeholder={searchPrompt(kinds)}
-      aria-label="Search"
+      aria-label={t("ids.search")}
       bind:value={query}
       {oninput}
       {onkeydown}
@@ -161,7 +164,7 @@ function focusOnMount(element: HTMLInputElement): void {
     {#if problem}
       <p class="m-0 px-2 py-1 text-warn">{problem}</p>
     {:else if query.trim() !== "" && hits.length === 0}
-      <p class="m-0 px-2 py-1 text-muted">Nothing found.</p>
+      <p class="m-0 px-2 py-1 text-muted">{t("ids.nothingFound")}</p>
     {/if}
     <div class="mt-1 flex flex-col">
       {#each hits as hit, at (`${hit.kind}:${hit.id}`)}

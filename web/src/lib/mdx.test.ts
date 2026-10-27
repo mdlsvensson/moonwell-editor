@@ -11,6 +11,7 @@ import {
   standSequence,
   stripChunks,
 } from "./mdx.ts";
+import { t } from "./text.ts";
 
 /** An MDX file from the chunks given, each as its tag and its data bytes. */
 function mdx(...chunks: [string, number[]][]): ArrayBuffer {
@@ -53,14 +54,14 @@ describe("stripChunks", () => {
 
   it("refuses bytes that are not an MDX file", () => {
     expect(() => stripChunks(new TextEncoder().encode("Version 800").buffer, [])).toThrow(
-      "Not an MDX model",
+      t("model.notMdx"),
     );
   });
 
   it("refuses a file whose last chunk runs past the end", () => {
     const cut = mdx(["VERS", [1, 2, 3, 4]]).slice(0, 14);
-    expect(() => stripChunks(cut, [])).toThrow("cut short");
-    expect(() => stripChunks(mdx(["VERS", []]).slice(0, 10), [])).toThrow("cut short");
+    expect(() => stripChunks(cut, [])).toThrow(t("model.cutShort"));
+    expect(() => stripChunks(mdx(["VERS", []]).slice(0, 10), [])).toThrow(t("model.cutShort"));
   });
 });
 

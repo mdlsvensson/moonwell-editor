@@ -10,6 +10,7 @@ import CommandCard from "./CommandCard.svelte";
 import FieldEditor from "./FieldEditor.svelte";
 import { type ButtonPair, type Lookup, listIds, namesOf, shownValue } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
+import { t } from "./text.ts";
 
 type Props = {
   field: FieldView;
@@ -69,7 +70,7 @@ const multiline = $derived(field.value.includes("\n"));
 
 function titleOf(view: FieldView): string {
   const lines = [shown];
-  if (view.changed) lines.push(`Standard: ${standard}`);
+  if (view.changed) lines.push(t("field.standard", { value: standard }));
   if (view.modes) {
     lines.push(
       Object.entries(view.modes)
@@ -143,8 +144,8 @@ async function reset(): Promise<void> {
         <button
           type="button"
           class="shrink-0 px-1 text-changed hover:text-fg"
-          title="Back to the standard value: {standard === '' ? '(empty)' : standard}"
-          aria-label="Reset {field.label}"
+          title={t("field.resetTitle", { value: standard === "" ? t("field.empty") : standard })}
+          aria-label={t("field.resetLabel", { field: field.label })}
           onclick={reset}
         >
           ↺

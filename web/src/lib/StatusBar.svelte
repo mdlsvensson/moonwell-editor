@@ -7,6 +7,7 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { MapOptions, SessionState } from "./api.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
+import { type TextPart, t, tCount, tParts } from "./text.ts";
 import { noticeTitle } from "./values.ts";
 
 /**
@@ -42,13 +43,20 @@ let {
 }: Props = $props();
 
 // The values come from the tables the map's data set reads, as World Editor's do (Sven, 2026-10-27).
-const tables = $derived(!options || options.values === "base" ? "base tables" : options.values);
+const tables = $derived(
+  !options || options.values === "base" ? t("status.baseTables") : options.values,
+);
 const dataTitle = $derived(
   dataView === "ready"
     ? `${data?.source ?? ""}\n` +
         (options
-          ? `${options.dataSet} · ${options.dataVersion}: the values of ${tables}, the objects of ${options.objects === "base" ? "the base tables" : options.objects}.`
-          : "The values of the game's base tables (the map's data set is unknown).")
+          ? t("status.dataTitle", {
+              dataSet: options.dataSet,
+              dataVersion: options.dataVersion,
+              values: tables,
+              objects: options.objects === "base" ? t("status.theBaseTables") : options.objects,
+            })
+          : t("status.dataTitleUnknown"))
     : (data?.source ?? ""),
 );
 
@@ -57,6 +65,10 @@ const folderName = $derived(
 );
 </script>
 
+{#snippet folderText(parts: TextPart[])}
+  {#each parts as part, index (index)}{#if part.slot === "folder"}<span class="font-mono">{folderName}</span>{:else}{part.text}{/if}{/each}
+{/snippet}
+
 <footer class="relative flex items-center gap-4 border-t border-line bg-surface px-3 text-xs text-muted">
   {#if connection}
     <span class="text-warn" data-testid="status">{connection}</span>
@@ -64,11 +76,10 @@ const folderName = $derived(
   {#if session}
     {#if session.dirty}
       <span class="text-changed" data-testid="dirty">
-        ● {session.changedObjects}
-        {session.changedObjects === 1 ? "object" : "objects"} changed, not saved
+        {tCount("status.changed", session.changedObjects)}
       </span>
     {:else}
-      <span data-testid="dirty">No unsaved changes</span>
+      <span data-testid="dirty">{t("status.noChanges")}</span>
     {/if}
   {/if}
   {#if notice}
@@ -86,7 +97,7 @@ const folderName = $derived(
       </span>
     {/if}
   {:else if session}
-    <span class="whitespace-nowrap">Undo Ctrl Z · Redo Ctrl Y</span>
+    <span class="whitespace-nowrap">{t("status.undoRedo")}</span>
   {/if}
   {#if problems.length > 0}
     <button
@@ -96,8 +107,7 @@ const folderName = $derived(
       onclick={() => (showProblems = !showProblems)}
     >
       <TriangleAlert size={13} />
-      {problems.length}
-      {problems.length === 1 ? "map problem" : "map problems"}
+      {tCount("status.problems", problems.length)}
     </button>
   {/if}
   <span
@@ -106,13 +116,13 @@ const folderName = $derived(
     title={dataTitle}
   >
     {#if dataView === "loading"}
-      Loading the game data from <span class="font-mono">{folderName}</span>…
+      {@render folderText(tParts("status.dataLoading"))}
     {:else if dataView === "ready"}
-      Game data <span class="font-mono">{folderName}</span> · {tables}
+      {@render folderText(tParts("status.dataReady", { tables }))}
     {:else if dataView === "failed"}
-      <span class="text-warn">Game data failed to load</span>
+      <span class="text-warn">{t("status.dataFailed")}</span>
     {:else if dataView === "missing"}
-      No game data folder chosen
+      {t("status.dataMissing")}
     {/if}
   </span>
 
@@ -120,14 +130,14 @@ const folderName = $derived(
     <div
       class="absolute bottom-[30px] left-3 z-10 w-[560px] max-w-[calc(100%-24px)] rounded-lg border border-line bg-surface p-3 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)]"
       role="dialog"
-      aria-label="Map problems"
+      aria-label={t("status.problemsTitle")}
     >
       <div class="mb-2 flex items-center">
-        <span class="font-bold text-fg">Map problems</span>
+        <span class="font-bold text-fg">{t("status.problemsTitle")}</span>
         <button
           type="button"
           class="ml-auto text-muted hover:text-fg"
-          aria-label="Close"
+          aria-label={t("status.close")}
           onclick={() => (showProblems = false)}
         >
           <X size={14} />

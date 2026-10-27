@@ -3,6 +3,8 @@
  * replies are `{id, ok, result | error}` and events are `{event, payload}`, both coming back as strings.
  */
 
+import { t } from "./text.ts";
+
 type Webview = NonNullable<NonNullable<Window["chrome"]>["webview"]>;
 type Reply = {
   id: number | null;
@@ -30,7 +32,7 @@ const listening = new WeakSet<Webview>();
 
 function webview(): Webview {
   const found = window.chrome?.webview;
-  if (!found) throw new Error("The page is not running inside the Moonwell Editor window.");
+  if (!found) throw new Error(t("error.notInWindow"));
   if (!listening.has(found)) {
     listening.add(found);
     found.addEventListener("message", (event) => receive(event.data));
@@ -66,7 +68,7 @@ function receive(data: unknown): void {
 function errorOf(reply: Reply): BridgeError {
   return new BridgeError(
     reply.error?.code ?? "failed",
-    reply.error?.message ?? "The app reported an error.",
+    reply.error?.message ?? t("error.appFailed"),
   );
 }
 

@@ -18,6 +18,7 @@ export function alphaUnderstood(): boolean {
  */
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Dialog from "./Dialog.svelte";
+import { t } from "./text.ts";
 
 let { onclose }: { onclose: () => void } = $props();
 
@@ -35,23 +36,17 @@ function close(): void {
 }
 </script>
 
-<Dialog title="Moonwell Editor is alpha software" oncancel={close}>
+<Dialog title={t("alpha.title")} oncancel={close}>
   <div class="flex gap-3">
     <TriangleAlert size={22} class="mt-0.5 shrink-0 text-changed" />
     <div class="flex flex-col gap-2">
-      <p class="m-0">
-        It is early work and can still get things wrong. Do not trust it with a map you have no backup of: copy the
-        map before you open it here.
-      </p>
-      <p class="m-0">
-        Close the map in World Editor first, and do not change it from anywhere else (World Editor, another tool, a
-        script) while it is open here: the editor saves its own view of the map over the files.
-      </p>
+      <p class="m-0">{t("alpha.backup")}</p>
+      <p class="m-0">{t("alpha.closeFirst")}</p>
     </div>
   </div>
   <label class="mt-3 flex items-center gap-2 text-[13px] text-muted">
     <input type="checkbox" bind:checked={never} />
-    Don't show this again
+    {t("alpha.dontShowAgain")}
   </label>
   {#snippet actions()}
     <button
@@ -60,7 +55,7 @@ function close(): void {
       data-primary
       onclick={close}
     >
-      I understand
+      {t("alpha.understood")}
     </button>
   {/snippet}
 </Dialog>

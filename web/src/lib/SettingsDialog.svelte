@@ -23,6 +23,7 @@ import {
 } from "./keymap.ts";
 import Popover from "./Popover.svelte";
 import { prefs, setPref } from "./prefs.svelte.ts";
+import { t } from "./text.ts";
 import { type Theme, themes } from "./themes.ts";
 import { kindNames } from "./tree.ts";
 
@@ -40,15 +41,15 @@ let { theme, ontheme, keymap, onkeymap, map, data, onclose }: Props = $props();
 
 type Tab = "general" | "hotkeys" | "map" | "data";
 const tabs: { tab: Tab; name: string }[] = [
-  { tab: "general", name: "General" },
-  { tab: "hotkeys", name: "Hotkeys" },
-  { tab: "map", name: "Map" },
-  { tab: "data", name: "Game data" },
+  { tab: "general", name: t("settings.tab.general") },
+  { tab: "hotkeys", name: t("settings.tab.hotkeys") },
+  { tab: "map", name: t("settings.tab.map") },
+  { tab: "data", name: t("settings.tab.data") },
 ];
 let tab = $state<Tab>("general");
 
 const tableNames: Record<string, string> = {
-  base: "the base tables",
+  base: t("settings.theBaseTables"),
   custom_v0: "custom_v0",
   custom_v1: "custom_v1",
   melee_v0: "melee_v0",
@@ -120,7 +121,7 @@ function resetAll(): void {
   <h3 class="m-0 mt-4 mb-2 text-[12px] tracking-[.06em] text-muted uppercase first:mt-1">{text}</h3>
 {/snippet}
 
-<Dialog title="Settings" oncancel={() => (listening ? (listening = null) : onclose())} wide>
+<Dialog title={t("settings.title")} oncancel={() => (listening ? (listening = null) : onclose())} wide>
   <div class="mb-3 flex gap-1 border-b border-line" role="tablist">
     {#each tabs as each (each.tab)}
       <button
@@ -139,11 +140,9 @@ function resetAll(): void {
 
   <div class="min-h-[300px]">
     {#if tab === "general"}
-      {@render heading("Graphics mode")}
-      <p class="m-0 mb-2 text-[12.5px] text-faint">
-        As World Editor's: the icons, the models and the values the game keeps for each mode.
-      </p>
-      <div class="flex gap-1" role="radiogroup" aria-label="Graphics mode">
+      {@render heading(t("settings.graphicsMode"))}
+      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.graphicsModeNote")}</p>
+      <div class="flex gap-1" role="radiogroup" aria-label={t("settings.graphicsMode")}>
         {#each graphicsModes as each (each.mode)}
           <button
             type="button"
@@ -159,17 +158,17 @@ function resetAll(): void {
         {/each}
       </div>
 
-      {@render heading("Icons")}
+      {@render heading(t("settings.icons"))}
       <label class="flex items-center gap-2">
         <input
           type="checkbox"
           checked={prefs.iconFrames}
           onchange={(event) => setPref("iconFrames", event.currentTarget.checked)}
         />
-        Frame the object tree's icons in the theme's colours
+        {t("settings.iconFrames")}
       </label>
 
-      {@render heading("Theme")}
+      {@render heading(t("settings.theme"))}
       <button
         type="button"
         class="flex w-72 items-center gap-2 rounded-md border border-line bg-bg px-2 py-1.5 text-left hover:border-muted"
@@ -184,7 +183,7 @@ function resetAll(): void {
       </button>
       {#if themesOpen && themeButton}
         <Popover anchor={themeButton} onclose={() => (themesOpen = false)} large>
-          <div class="flex w-[272px] flex-col" role="listbox" aria-label="Theme">
+          <div class="flex w-[272px] flex-col" role="listbox" aria-label={t("settings.theme")}>
             {#each themes as each (each.id)}
               <button
                 type="button"
@@ -205,9 +204,7 @@ function resetAll(): void {
         </Popover>
       {/if}
     {:else if tab === "hotkeys"}
-      <p class="m-0 mb-2 text-[12.5px] text-faint">
-        Click a key to change it, then press the new one (Esc keeps the old one).
-      </p>
+      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.hotkeysNote")}</p>
       <div class="flex flex-col">
         {#each actionList as each (each.action)}
           {@const keys = keymap[each.action]}
@@ -216,8 +213,10 @@ function resetAll(): void {
           <div class="flex items-center gap-2 border-t border-line py-1 first:border-t-0">
             <span class="min-w-0 flex-1 truncate {changed ? 'text-changed' : 'text-body'}">{each.name}</span>
             {#if clash.length > 0}
-              <span class="text-[11.5px] text-warn" title="The same key is set for another action">
-                also {actionList.find((other) => other.action === clash[0])?.name}
+              <span class="text-[11.5px] text-warn" title={t("settings.clashTitle")}>
+                {t("settings.clash", {
+                  action: actionList.find((other) => other.action === clash[0])?.name ?? "",
+                })}
               </span>
             {/if}
             <button
@@ -227,13 +226,15 @@ function resetAll(): void {
                 : 'border-line text-fg hover:border-muted'}"
               onclick={() => (listening = listening === each.action ? null : each.action)}
             >
-              {listening === each.action ? "Press a key…" : keys.map(shownKey).join(", ") || "None"}
+              {listening === each.action
+                ? t("settings.pressKey")
+                : keys.map(shownKey).join(", ") || t("settings.noKeys")}
             </button>
             <button
               type="button"
               class="rounded p-1 text-faint hover:text-fg disabled:opacity-30"
-              title="Back to {each.keys.map(shownKey).join(', ')}"
-              aria-label="Reset {each.name}"
+              title={t("settings.resetTitle", { keys: each.keys.map(shownKey).join(", ") })}
+              aria-label={t("settings.resetLabel", { action: each.name })}
               disabled={!changed}
               onclick={() => setKeys(each.action, [...each.keys])}
             >
@@ -243,41 +244,65 @@ function resetAll(): void {
         {/each}
       </div>
       <button type="button" class="mt-3 text-[12.5px] text-muted hover:text-fg" onclick={resetAll}>
-        Reset every hotkey
+        {t("settings.resetAll")}
       </button>
     {:else if tab === "map"}
       {#if map}
-        {@render row("Name", map.title || map.name)}
-        {@render row("Path", map.path, true)}
+        {@render row(t("settings.map.name"), map.title || map.name)}
+        {@render row(t("settings.map.path"), map.path, true)}
         {@render row(
-          "Kind",
-          `${map.archive ? "Archive" : "Folder"}${map.expansion === true ? ", Frozen Throne (Expansion)" : map.expansion === false ? ", Reign of Chaos (RoC)" : ""}`,
+          t("settings.map.kind"),
+          `${map.archive ? t("settings.map.archive") : t("settings.map.folder")}${map.expansion === true ? t("settings.map.expansion") : map.expansion === false ? t("settings.map.roc") : ""}`,
         )}
         {#if map.options}
-          {@render row("Data set", map.options.dataSet)}
-          {@render row("Data version", map.options.dataVersion)}
-          {@render row("Game values", `From ${tableNames[map.options.values] ?? map.options.values}`)}
-          {@render row("Game objects", `Those in ${tableNames[map.options.objects] ?? map.options.objects}`)}
+          {@render row(t("settings.map.dataSet"), map.options.dataSet)}
+          {@render row(t("settings.map.dataVersion"), map.options.dataVersion)}
+          {@render row(
+            t("settings.map.gameValues"),
+            t("settings.map.gameValuesFrom", {
+              tables: tableNames[map.options.values] ?? map.options.values,
+            }),
+          )}
+          {@render row(
+            t("settings.map.gameObjects"),
+            t("settings.map.gameObjectsIn", {
+              tables: tableNames[map.options.objects] ?? map.options.objects,
+            }),
+          )}
         {:else}
-          {@render row("Game data", "Unknown: the map has no war3map.w3i the editor can read")}
+          {@render row(t("settings.map.gameData"), t("settings.map.gameDataUnknown"))}
         {/if}
         {@render row(
-          "Custom objects",
+          t("settings.map.customObjects"),
           customKinds.length === 0
-            ? "None"
-            : customKinds.map((kind) => `${map.counts[kind]} ${kindNames[kind].toLowerCase()}`).join(", "),
+            ? t("settings.map.customNone")
+            : customKinds
+                .map((kind) =>
+                  t("settings.map.customCount", {
+                    count: String(map.counts[kind]),
+                    kind: kindNames[kind].toLowerCase(),
+                  }),
+                )
+                .join(", "),
         )}
         {#if map.problems.length > 0}
-          {@render row("Problems", `${map.problems.length} (the status bar lists them)`)}
+          {@render row(
+            t("settings.map.problems"),
+            t("settings.map.problemsCount", { count: map.problems.length }),
+          )}
         {/if}
       {:else}
-        <p class="m-0 text-faint">No map is open.</p>
+        <p class="m-0 text-faint">{t("settings.map.none")}</p>
       {/if}
     {:else}
-      {@render row("Folder", data?.source ?? "None chosen", true)}
+      {@render row(t("settings.data.folder"), data?.source ?? t("settings.data.noneChosen"), true)}
       {@render row(
-        "State",
-        data?.error ? `Did not load: ${data.error}` : data?.loaded ? "Loaded" : "Loading…",
+        t("settings.data.state"),
+        data?.error
+          ? t("settings.data.failed", { error: data.error })
+          : data?.loaded
+            ? t("settings.data.loaded")
+            : t("settings.data.loading"),
       )}
     {/if}
   </div>
@@ -289,7 +314,7 @@ function resetAll(): void {
       data-primary
       onclick={onclose}
     >
-      Done
+      {t("settings.done")}
     </button>
   {/snippet}
 </Dialog>

@@ -64,6 +64,7 @@ import {
   toggleGroup,
   writeColumns,
 } from "./table.ts";
+import { t, tCount } from "./text.ts";
 import { formatTsv, parseTsv } from "./tsv.ts";
 
 /** What a change of cells answers: how many changed, or why it was refused (nothing changed). */
@@ -304,9 +305,7 @@ async function add(field: FieldInfo, all: boolean): Promise<void> {
     }
   }
   if (levels > levelColumnLimit) {
-    pickerNote =
-      `"All levels" adds at most ${levelColumnLimit} columns: ${field.label} has levels 1 to ` +
-      `${levelColumnLimit} of the ${levels} the rows have.`;
+    pickerNote = t("table.levelLimit", { limit: levelColumnLimit, field: field.label, levels });
   }
   setColumns(each, addColumns(tableState.columns[each] ?? [], field, levels));
 }
@@ -342,13 +341,13 @@ function clearOnEscape(event: KeyboardEvent): void {
 }
 
 function cellCount(count: number): string {
-  return `${count} ${count === 1 ? "cell" : "cells"}`;
+  return tCount("table.cells", count);
 }
 
 const selectedText = $derived.by(() => {
-  if (!selection) return "No cells selected";
+  if (!selection) return t("table.noSelection");
   const size = blockSize(selection);
-  return `${cellCount(size.rows * size.cols)} selected`;
+  return t("table.selected", { cells: cellCount(size.rows * size.cols) });
 });
 
 // Bulk changes waiting for the rows to be as the map is.
@@ -378,7 +377,7 @@ function settled(): Promise<string | null> {
       waiters.delete(done);
       resolve(problem);
     };
-    const timer = setTimeout(() => done("Wait for the last change to finish."), waitLimit);
+    const timer = setTimeout(() => done(t("table.waitForChange")), waitLimit);
     waiters.add(done);
   });
 }
@@ -430,8 +429,8 @@ async function change(each: Kind, edits: CellEdit[], done: string): Promise<stri
   }
   onnotice(
     result.changed === 0
-      ? "Nothing changed: the cells already hold those values"
-      : `${done} ${cellCount(result.changed)} · Ctrl Z undoes it`,
+      ? t("table.nothingChanged")
+      : t("table.changed", { done, cells: cellCount(result.changed) }),
   );
   return null;
 }
@@ -439,7 +438,7 @@ async function change(each: Kind, edits: CellEdit[], done: string): Promise<stri
 /** Sets one cell from its editor; the editor shows a refusal itself. */
 async function setCell(row: TableRow, column: Column, value: string): Promise<string | null> {
   const each = shown?.kind;
-  if (!each) return "The table is not shown.";
+  if (!each) return t("table.notShown");
   const result = await edit(each, [
     { id: row.id, field: column.field, level: column.level, value },
   ]);
@@ -451,10 +450,10 @@ async function copy(s: Selection): Promise<void> {
   try {
     await navigator.clipboard.writeText(formatTsv(block));
   } catch {
-    onnotice("Copy needs clipboard access", true);
+    onnotice(t("table.copyNeedsClipboard"), true);
     return;
   }
-  onnotice(`Copied ${cellCount(block.length * (block[0]?.length ?? 0))}`);
+  onnotice(t("table.copied", { cells: cellCount(block.length * (block[0]?.length ?? 0)) }));
 }
 
 /** Pastes the clipboard's text (read before the wait for the rows) from the block's upper left cell. */
@@ -463,7 +462,7 @@ async function paste(s: Selection, text: string): Promise<void> {
   if (!at) return;
   const block = parseTsv(text);
   if (block.length === 0) {
-    onnotice("The clipboard holds no text to paste.");
+    onnotice(t("table.clipboardEmpty"));
     return;
   }
   const edits = pasteEdits(topLeft(s), block, rows, at.columns, shownFields(), choices);
@@ -472,10 +471,10 @@ async function paste(s: Selection, text: string): Promise<void> {
     return;
   }
   if (edits.length === 0) {
-    onnotice("None of the cells the paste covers can be changed.");
+    onnotice(t("table.pasteNoCells"));
     return;
   }
-  await change(at.kind, edits, "Pasted");
+  await change(at.kind, edits, t("table.done.pasted"));
 }
 
 // The bulk changes (the grid's and the bar's), one at a time in the order asked: each works from the rows as the one
@@ -493,7 +492,7 @@ async function bulkNow(action: BulkAction): Promise<void> {
     try {
       text = await navigator.clipboard.readText();
     } catch {
-      onnotice("Paste needs clipboard access", true);
+      onnotice(t("table.pasteNeedsClipboard"), true);
       return;
     }
   }
@@ -514,7 +513,7 @@ async function bulkNow(action: BulkAction): Promise<void> {
     return;
   }
   if (action === "fill" && blockSize(s).rows < 2) {
-    onnotice("Ctrl D fills the top cell of each selected column down: select more than one row.");
+    onnotice(t("table.fillNeedsRows"));
     return;
   }
   const edits =
@@ -526,10 +525,10 @@ async function bulkNow(action: BulkAction): Promise<void> {
     return;
   }
   if (edits.length === 0) {
-    onnotice(`None of the selected cells can be ${action === "fill" ? "filled" : "reset"}.`);
+    onnotice(action === "fill" ? t("table.noneFillable") : t("table.noneResettable"));
     return;
   }
-  await change(at.kind, edits, action === "fill" ? "Filled" : "Reset");
+  await change(at.kind, edits, action === "fill" ? t("table.done.filled") : t("table.done.reset"));
 }
 
 /** The bar's Apply: the selected cells set to the value or expression typed, after the bulk changes asked before. */
@@ -547,7 +546,7 @@ async function applyNow(text: string): Promise<void> {
   const s = selection;
   const at = shown;
   if (!s || !at) {
-    bulkError = "Select the cells to set first.";
+    bulkError = t("table.selectFirst");
     return;
   }
   const edits = bulkEdits(s, rows, at.columns, shownFields(), text, choices);
@@ -555,7 +554,7 @@ async function applyNow(text: string): Promise<void> {
     bulkError = edits.error;
     return;
   }
-  bulkError = (await change(at.kind, edits, "Set")) ?? "";
+  bulkError = (await change(at.kind, edits, t("table.done.set"))) ?? "";
 }
 
 function bulkKeys(event: KeyboardEvent): void {
@@ -577,21 +576,20 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
     <div class="flex flex-wrap items-center gap-2">
       <input
         class="w-60 rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-        placeholder="Filter the rows (name or id; Ctrl F)…"
-        aria-label="Filter the rows"
+        placeholder={t("table.filterPlaceholder")}
+        aria-label={t("table.filterLabel")}
         bind:this={filterInput}
         bind:value={filter}
         onkeydown={clearOnEscape}
       />
       <span class="text-[12.5px] text-muted" data-testid="table-count">
         {#if shown}
-          {rows.length}
-          {rows.length === 1 ? "object" : "objects"}
+          {tCount("table.objects", rows.length)}
         {/if}
-        {#if loading}· loading…{/if}
+        {#if loading}{t("table.loadingRows")}{/if}
       </span>
     </div>
-    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Rows">
+    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("table.rows")}>
       {#each groups as group (group.key)}
         {@const on = chips?.groups.includes(group.key) ?? false}
         <button
@@ -611,24 +609,24 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
           ? 'border-changed text-changed'
           : 'border-line text-muted hover:text-body'}"
         aria-pressed={chips?.changed ?? false}
-        title="Only the objects the map changes"
+        title={t("table.changedTitle")}
         onclick={toggleChanged}
       >
-        Changed
+        {t("table.changedChip")}
       </button>
       {#if chips && chips.groups.length === 0}
-        <span class="text-[12.5px] text-faint">every group</span>
+        <span class="text-[12.5px] text-faint">{t("table.everyGroup")}</span>
       {/if}
     </div>
-    <div class="flex flex-wrap items-center gap-2 text-[12.5px]" role="group" aria-label="Bulk change">
+    <div class="flex flex-wrap items-center gap-2 text-[12.5px]" role="group" aria-label={t("table.bulkLabel")}>
       <span class="text-muted" data-testid="table-selection">{selectedText} ·</span>
       <label class="flex items-center gap-2 text-muted">
-        Set the selected cells to
+        {t("table.setTo")}
         <input
           class="w-36 rounded-[5px] border bg-bg px-2 py-0.5 font-mono text-fg outline-none focus:border-accent {bulkError
             ? 'border-warn'
             : 'border-line'}"
-          placeholder="50, +5, -10%, *1.1"
+          placeholder={t("table.bulkPlaceholder")}
           spellcheck="false"
           aria-invalid={!!bulkError}
           bind:value={bulkText}
@@ -642,15 +640,12 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
         disabled={!selection || bulkText.trim() === ""}
         onclick={apply}
       >
-        Apply
+        {t("table.apply")}
       </button>
       {#if bulkError}
         <span class="text-warn" role="alert">{bulkError}</span>
       {:else}
-        <span class="text-faint">
-          (a value, +5, -10%, *1.1 or /2; Ctrl V pastes from a spreadsheet, Ctrl D fills down, Delete
-          resets)
-        </span>
+        <span class="text-faint">{t("table.bulkHelp")}</span>
       {/if}
     </div>
     {#if treeError || fieldsError || rowsError || pickerError}
@@ -662,7 +657,7 @@ const chip = "rounded-full border bg-raised px-2.5 py-0.5 text-[12.5px] whitespa
 
   {#if !entries || !kindFields || !shown}
     {#if !treeError && !fieldsError && !rowsError}
-      <p class="mx-[18px] mt-3.5 text-muted">Loading the table…</p>
+      <p class="mx-[18px] mt-3.5 text-muted">{t("table.loading")}</p>
     {/if}
   {:else}
     <TableGrid

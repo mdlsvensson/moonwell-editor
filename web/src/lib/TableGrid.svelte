@@ -29,6 +29,7 @@ import {
 } from "./grid.ts";
 import { editorAction, type GridAction, gridAction } from "./gridKeys.ts";
 import { columnKey, type Sort } from "./table.ts";
+import { t } from "./text.ts";
 import { type Editor, editorFor } from "./values.ts";
 
 /** The changes of the selection the grid passes on. */
@@ -194,14 +195,22 @@ function lookOf(
   column: Column,
   cell: TableCell | undefined,
 ): { bg: string; fg: string; title?: string } {
-  if (!cell?.applies) return { bg: "bg-surface", fg: "", title: "Does not apply to this object" };
+  if (!cell?.applies) return { bg: "bg-surface", fg: "", title: t("table.doesNotApply") };
   if (row.readOnly) {
-    return { bg: "bg-surface", fg: "text-muted", title: `Read only: ${row.readOnly}` };
+    return {
+      bg: "bg-surface",
+      fg: "text-muted",
+      title: t("table.readOnly", { reason: row.readOnly }),
+    };
   }
   if (cell.warning) return { bg: "bg-warn-lo", fg: "text-warn", title: cell.warning };
   if (cell.changed) {
     const base = textOf(column, { ...cell, value: cell.base });
-    return { bg: "", fg: "text-changed", title: `Standard: ${base === "" ? "(empty)" : base}` };
+    return {
+      bg: "",
+      fg: "text-changed",
+      title: t("table.standard", { value: base === "" ? t("table.empty") : base }),
+    };
   }
   return { bg: "", fg: "text-fg" };
 }
@@ -361,7 +370,7 @@ function cellOver(at: Cell): void {
 
 function setEdited(value: string): Promise<string | null> {
   const shown = edited;
-  if (!shown) return Promise.resolve("The cell is no longer shown.");
+  if (!shown) return Promise.resolve(t("table.cellGone"));
   return onset(shown.row, shown.column, value);
 }
 </script>
@@ -394,7 +403,7 @@ function setEdited(value: string): Promise<string | null> {
       role="row"
       aria-rowindex={1}
     >
-      {#each [{ key: "name", label: "Name", width: nameWidth }, { key: "id", label: "Id", width: idWidth }] as fixed (fixed.key)}
+      {#each [{ key: "name", label: t("table.name"), width: nameWidth }, { key: "id", label: t("table.id"), width: idWidth }] as fixed (fixed.key)}
         <div
           class="flex shrink-0 border-r border-line bg-surface {fixed.key === 'name'
             ? 'sticky left-0 z-[3]'
@@ -406,7 +415,7 @@ function setEdited(value: string): Promise<string | null> {
           <button
             type="button"
             class="flex min-w-0 flex-1 items-center gap-1 px-2.5 text-left font-semibold hover:text-fg"
-            title="Sort by {fixed.label.toLowerCase()}"
+            title={t("table.sortBy", { column: fixed.label.toLowerCase() })}
             onclick={() => onsort(fixed.key)}
           >
             <span class="truncate">{fixed.label}</span>
@@ -425,7 +434,7 @@ function setEdited(value: string): Promise<string | null> {
           <button
             type="button"
             class="flex min-w-0 flex-1 flex-col justify-center pl-2.5 text-left hover:text-fg"
-            title="{labelOf(column)} ({column.field}) · sort by it"
+            title={t("table.columnTitle", { label: labelOf(column), field: column.field })}
             onclick={() => onsort(key)}
           >
             <span class="flex w-full items-center gap-1 leading-tight font-semibold">
@@ -437,8 +446,8 @@ function setEdited(value: string): Promise<string | null> {
           <button
             type="button"
             class="shrink-0 self-start p-1 text-faint opacity-0 group-hover:opacity-100 hover:text-warn focus:opacity-100"
-            title="Remove the column"
-            aria-label="Remove the column {labelOf(column)}"
+            title={t("table.removeColumn")}
+            aria-label={t("table.removeColumnLabel", { label: labelOf(column) })}
             onclick={() => onremove(key)}
           >
             <X size={12} />
@@ -452,13 +461,13 @@ function setEdited(value: string): Promise<string | null> {
           onclick={(event) => onadd(event.currentTarget)}
         >
           <Plus size={13} />
-          Add a column
+          {t("table.addColumn")}
         </button>
       </div>
     </div>
 
     {#if rows.length === 0}
-      <p class="sticky left-0 m-0 px-2.5 py-2 text-muted">No objects match.</p>
+      <p class="sticky left-0 m-0 px-2.5 py-2 text-muted">{t("table.noObjects")}</p>
     {/if}
 
     <div class="relative" style:height="{rows.length * rowHeight}px">
@@ -480,7 +489,7 @@ function setEdited(value: string): Promise<string | null> {
               class="min-w-0 flex-1 truncate px-2.5 text-left hover:underline {row.baseId
                 ? 'text-accent-hi'
                 : 'text-fg'}"
-              title="Open {row.name} in Details"
+              title={t("table.openInDetails", { name: row.name })}
               onclick={() => onopen(row.id)}
             >
               {row.name}

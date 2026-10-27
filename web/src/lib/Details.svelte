@@ -32,6 +32,7 @@ import {
 } from "./fields.ts";
 import LevelGrid from "./LevelGrid.svelte";
 import { labelColumnWidth } from "./measure.ts";
+import { t, tCount } from "./text.ts";
 import { kindText } from "./tree.ts";
 
 type Props = {
@@ -107,7 +108,9 @@ function copy(field: FieldView): void {
   copyField(field);
   navigator.clipboard?.writeText(field.value).catch(() => {});
   onnotice(
-    `Copied ${field.label}${field.level > 0 ? ` (level ${field.level})` : ""} · Ctrl V pastes it into a field that takes it`,
+    field.level > 0
+      ? t("details.copiedLevel", { field: field.label, level: field.level })
+      : t("details.copied", { field: field.label }),
     false,
   );
 }
@@ -115,19 +118,19 @@ function copy(field: FieldView): void {
 async function paste(field: FieldView): Promise<void> {
   const clip = copiedField();
   if (!clip) {
-    onnotice("No field is copied: select a field and press Ctrl C.", false);
+    onnotice(t("details.nothingCopied"), false);
     return;
   }
   if (!editable) {
-    onnotice(`Read only: ${view.readOnly}`, true);
+    onnotice(t("details.readOnly", { reason: view.readOnly ?? "" }), true);
     return;
   }
   if (!fits(clip, field)) {
-    onnotice(`${clip.label}'s value does not go in ${field.label}.`, true);
+    onnotice(t("details.doesNotFit", { from: clip.label, to: field.label }), true);
     return;
   }
   const error = await onset(field, clip.value);
-  onnotice(error ?? `Pasted ${clip.label}'s value into ${field.label}`, error !== null);
+  onnotice(error ?? t("details.pasted", { from: clip.label, to: field.label }), error !== null);
 }
 
 /**
@@ -140,7 +143,7 @@ export function clipKey(key: "c" | "x" | "v"): boolean {
   if (!field) return false;
   if (key === "c") copy(field);
   else if (key === "v") paste(field);
-  else onnotice("A field cannot be cut: Ctrl C copies its value.", false);
+  else onnotice(t("details.cannotCut"), false);
   return true;
 }
 
@@ -156,16 +159,16 @@ function setPair(pair: ButtonPair, x: number, y: number): Promise<string | null>
 function fieldMenu(field: FieldView, x: number, y: number): void {
   const clip = copiedField();
   onmenu(x, y, [
-    { label: "Copy", shortcut: "Ctrl C", run: () => copy(field) },
+    { label: t("details.menu.copy"), shortcut: "Ctrl C", run: () => copy(field) },
     {
-      label: clip ? `Paste ${clip.label}` : "Paste",
+      label: clip ? t("details.menu.pasteField", { field: clip.label }) : t("details.menu.paste"),
       shortcut: "Ctrl V",
       disabled: !clip || !editable || !fits(clip, field),
       run: () => paste(field),
     },
     { separator: true },
     {
-      label: "Reset to default",
+      label: t("details.menu.reset"),
       disabled: !editable || !field.changed,
       run: () => onreset(field),
     },
@@ -303,24 +306,24 @@ function clearOnEscape(event: KeyboardEvent): void {
         <span class="font-mono text-[12.5px] font-normal text-muted">{view.id}</span>
       </h1>
       {#if editable && custom}
-        <div class="flex shrink-0 gap-1" role="group" aria-label="Object">
+        <div class="flex shrink-0 gap-1" role="group" aria-label={t("details.objectGroup")}>
           <button
             type="button"
             class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-accent hover:text-fg"
-            title="A copy of this object, with the next free id (Ctrl Shift D)"
+            title={t("details.copyTitle")}
             onclick={oncopy}
           >
             <Copy size={13} />
-            Copy
+            {t("details.copy")}
           </button>
           <button
             type="button"
             class="flex items-center gap-1 rounded-[5px] border border-line bg-raised px-2 py-0.5 text-[12.5px] text-body hover:border-warn hover:text-warn"
-            title="Delete this object (Delete; asks first, and Ctrl Z brings it back)"
+            title={t("details.deleteTitle")}
             onclick={ondelete}
           >
             <Trash size={13} />
-            Delete
+            {t("details.delete")}
           </button>
         </div>
       {/if}
@@ -344,19 +347,19 @@ function clearOnEscape(event: KeyboardEvent): void {
         {/if}
       {/each}
       · {changedCount === 0
-        ? "no fields changed"
-        : `${changedCount} ${changedCount === 1 ? "field" : "fields"} changed`}
+        ? t("details.noFieldsChanged")
+        : tCount("details.fieldsChanged", changedCount)}
     </div>
     {#if view.readOnly}
       <p class="mt-2 flex items-center gap-1.5 text-[12.5px] text-warn" data-testid="read-only">
         <Lock size={14} />
-        Read only: {view.readOnly}
+        {t("details.readOnly", { reason: view.readOnly })}
       </p>
     {/if}
     <input
       class="mt-2.5 w-full rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-      placeholder="Filter fields: name, id or value (Ctrl F)…"
-      aria-label="Filter fields"
+      placeholder={t("details.filterPlaceholder")}
+      aria-label={t("details.filterLabel")}
       bind:this={filterInput}
       bind:value={filter}
       onkeydown={clearOnEscape}
@@ -368,7 +371,7 @@ function clearOnEscape(event: KeyboardEvent): void {
   <div class="min-h-0 flex-1 overflow-auto pb-16" bind:this={scroller}>
     {#if categories.length === 0}
       <p class="mx-[18px] mt-3.5 text-muted">
-        {changedOnly && !filter ? "The map changes no fields of this object." : "No field matches."}
+        {changedOnly && !filter ? t("details.noChangedFields") : t("details.noFieldMatches")}
       </p>
     {/if}
 
@@ -387,9 +390,8 @@ function clearOnEscape(event: KeyboardEvent): void {
             {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
             {category.name}
             <span class="ml-auto text-xs font-normal text-faint">
-              {category.rows.length}
-              {category.rows.length === 1 ? "field" : "fields"}
-              {#if category.rows.some(isChanged)}· <span class="text-changed">changed</span>{/if}
+              {tCount("details.fieldCount", category.rows.length)}
+              {#if category.rows.some(isChanged)}· <span class="text-changed">{t("details.categoryChanged")}</span>{/if}
             </span>
           </button>
           {#if open}
@@ -444,7 +446,7 @@ function clearOnEscape(event: KeyboardEvent): void {
         tabindex="-1"
         class="pointer-events-auto absolute right-0 h-[3px] w-2 rounded-[1px] bg-changed/80 hover:bg-changed"
         style:top="{mark.top}%"
-        title="Changed: {mark.label}"
+        title={t("details.markTitle", { field: mark.label })}
         onclick={() => mark.element.scrollIntoView({ block: "center" })}
       ></button>
     {/each}
@@ -456,21 +458,23 @@ function clearOnEscape(event: KeyboardEvent): void {
   <div
     class="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-line bg-raised p-0.5 shadow-lg shadow-black/40"
     role="toolbar"
-    aria-label="Fields"
+    aria-label={t("details.bar")}
   >
     {#if editable}
       {@render barButton(
-        `New object based on ${custom ? "its base" : "this object"} (Ctrl Shift N)`,
+        t("details.newObject", {
+          base: custom ? t("details.newObjectItsBase") : t("details.newObjectThis"),
+        }),
         Plus,
         onnew,
       )}
       <span class="mx-0.5 h-4 w-px bg-line" aria-hidden="true"></span>
     {/if}
-    {@render barButton("Changed only", PencilLine, () => (changedOnly = !changedOnly), changedOnly)}
-    {@render barButton("Field ids (Ctrl D)", Hash, () => (showIds = !showIds), showIds)}
+    {@render barButton(t("details.changedOnly"), PencilLine, () => (changedOnly = !changedOnly), changedOnly)}
+    {@render barButton(t("details.fieldIds"), Hash, () => (showIds = !showIds), showIds)}
     <span class="mx-0.5 h-4 w-px bg-line" aria-hidden="true"></span>
-    {@render barButton("Collapse all", ChevronsDownUp, () => collapseAll(true))}
-    {@render barButton("Expand all", ChevronsUpDown, () => collapseAll(false))}
+    {@render barButton(t("details.collapseAll"), ChevronsDownUp, () => collapseAll(true))}
+    {@render barButton(t("details.expandAll"), ChevronsUpDown, () => collapseAll(false))}
   </div>
 </div>
 
