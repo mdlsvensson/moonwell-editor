@@ -115,8 +115,13 @@ let tableView: { focusFilter(): void } | undefined = $state();
 let fieldFilter = $state("");
 let changedOnly = $state(false);
 let showIds = $state(false);
-let details: { focusFilter(): void; focusField(field: FieldView): Promise<boolean> } | undefined =
-  $state();
+let details:
+  | {
+      focusFilter(): void;
+      focusField(field: FieldView): Promise<boolean>;
+      clipKey(key: "c" | "x" | "v"): boolean;
+    }
+  | undefined = $state();
 
 let notice = $state.raw<Notice | null>(null);
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -772,6 +777,7 @@ function onkeydown(event: KeyboardEvent): void {
     if (page !== "details" || !map || typingIn(event.target) || inPopup(event.target)) return;
     if (key !== "v" && (window.getSelection()?.toString() ?? "") !== "") return; // copying text
     event.preventDefault();
+    if (details?.clipKey(key)) return; // a selected field's value
     if (key === "v") paste();
     else if (current) clip(current.kind, current.id, key === "x");
   } else if (event.key === "F2") {
@@ -1049,6 +1055,8 @@ onMount(() => {
             onnew={startNew}
             oncopy={copyShown}
             ondelete={askDelete}
+            onmenu={(x, y, items) => (menu = { x, y, items })}
+            onnotice={(text, warn) => say(text, { warn })}
           />
         {:else}
           <p class="mx-[18px] mt-3.5 text-muted">

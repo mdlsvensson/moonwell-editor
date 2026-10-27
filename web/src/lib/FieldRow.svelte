@@ -17,9 +17,26 @@ type Props = {
   onset: (field: FieldView, value: string) => Promise<string | null>;
   onreset: (field: FieldView) => Promise<string | null>;
   onopen: (kind: Kind, id: string) => void;
+  /** True when the field is the one selected (for Ctrl C and Ctrl V). */
+  selected: boolean;
+  onselect: (field: FieldView) => void;
+  /** A right click on the field, for its context menu. */
+  onmenu: (field: FieldView, x: number, y: number) => void;
 };
 
-let { field, showIds, choices, lookup, editable, onset, onreset, onopen }: Props = $props();
+let {
+  field,
+  showIds,
+  choices,
+  lookup,
+  editable,
+  onset,
+  onreset,
+  onopen,
+  selected,
+  onselect,
+  onmenu,
+}: Props = $props();
 
 let error = $state("");
 
@@ -51,13 +68,28 @@ async function reset(): Promise<void> {
 </script>
 
 <div
-  class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)_24px] items-center border-t border-line hover:bg-surface"
+  class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)_24px] items-center border-t border-line {selected
+    ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60'
+    : 'hover:bg-surface'}"
+  role="group"
+  aria-label={field.label}
+  onfocusin={() => onselect(field)}
+  oncontextmenu={(event) => {
+    event.preventDefault();
+    onselect(field);
+    onmenu(field, event.clientX, event.clientY);
+  }}
 >
   <span class="h-[18px] w-1 justify-self-center rounded-sm {field.changed ? 'bg-changed' : ''}"></span>
-  <span class="py-1 pr-2" title={editable && field.modes ? title : undefined}>
+  <button
+    type="button"
+    class="cursor-default py-1 pr-2 text-left focus:outline-none"
+    title={editable && field.modes ? title : undefined}
+    onclick={() => onselect(field)}
+  >
     {field.label}
     {#if showIds}<span class="ml-1.5 font-mono text-[12.5px] text-faint">{field.id}</span>{/if}
-  </span>
+  </button>
   <span class="min-w-0 px-2 py-[3px]">
     {#if editable}
       <FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error />

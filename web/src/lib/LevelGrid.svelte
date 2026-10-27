@@ -17,9 +17,32 @@ type Props = {
   onset: (field: FieldView, value: string) => Promise<string | null>;
   onreset: (field: FieldView) => Promise<string | null>;
   onopen: (kind: Kind, id: string) => void;
+  /** The selected field and level, as `field:level`; null for none. */
+  selected: string | null;
+  onselect: (field: FieldView) => void;
+  /** A right click on a level's cell, for its context menu. */
+  onmenu: (field: FieldView, x: number, y: number) => void;
 };
 
-let { rows, showIds, choices, lookup, editable, onset, onreset, onopen }: Props = $props();
+let {
+  rows,
+  showIds,
+  choices,
+  lookup,
+  editable,
+  onset,
+  onreset,
+  onopen,
+  selected,
+  onselect,
+  onmenu,
+}: Props = $props();
+
+function menuOf(field: FieldView, event: MouseEvent): void {
+  event.preventDefault();
+  onselect(field);
+  onmenu(field, event.clientX, event.clientY);
+}
 
 // Why a cell's last value was refused, by `field:level`.
 let errors = $state<Record<string, string>>({});
@@ -79,8 +102,10 @@ async function reset(field: FieldView): Promise<void> {
                 <td
                   class="group border p-0 align-top {field.warning || errors[key]
                     ? 'border-warn'
-                    : 'border-line'}"
+                    : 'border-line'} {selected === key ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60' : ''}"
                   title={field.warning ?? undefined}
+                  onfocusin={() => onselect(field)}
+                  oncontextmenu={(event) => menuOf(field, event)}
                 >
                   <span class="flex items-center">
                     <span class="min-w-0 flex-1">
@@ -122,6 +147,7 @@ async function reset(field: FieldView): Promise<void> {
                     ? 'border-warn bg-warn-lo'
                     : 'border-line'}"
                   title={cellTitle(field, shown)}
+                  oncontextmenu={(event) => menuOf(field, event)}
                 >
                   {shown}
                 </td>
