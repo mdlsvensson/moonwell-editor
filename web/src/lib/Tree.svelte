@@ -17,11 +17,21 @@ type Props = {
   error: string;
   selected: string | null;
   onselect: (id: string) => void;
+  /** A right click on an object: its id and where the pointer is, for the context menu. */
+  oncontext: (id: string, x: number, y: number) => void;
   /** The filter text (name or id); the Table view filters its rows by it too. */
   filter?: string;
 };
 
-let { kind, entries, error, selected, onselect, filter = $bindable("") }: Props = $props();
+let {
+  kind,
+  entries,
+  error,
+  selected,
+  onselect,
+  oncontext,
+  filter = $bindable(""),
+}: Props = $props();
 
 const rowHeight = 26;
 // The Standard heading and the Custom group look the same (Sven, 2026-10-27).
@@ -190,6 +200,11 @@ function clearOnEscape(event: KeyboardEvent): void {
               onclick={() => {
                 focusTree();
                 onselect(entry.id);
+              }}
+              oncontextmenu={(event) => {
+                event.preventDefault();
+                focusTree();
+                oncontext(entry.id, event.clientX, event.clientY);
               }}
             >
               <span class="w-3 shrink-0"></span>
