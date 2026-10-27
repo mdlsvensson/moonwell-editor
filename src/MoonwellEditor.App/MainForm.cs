@@ -67,6 +67,13 @@ public sealed class MainForm : Form
         };
     }
 
+    /// <inheritdoc />
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        TitleBar.Style(Handle);
+    }
+
     /// <summary>Sends a message (for example from <see cref="Bridge.Event"/>) to the page. Call it from the UI thread.</summary>
     /// <param name="message">The message, as JSON text.</param>
     public void Post(string message) => _web.CoreWebView2.PostWebMessageAsString(message);
