@@ -432,6 +432,11 @@ export async function closeClicked(): Promise<void> {
   await call<null>("closeClicked");
 }
 
+/** Scales the page, in percent (one of the settings' steps). */
+export async function uiScale(percent: number): Promise<void> {
+  await call<null>("uiScale", { percent });
+}
+
 /** Gives the window's frame the theme's title bar and border colours (`#rrggbb`). */
 export async function frameColors(surface: string, border: string): Promise<void> {
   await call<null>("frameColors", { surface, border });

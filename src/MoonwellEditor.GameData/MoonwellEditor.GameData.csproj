@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <!-- Moonwell's game-data reader, the code its generator reads the game's tables with (it brings War3Net's SLK reader). -->
-    <PackageReference Include="Moonwell.GameData" Version="0.3.0-preview.1" />
+    <PackageReference Include="Moonwell.GameData" Version="0.3.0-preview.2" />
   </ItemGroup>
 
   <ItemGroup>

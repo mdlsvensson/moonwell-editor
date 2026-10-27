@@ -124,15 +124,16 @@ const buttonClass =
   <img src={logo} alt="" class="mx-2 size-4 self-center" draggable="false" />
   {@render arrow("back")}
   {@render arrow("forward")}
-  <span class="flex min-w-0 flex-1 items-center gap-1.5 truncate px-2 text-xs leading-[23px]">
+  <!-- Every piece on one centre line (Sven, 2026-10-27): one line height, tags as boxes of a fixed height. -->
+  <span class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-2 text-xs leading-none">
     {#if map}
       <b class="shrink-0 font-semibold text-fg">{title}</b>
-      <span class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted">
+      <span class="flex h-4 shrink-0 items-center rounded-[3px] border border-line px-1 pt-px text-[10.5px] text-muted">
         {map.archive ? t("titleBar.archive") : t("titleBar.folder")}
       </span>
       {#if map.expansion !== null && map.expansion !== undefined}
         <span
-          class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted"
+          class="flex h-4 shrink-0 items-center rounded-[3px] border border-line px-1 pt-px text-[10.5px] text-muted"
           title={map.expansion ? t("titleBar.expansionTitle") : t("titleBar.rocTitle")}
         >
           {map.expansion ? t("titleBar.expansion") : t("titleBar.roc")}

@@ -159,6 +159,14 @@ function show(
   canvas.addEventListener("pointermove", move);
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
+  // The wheel zooms while the pointer is over the model (Sven, 2026-10-27), within limits that keep it in view.
+  let zoom = 1;
+  const wheel = (event: WheelEvent) => {
+    event.preventDefault();
+    zoom = Math.min(3.5, Math.max(0.25, zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12)));
+    turning = false;
+  };
+  canvas.addEventListener("wheel", wheel, { passive: false });
 
   async function load(): Promise<void> {
     if (!gl) return fail(t("model.noWebGl"));
@@ -298,7 +306,7 @@ function show(
         Math.cos(pitch) * Math.sin(yaw),
         Math.sin(pitch),
       );
-      vec3.scaleAndAdd(eye, target, toEye, distance);
+      vec3.scaleAndAdd(eye, target, toEye, distance * zoom);
       mat4.lookAt(view, eye, target, [0, 0, 1]);
       // Which way the camera faces, for the sprites (particles) that turn towards it.
       vec3.set(flat, toEye[0], toEye[1], 0);
@@ -355,6 +363,7 @@ function show(
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("pointerup", up);
       canvas.removeEventListener("pointercancel", up);
+      canvas.removeEventListener("wheel", wheel);
       canvas.remove();
     },
   };
@@ -496,7 +505,7 @@ function message(e: unknown): string {
     {#if status === "ready" && !turning}
       <button
         type="button"
-        class="absolute bottom-1.5 left-1.5 rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100"
+        class="absolute bottom-1.5 left-1.5 rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100 cursor-pointer"
         title={t("model.turnAgain")}
         aria-label={t("model.turnAgain")}
         onclick={() => (turning = true)}

@@ -7,7 +7,7 @@
 import Check from "@lucide/svelte/icons/check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import { type Kind, kinds, type MapInfo } from "./api.ts";
+import { type Kind, kinds, type MapInfo, uiScale } from "./api.ts";
 import Dialog from "./Dialog.svelte";
 import type { GameDataState } from "./gameData.ts";
 import { graphics, graphicsModes, setGraphicsMode } from "./graphics.svelte.ts";
@@ -22,7 +22,7 @@ import {
   shownKey,
 } from "./keymap.ts";
 import Popover from "./Popover.svelte";
-import { prefs, setPref } from "./prefs.svelte.ts";
+import { prefs, setPref, uiScales } from "./prefs.svelte.ts";
 import { t } from "./text.ts";
 import { type Theme, themes } from "./themes.ts";
 import { kindNames } from "./tree.ts";
@@ -158,6 +158,26 @@ function resetAll(): void {
         {/each}
       </div>
 
+      {@render heading(t("settings.uiScale"))}
+      <div class="flex flex-wrap gap-1" role="radiogroup" aria-label={t("settings.uiScale")}>
+        {#each uiScales as percent (percent)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={prefs.uiScale === percent}
+            class="rounded-md border px-2.5 py-1 font-mono text-[12.5px] {prefs.uiScale === percent
+              ? 'border-accent bg-accent-lo/40 text-fg'
+              : 'border-line text-body hover:border-muted'}"
+            onclick={() => {
+              setPref("uiScale", percent);
+              uiScale(percent).catch(() => {});
+            }}
+          >
+            {percent}%
+          </button>
+        {/each}
+      </div>
+
       {@render heading(t("settings.icons"))}
       <label class="flex items-center gap-2">
         <input
@@ -166,6 +186,16 @@ function resetAll(): void {
           onchange={(event) => setPref("iconFrames", event.currentTarget.checked)}
         />
         {t("settings.iconFrames")}
+      </label>
+
+      {@render heading(t("settings.reload"))}
+      <label class="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={prefs.confirmReload}
+          onchange={(event) => setPref("confirmReload", event.currentTarget.checked)}
+        />
+        {t("settings.confirmReload")}
       </label>
 
       {@render heading(t("settings.theme"))}

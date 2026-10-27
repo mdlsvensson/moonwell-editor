@@ -13,8 +13,12 @@ public sealed partial class Session
 {
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    /// <summary>True when there are edits that are not saved.</summary>
-    public bool Dirty => _history.Dirty;
+    /// <summary>
+    /// True when the map differs from its files as opened or last saved: edits were made since and they changed an
+    /// object (see <see cref="ChangedObjects"/>). An edit made and then undone, or changed back, leaves nothing unsaved
+    /// (Sven, 2026-10-27: the status bar showed "0 objects changed, not saved").
+    /// </summary>
+    public bool Dirty => _history.Dirty && ChangedObjects() > 0;
 
     /// <summary>Undoes the last edit; false when there is none.</summary>
     public bool Undo() => Reindex(_history.Undo());

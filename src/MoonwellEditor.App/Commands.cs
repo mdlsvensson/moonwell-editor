@@ -194,6 +194,12 @@ public sealed class Commands
     /// </summary>
     public event Action<string, string>? FrameColorsChanged;
 
+    /// <summary>The steps the page can be scaled to, in percent (the <c>uiScale</c> command; Sven, 2026-10-27).</summary>
+    public static readonly int[] UiScales = [80, 90, 100, 110, 125, 150, 175, 200];
+
+    /// <summary>Raised when the page asks for another scale (the <c>uiScale</c> command), in percent.</summary>
+    public event Action<int>? UiScaleChanged;
+
     /// <summary>The icons and models of the game and the open map; null when the window has none (the tests).</summary>
     public GameAssets? Assets { get; set; }
 
@@ -311,6 +317,7 @@ public sealed class Commands
             "closeClicked" => Raise(CloseClicked),
             "windowState" => new WindowState(Maximized()),
             "frameColors" => FrameColors(Text(args, "surface"), Text(args, "border")),
+            "uiScale" => UiScale(Number(args, "percent")),
             "assetList" => AssetsOf(Text(args, "kind"), OptionalText(args, "mode") ?? "de"),
             _ => throw new UnknownCommandException(command),
         };
@@ -543,6 +550,17 @@ public sealed class Commands
         return assets == null
             ? new AssetList(false, "This window shows no game files.", "", [])
             : new AssetList(assets.Ready, assets.Error, assets.GameFolder, assets.List(kind, mode));
+    }
+
+    private object? UiScale(int percent)
+    {
+        if (Array.IndexOf(UiScales, percent) < 0)
+        {
+            throw BadRequest($"The scale {percent}% is not one of {string.Join(", ", UiScales)}.");
+        }
+
+        UiScaleChanged?.Invoke(percent);
+        return null;
     }
 
     private object? FrameColors(string surface, string border)

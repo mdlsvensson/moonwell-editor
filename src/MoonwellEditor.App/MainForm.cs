@@ -77,6 +77,13 @@ public sealed class MainForm : Form
                 : FormWindowState.Maximized);
         _commands.CloseClicked += () => OnWindowThread(Close);
         _commands.Maximized = () => _maximized;
+        _commands.UiScaleChanged += percent => OnWindowThread(() =>
+        {
+            if (_web.CoreWebView2 != null)
+            {
+                _web.ZoomFactor = percent / 100.0;
+            }
+        });
         _commands.FrameColorsChanged += (surface, border) => OnWindowThread(() =>
         {
             BackColor = ColorTranslator.FromHtml(surface);
@@ -276,6 +283,11 @@ public sealed class MainForm : Form
 
         // The page's title bar is a drag region (CSS app-region: drag), which WebView2 makes the window's caption.
         core.Settings.IsNonClientRegionSupportEnabled = true;
+
+        // The page is never zoomed by Ctrl and the wheel, Ctrl + and -, or a pinch: its scale is the settings' UI scale
+        // (the uiScale command; Sven, 2026-10-27).
+        core.Settings.IsZoomControlEnabled = false;
+        core.Settings.IsPinchZoomEnabled = false;
 
         // Only the app's own pages may use the bridge, and the window never leaves them (a link to the web is ignored).
         _origins.Add($"https://{Host}/");

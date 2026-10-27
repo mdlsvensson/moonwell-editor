@@ -237,7 +237,7 @@ function clearOnEscape(event: KeyboardEvent): void {
                   />
                   {#if prefs.iconFrames}
                     <span
-                      class="pointer-events-none absolute inset-0 rounded-[2px] shadow-[inset_0_0_0_2px_var(--border),0_0_0_1px_var(--border)]"
+                      class="pointer-events-none absolute inset-0 rounded-[2px] shadow-[inset_0_0_0_1px_var(--faint)]"
                       aria-hidden="true"
                     ></span>
                   {/if}

@@ -35,6 +35,7 @@ import {
   startup,
   type TreeEntry,
   tree,
+  uiScale,
   undo,
 } from "./lib/api.ts";
 import { loadAssetNames } from "./lib/assetNames.svelte.ts";
@@ -49,6 +50,7 @@ import KindBar from "./lib/KindBar.svelte";
 import { actionOf, loadKeymap } from "./lib/keymap.ts";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
 import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
+import { prefs } from "./lib/prefs.svelte.ts";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
 import StatusBar, { type Notice } from "./lib/StatusBar.svelte";
@@ -496,12 +498,26 @@ async function saveMap(): Promise<boolean> {
 }
 
 /**
- * The reload button: with unsaved edits the reload asks about them; without, it asks first all the same (Sven,
- * 2026-10-27).
+ * The reload button (Sven, 2026-10-27): one question, "Are you sure...?", which says so when there are unsaved
+ * changes; the settings can turn the question off, but unsaved changes are always asked about.
  */
 function askReload(): void {
-  if (session?.dirty) reloadMap();
+  if (!prefs.confirmReload && !session?.dirty) reloadFromDisk(false);
   else confirmingReload = true;
+}
+
+/** Reads the map again from disk; with `discard`, unsaved edits are dropped. */
+async function reloadFromDisk(discard: boolean): Promise<void> {
+  if (!map) return;
+  try {
+    const info = await queued(() => reload(discard));
+    map = info;
+    showProblems = info.problems.length > 0;
+    await Promise.all([refreshTrees(), refreshObject()]);
+    say(t("notice.reloaded"));
+  } catch (error) {
+    say(message(error), { warn: true });
+  }
 }
 
 /** Reads the map again from disk, after asking about unsaved edits (with no Save after a refused one). */
@@ -978,6 +994,7 @@ $effect(() => {
 
 onMount(() => {
   useTheme(theme);
+  if (prefs.uiScale !== 100) uiScale(prefs.uiScale).catch(() => {});
   // Listen first, then ask: a load that ends in between still reaches the page.
   let stops: (() => void)[] = [];
   try {
@@ -1345,13 +1362,19 @@ onMount(() => {
 {#if confirmingReload}
   <Dialog title={t("dialog.reload.title")} oncancel={() => (confirmingReload = false)}>
     <p class="m-0">{t("dialog.reload.text")}</p>
+    {#if session?.dirty}
+      <p class="mt-2 mb-0 flex items-center gap-1.5 text-changed" data-testid="reload-unsaved">
+        <span class="size-1.5 shrink-0 rounded-full bg-changed"></span>
+        {tCount("dialog.reload.unsaved", session.changedObjects)}
+      </p>
+    {/if}
     {#snippet actions()}
       {@render button(t("dialog.cancel"), () => (confirmingReload = false))}
       {@render button(
         t("dialog.reload.button"),
         () => {
           confirmingReload = false;
-          reloadMap();
+          reloadFromDisk(session?.dirty ?? false);
         },
         "primary",
       )}

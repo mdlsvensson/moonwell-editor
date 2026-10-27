@@ -228,6 +228,7 @@ public sealed class CommandsTests : IDisposable
         commands.MaximizeAsked += () => heard.Add("maximize");
         commands.CloseClicked += () => heard.Add("close");
         commands.FrameColorsChanged += (surface, border) => heard.Add($"{surface} {border}");
+        commands.UiScaleChanged += percent => heard.Add($"{percent}%");
         commands.Maximized = () => true;
         var bridge = new Bridge(commands.Run);
 
@@ -237,10 +238,14 @@ public sealed class CommandsTests : IDisposable
         var state = await Ask(commands, "windowState");
         var colors = Parse(await bridge.Handle(
             "{\"id\":1,\"command\":\"frameColors\",\"args\":{\"surface\":\"#1f1f28\",\"border\":\"#363646\"}}"));
+        var scaled = Parse(await bridge.Handle("{\"id\":1,\"command\":\"uiScale\",\"args\":{\"percent\":125}}"));
+        var badScale = Parse(await bridge.Handle("{\"id\":1,\"command\":\"uiScale\",\"args\":{\"percent\":133}}"));
         var bad = Parse(await bridge.Handle(
             "{\"id\":1,\"command\":\"frameColors\",\"args\":{\"surface\":\"red\",\"border\":\"#363646\"}}"));
 
-        Assert.Equal(["minimize", "maximize", "close", "#1f1f28 #363646"], heard);
+        Assert.Equal(["minimize", "maximize", "close", "#1f1f28 #363646", "125%"], heard);
+        Assert.True(scaled.GetProperty("ok").GetBoolean());
+        Assert.False(badScale.GetProperty("ok").GetBoolean());
         Assert.True(state.GetProperty("result").GetProperty("maximized").GetBoolean());
         Assert.True(colors.GetProperty("ok").GetBoolean());
         Assert.False(bad.GetProperty("ok").GetBoolean());

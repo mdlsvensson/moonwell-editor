@@ -293,11 +293,12 @@ public sealed class SaveTests(GameDataFixture fixture, ITestOutputHelper output)
         session.Save();
         Assert.Equal(0, session.ChangedObjects());
 
-        // Changed and changed back: dirty, but nothing differs from the save.
+        // Changed and changed back: nothing differs from the save, so nothing is unsaved (Sven, 2026-10-27).
         session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "600");
         Assert.Equal(1, session.ChangedObjects());
-        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
         Assert.True(session.Dirty);
+        session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
+        Assert.False(session.Dirty);
         Assert.Equal(0, session.ChangedObjects());
 
         session.Delete(ObjectKind.Unit, "h000");

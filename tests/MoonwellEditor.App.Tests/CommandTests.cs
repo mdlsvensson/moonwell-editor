@@ -276,7 +276,8 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
         Assert.Equal(1, setDone.GetProperty("changed").GetInt32());
         var resetDone = Result(await Ask(bridge, "setCells", new { kind = "unit", edits = reset }));
         Assert.Equal(1, resetDone.GetProperty("changed").GetInt32());
-        Assert.Equal(new SessionState(true, 0), _events[^1]);
+        // Set and reset: nothing differs from the map on disk, so nothing is unsaved.
+        Assert.Equal(new SessionState(false, 0), _events[^1]);
     }
 
     [Fact]
