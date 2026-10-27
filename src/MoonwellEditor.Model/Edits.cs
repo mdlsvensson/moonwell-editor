@@ -208,6 +208,13 @@ public sealed partial class Session
         var info = target.Field;
         var resolver = new Resolver(target.Kind, target.Data, _strings);
         var standardValue = resolver.StandardValue(info, target.Level, target.Standard);
+
+        // A yes/no field the data has no value for is No in the game, so setting No is no change.
+        if (info.Type == "bool" && standardValue.Length == 0)
+        {
+            standardValue = "0";
+        }
+
         var modes = target.Standard.Modes.ContainsKey(Resolver.Key(info, target.Level));
         if (!modes && SameValue(value, standardValue, IsSingleChoice(info)))
         {

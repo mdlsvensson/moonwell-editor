@@ -737,6 +737,32 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void Yes_no_field_set_back_to_no_where_the_data_has_none_changes_nothing()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        // The data has no value ("-") for the footman's Display As Neutral Hostile; the game reads that as No
+        // (Sven, 2026-10-27: toggling it on and off left the footman changed).
+        Assert.False(game.Kind(ObjectKind.Unit).Object("hfoo")!.Values.ContainsKey("uhos"));
+        using var map = TempMap.Of(null);
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        session.Set(ObjectKind.Unit, "hfoo", "uhos", 0, "1");
+        Assert.True(session.Dirty);
+        session.Set(ObjectKind.Unit, "hfoo", "uhos", 0, "0");
+
+        foreach (var skin in new[] { false, true })
+        {
+            Assert.DoesNotContain(session.FileOf(ObjectKind.Unit, skin)?.Original ?? [], entry => entry.Id == "hfoo");
+        }
+        Assert.DoesNotContain(session.Object(ObjectKind.Unit, "hfoo")!.Fields, view => view.Changed);
+        Assert.False(session.Tree(ObjectKind.Unit).Single(entry => entry.Id == "hfoo").Changed);
+    }
+
+    [Fact]
     public void Read_only_kind_refuses()
     {
         if (Skipped(out var game))
