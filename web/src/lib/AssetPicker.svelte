@@ -7,7 +7,7 @@
 import Box from "@lucide/svelte/icons/box";
 import ImageIcon from "@lucide/svelte/icons/image";
 import { type AssetList, fileUrl, iconUrl } from "./api.ts";
-import { listOf, matching } from "./assets.ts";
+import { inFolders, inList, listOf, modelFolders, ranked } from "./assets.ts";
 import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
 import Popover from "./Popover.svelte";
@@ -19,9 +19,14 @@ type Props = {
   label: string;
   /** Sends a value; answers with why it was refused, or null. */
   onpick: (path: string) => Promise<string | null>;
+  /** The kind of the object the field is on (`unit`), and the field's id: which models come first. */
+  objectKind: string;
+  fieldId: string;
+  /** The icons the kind's objects use, in the tree's order: which icons come first. */
+  suggested?: string[];
 };
 
-let { kind, value, label, onpick }: Props = $props();
+let { kind, value, label, onpick, objectKind, fieldId, suggested = [] }: Props = $props();
 
 let open = $state(false);
 let button: HTMLButtonElement | undefined = $state();
@@ -30,7 +35,12 @@ let list = $state<AssetList | null>(null);
 let problem = $state("");
 let hovered = $state<string | null>(null);
 
-const shown = $derived(list ? matching(list.paths, query, kind === "icon" ? 240 : 300) : []);
+// The field's likely files first (a unit's model among Units\, the icons the kind's objects use), then every other
+// file: nothing is left out (Sven, 2026-10-27).
+const order = $derived(
+  kind === "icon" ? inList(suggested) : inFolders(modelFolders(objectKind, fieldId)),
+);
+const shown = $derived(list ? ranked(list.paths, query, kind === "icon" ? 240 : 300, order) : []);
 // The model the preview shows: the one under the pointer, else the field's.
 const previewed = $derived(hovered ?? (value.trim() || null));
 

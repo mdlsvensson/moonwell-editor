@@ -56,6 +56,8 @@ type Props = {
   onnotice: (text: string, warn: boolean) => void;
   /** Changes several fields of the object as one edit; answers with why it was refused, or null. */
   onfields: (edits: { field: FieldView; value: string }[]) => Promise<string | null>;
+  /** The icons the kind's objects use, in the tree's order, for the icon picker. */
+  kindIcons?: string[];
 };
 
 let {
@@ -74,6 +76,7 @@ let {
   onmenu,
   onnotice,
   onfields,
+  kindIcons = [],
 }: Props = $props();
 
 let root: HTMLDivElement | undefined = $state();
@@ -420,6 +423,8 @@ function clearOnEscape(event: KeyboardEvent): void {
                     onselect={select}
                     onmenu={fieldMenu}
                     pair={buttonPair(row.field, view.fields)}
+                    objectKind={view.kind}
+                    {kindIcons}
                     onpair={setPair}
                   />
                 {/each}

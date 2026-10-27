@@ -22,6 +22,7 @@ import {
   shownKey,
 } from "./keymap.ts";
 import Popover from "./Popover.svelte";
+import { prefs, setPref } from "./prefs.svelte.ts";
 import { type Theme, themes } from "./themes.ts";
 import { kindNames } from "./tree.ts";
 
@@ -158,6 +159,16 @@ function resetAll(): void {
         {/each}
       </div>
 
+      {@render heading("Icons")}
+      <label class="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={prefs.iconFrames}
+          onchange={(event) => setPref("iconFrames", event.currentTarget.checked)}
+        />
+        Frame the object tree's icons in the theme's colours
+      </label>
+
       {@render heading("Theme")}
       <button
         type="button"
@@ -240,7 +251,7 @@ function resetAll(): void {
         {@render row("Path", map.path, true)}
         {@render row(
           "Kind",
-          `${map.archive ? "Archive" : "Folder"}${map.expansion === true ? ", Frozen Throne (Exp)" : map.expansion === false ? ", Reign of Chaos (RoC)" : ""}`,
+          `${map.archive ? "Archive" : "Folder"}${map.expansion === true ? ", Frozen Throne (Expansion)" : map.expansion === false ? ", Reign of Chaos (RoC)" : ""}`,
         )}
         {#if map.options}
           {@render row("Data set", map.options.dataSet)}

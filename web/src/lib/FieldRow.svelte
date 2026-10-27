@@ -28,6 +28,10 @@ type Props = {
   onmenu: (field: FieldView, x: number, y: number) => void;
   /** For a button position field, it and its other half, which the command card sets together; null otherwise. */
   pair?: ButtonPair | null;
+  /** The kind of the object the field is on (`unit`), for the pickers' order. */
+  objectKind?: string;
+  /** The icons the kind's objects use, for the icon picker's order. */
+  kindIcons?: string[];
   /** Sets the pair's X and Y as one edit; answers with why it was refused, or null. */
   onpair?: (pair: ButtonPair, x: number, y: number) => Promise<string | null>;
 };
@@ -46,6 +50,8 @@ let {
   onmenu,
   pair = null,
   onpair,
+  objectKind = "",
+  kindIcons = [],
 }: Props = $props();
 
 let error = $state("");
@@ -87,6 +93,7 @@ async function reset(): Promise<void> {
   role="group"
   aria-label={field.label}
   onfocusin={() => onselect(field)}
+  onpointerdown={() => onselect(field)}
   oncontextmenu={(event) => {
     event.preventDefault();
     onselect(field);
@@ -127,6 +134,9 @@ async function reset(): Promise<void> {
           value={field.value}
           label={field.label}
           onpick={(path) => onset(field, path)}
+          {objectKind}
+          fieldId={field.id}
+          suggested={kindIcons}
         />
       {/if}
       {#if field.changed}

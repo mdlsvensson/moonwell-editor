@@ -105,6 +105,7 @@ async function reset(field: FieldView): Promise<void> {
                     : 'border-line'} {selected === key ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60' : ''}"
                   title={field.warning ?? undefined}
                   onfocusin={() => onselect(field)}
+                  onpointerdown={() => onselect(field)}
                   oncontextmenu={(event) => menuOf(field, event)}
                 >
                   <span class="flex items-center">

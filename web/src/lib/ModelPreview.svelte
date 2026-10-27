@@ -8,6 +8,7 @@
  * popcorn particles are not drawn. The team colour and hero glow take a player's colour, and a row of the 24 colours
  * can pick it (Sven, 2026-10-27).
  */
+import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import { decodeDds, parseHeaders } from "dds-parser";
 import { mat4, quat, vec3 } from "gl-matrix";
 import { untrack } from "svelte";
@@ -47,6 +48,8 @@ let status: "loading" | "ready" | "error" = $state("loading");
 let error = $state("");
 /** The textures that could not be loaded; the model is drawn without them. */
 let missing: string[] = $state([]);
+// The model turns by itself until the user drags it; the play button sets it turning again (Sven, 2026-10-27).
+let turning = $state(true);
 
 /** The preview on show, so a new team colour reaches its renderer without loading the model again. */
 let current: ReturnType<typeof show> | undefined;
@@ -137,6 +140,7 @@ function show(
   let dragging: { x: number; y: number } | null = null;
   const down = (event: PointerEvent) => {
     dragging = { x: event.clientX, y: event.clientY };
+    turning = false;
     canvas.setPointerCapture(event.pointerId);
     canvas.style.cursor = "grabbing";
   };
@@ -284,7 +288,7 @@ function show(
       if (stopped) return;
       const delta = Math.min(100, now - last);
       last = now;
-      if (!dragging) yaw += (turnSpeed * delta) / 1000;
+      if (!dragging && turning) yaw += (turnSpeed * delta) / 1000;
       vec3.set(
         toEye,
         Math.cos(pitch) * Math.cos(yaw),
@@ -480,11 +484,22 @@ function message(e: unknown): string {
       </p>
     {:else if missing.length > 0}
       <p
-        class="absolute bottom-0 left-0 m-0 truncate px-2 py-1 text-[11px] text-faint"
+        class="absolute right-0 bottom-0 m-0 truncate px-2 py-1 text-[11px] text-faint"
         title={missing.join("\n")}
       >
         {missing.length === 1 ? "1 texture missing" : `${missing.length} textures missing`}
       </p>
+    {/if}
+    {#if status === "ready" && !turning}
+      <button
+        type="button"
+        class="absolute bottom-1.5 left-1.5 rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100"
+        title="Turn the model again"
+        aria-label="Turn the model again"
+        onclick={() => (turning = true)}
+      >
+        <RotateCw size={14} />
+      </button>
     {/if}
   </div>
   {#if picker}

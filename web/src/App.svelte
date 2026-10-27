@@ -105,6 +105,8 @@ let showProblems = $state(false);
 let zone = $state<"tree" | "details">("tree");
 // The settings dialog, and the theme on the page (Sven, 2026-10-27).
 let settingsOpen = $state(false);
+// The question before a reload from disk with nothing unsaved.
+let confirmingReload = $state(false);
 // The alpha notice the editor opens with, until the user ticks "Don't show this again" (Sven, 2026-10-27).
 let alphaOpen = $state(!alphaUnderstood());
 // The hotkeys, which the settings change.
@@ -130,6 +132,14 @@ let treeErrors = $state<Partial<Record<Kind, string>>>({});
 // The object last picked in each kind.
 let picked = $state<Partial<Record<Kind, string>>>({});
 let current = $state.raw<ObjectView | null>(null);
+// The icons the shown kind's objects use, in the tree's order (each once), for the icon picker's order.
+const iconsOfKind = $derived([
+  ...new Set(
+    (current ? (trees[current.kind] ?? []) : [])
+      .map((entry) => entry.iconModes?.[graphics.mode] ?? entry.icon ?? "")
+      .filter(Boolean),
+  ),
+]);
 // The object as the graphics mode shows it (the values the game keeps per mode are the mode's).
 const shown = $derived(current ? viewInMode(current, graphics.mode) : null);
 let objectError = $state("");
@@ -480,6 +490,15 @@ async function saveMap(): Promise<boolean> {
   } finally {
     saving = false;
   }
+}
+
+/**
+ * The reload button: with unsaved edits the reload asks about them; without, it asks first all the same (Sven,
+ * 2026-10-27).
+ */
+function askReload(): void {
+  if (session?.dirty) reloadMap();
+  else confirmingReload = true;
 }
 
 /** Reads the map again from disk, after asking about unsaved edits (with no Save after a refused one). */
@@ -841,7 +860,16 @@ function tableKey(event: KeyboardEvent): boolean {
 }
 
 function onkeydown(event: KeyboardEvent): void {
-  if (unsaved || diskChanged || creating || deleting || settingsOpen || alphaOpen) return; // and so do the dialogs
+  if (
+    unsaved ||
+    diskChanged ||
+    creating ||
+    deleting ||
+    settingsOpen ||
+    alphaOpen ||
+    confirmingReload
+  )
+    return; // and so do the dialogs
   if (page === "table" && tableKey(event)) return;
   if (event.key === "Escape") {
     showProblems = false;
@@ -1022,7 +1050,7 @@ onMount(() => {
         class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
         title="Reload the map from disk"
         aria-label="Reload the map from disk"
-        onclick={() => reloadMap()}
+        onclick={askReload}
       >
         <RotateCw size={17} />
       </button>
@@ -1196,6 +1224,7 @@ onMount(() => {
             onmenu={(x, y, items) => (menu = { x, y, items })}
             onnotice={(text, warn) => say(text, { warn })}
             onfields={editFields}
+            kindIcons={iconsOfKind}
           />
         {:else}
           <p class="mx-[18px] mt-3.5 text-muted">
@@ -1301,6 +1330,23 @@ onMount(() => {
     {#snippet actions()}
       {@render button("Cancel", () => (deleting = null))}
       {@render button("Delete", deleteAsked, "danger")}
+    {/snippet}
+  </Dialog>
+{/if}
+
+{#if confirmingReload}
+  <Dialog title="Reload the map from disk?" oncancel={() => (confirmingReload = false)}>
+    <p class="m-0">The editor reads the map's files again, as they are on disk now.</p>
+    {#snippet actions()}
+      {@render button("Cancel", () => (confirmingReload = false))}
+      {@render button(
+        "Reload",
+        () => {
+          confirmingReload = false;
+          reloadMap();
+        },
+        "primary",
+      )}
     {/snippet}
   </Dialog>
 {/if}

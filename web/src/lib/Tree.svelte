@@ -8,6 +8,7 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { tick, untrack } from "svelte";
 import { iconUrl, type Kind, type TreeEntry } from "./api.ts";
 import { graphics } from "./graphics.svelte.ts";
+import { prefs } from "./prefs.svelte.ts";
 import {
   customKey,
   groupKeys,
@@ -222,14 +223,24 @@ function clearOnEscape(event: KeyboardEvent): void {
               <span class="w-3 shrink-0"></span>
               <!-- Its icon, as World Editor shows one beside each object (Sven, 2026-10-27). -->
               {#if entry.icon}
-                <img
-                  src={iconUrl(entry.iconModes?.[graphics.mode] ?? entry.icon, graphics.mode)}
-                  alt=""
-                  class="size-[18px] shrink-0 rounded-[2px]"
-                  loading="lazy"
-                  draggable="false"
-                  onerror={(event) => ((event.currentTarget as HTMLImageElement).style.visibility = "hidden")}
-                />
+                <!-- With the setting on, a frame in the theme's colours covers the game's own icon border; only
+                     here, in the tree (Sven, 2026-10-27). -->
+                <span class="relative size-[18px] shrink-0">
+                  <img
+                    src={iconUrl(entry.iconModes?.[graphics.mode] ?? entry.icon, graphics.mode)}
+                    alt=""
+                    class="block size-full rounded-[2px]"
+                    loading="lazy"
+                    draggable="false"
+                    onerror={(event) => ((event.currentTarget as HTMLImageElement).style.visibility = "hidden")}
+                  />
+                  {#if prefs.iconFrames}
+                    <span
+                      class="pointer-events-none absolute inset-0 rounded-[2px] shadow-[inset_0_0_0_2px_var(--border),0_0_0_1px_var(--border)]"
+                      aria-hidden="true"
+                    ></span>
+                  {/if}
+                </span>
               {/if}
               <span class="truncate {entry.baseId ? 'text-accent-hi' : ''}">
                 {entry.name}

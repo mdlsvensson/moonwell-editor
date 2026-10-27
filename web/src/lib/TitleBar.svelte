@@ -4,7 +4,7 @@
  * maximized or not. The bar is a drag region, which the window treats as its caption (dragging, snapping, a double
  * click to maximize, the system menu on a right click). At the left the logo, then back and forward, which walk the
  * visited objects as a browser's do (Alt ← and Alt →; held down or right-clicked, they list the history); then the
- * map: its name, Folder or Archive, Exp (Frozen Throne) or RoC, and its path. At the right minimize, maximize or
+ * map: its name, Folder or Archive, Expansion (Frozen Throne) or RoC, and its path. At the right minimize, maximize or
  * restore, and close, all with the same hover.
  */
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
@@ -134,7 +134,7 @@ const buttonClass =
           class="shrink-0 rounded-[3px] border border-line px-1 text-[10.5px] leading-4 text-muted"
           title={map.expansion ? "A Frozen Throne (expansion) map" : "A Reign of Chaos map"}
         >
-          {map.expansion ? "Exp" : "RoC"}
+          {map.expansion ? "Expansion" : "RoC"}
         </span>
       {/if}
       <span class="min-w-0 truncate text-faint">{map.path}</span>
