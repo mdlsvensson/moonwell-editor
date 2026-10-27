@@ -90,7 +90,8 @@ internal static class Folders
     /// The standard objects in tree order: by their folders' places in <see cref="Order"/>, level by level, and in
     /// the data's order among folders it does not list. Within a folder, units go by their <c>unitClass</c>
     /// (<see cref="StandardObject.Category"/>: <c>HUnit01</c>, <c>HUnit02</c>...), as World Editor lists them, those
-    /// without one after (Sven, 2026-10-27); any other object, and units of one class, in the data's order.
+    /// without one after, and units of one class (or none) by name and suffix (Sven, 2026-10-27); any other object in
+    /// the data's order.
     /// </summary>
     public static List<StandardObject> Sorted(ObjectKind kind, IEnumerable<StandardObject> standards)
     {
@@ -133,6 +134,16 @@ internal static class Folders
                 if (byClass == 0)
                 {
                     byClass = string.CompareOrdinal(a.Standard.Category, b.Standard.Category);
+                }
+
+                if (byClass == 0)
+                {
+                    byClass = StringComparer.OrdinalIgnoreCase.Compare(a.Standard.Name, b.Standard.Name);
+                }
+
+                if (byClass == 0)
+                {
+                    byClass = StringComparer.OrdinalIgnoreCase.Compare(a.Standard.Suffix, b.Standard.Suffix);
                 }
 
                 if (byClass != 0)

@@ -101,7 +101,10 @@ internal static class Builder
 
     private static FieldInfo Info(Field field, MetaRow meta)
     {
-        var type = field.Type.ToString();
+        // An ability's Effects (aeff) hold effect ids, which are buffs of the buff table (Xclf), as its Buffs (abuf)
+        // hold buff ids; Moonwell's reader types only buffList as a list, so the editor types effectList the same.
+        var effects = Cell(meta, "type") == "effectList";
+        var type = effects ? "ObjectList" : field.Type.ToString();
         return new FieldInfo(
             field.Id,
             field.Rules.Label ?? field.Name,
@@ -109,7 +112,7 @@ internal static class Builder
             Cell(meta, "sort"),
             char.ToLowerInvariant(type[0]) + type.Substring(1),
             field.Store,
-            field.ListOf,
+            effects ? "Buff" : field.ListOf,
             field.PerLevel,
             field.DataPointer,
             field.Skin,
@@ -182,9 +185,12 @@ internal static class Builder
             : categoryColumn == null ? ""
             : FieldReader.Clean(row.Get(categoryColumn, "de")?.Value) ?? "";
         var hidden = kind == ObjectKind.Ability && FieldReader.Clean(row.Get("useInEditor", "de")?.Value) == "0";
+        // World Editor shows a campaign hero by its proper name (Haah, the High Elf Archmage, as Kelen the Seeker).
+        var properName = FieldReader.Clean(row.Get("Propernames", "de")?.Value)?.Split(',')[0].Trim();
+        var name = campaign && obj.IsHero && !string.IsNullOrEmpty(properName) ? Resolved(tables, properName) : obj.Name;
         var standard = new StandardObject(
             obj.Id,
-            obj.Name,
+            name,
             suffix,
             obj.Race,
             campaign,
@@ -287,7 +293,10 @@ internal static class Builder
             var cells = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var (name, x) in columns)
             {
-                if (FieldReader.Clean(table[x, y]?.ToString()) is { Length: > 0 } value)
+                // The class is kept as written: a class of one space (Garek's) comes before HHero01, as World Editor
+                // lists them.
+                var cell = table[x, y]?.ToString();
+                if ((name == "unitClass" ? cell : FieldReader.Clean(cell)) is { Length: > 0 } value)
                 {
                     cells[name] = value;
                 }

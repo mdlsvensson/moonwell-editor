@@ -213,6 +213,23 @@ export function listKinds(listOf: string | null): Kind[] {
   return kinds.filter((candidate) => candidate === kind);
 }
 
+const pluralNames: Record<Kind, string> = {
+  unit: "units",
+  item: "items",
+  destructable: "destructables",
+  doodad: "doodads",
+  ability: "abilities",
+  buff: "buffs",
+  upgrade: "upgrades",
+};
+
+/** The picker's prompt for a list of these kinds: "Search buffs by name or id…" (Sven, 2026-10-27). */
+export function searchPrompt(kinds: Kind[]): string {
+  const names = kinds.map((kind) => pluralNames[kind]);
+  const what = names.length === 0 ? "objects" : names.join(" and ");
+  return `Search ${what} by name or id…`;
+}
+
 /** One object another object's fields name: its kind, id and name ("" when unknown), and the fields that name it. */
 export type Used = { kind: Kind; id: string; name: string; fields: string[] };
 

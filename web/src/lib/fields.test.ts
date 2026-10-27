@@ -7,6 +7,7 @@ import {
   listIds,
   listKinds,
   type Row,
+  searchPrompt,
   shownValue,
   uses,
 } from "./fields.ts";
@@ -323,5 +324,13 @@ describe("object lists", () => {
       { kind: "ability", id: "AHhb", name: "Holy Light", fields: ["Hero Abilities"] },
       { kind: "unit", id: "hfoo", name: "Footman", fields: ["Trains"] },
     ]);
+  });
+});
+
+describe("the picker's prompt", () => {
+  it("names the kinds the list holds", () => {
+    expect(searchPrompt(listKinds("Buff"))).toBe("Search buffs by name or id…");
+    expect(searchPrompt(listKinds("object"))).toBe("Search units and upgrades by name or id…");
+    expect(searchPrompt([])).toBe("Search objects by name or id…");
   });
 });

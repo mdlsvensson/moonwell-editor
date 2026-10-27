@@ -100,7 +100,7 @@ async function reset(field: FieldView): Promise<void> {
               {@const key = `${field.id}:${field.level}`}
               {#if editable}
                 <td
-                  class="group border p-0 align-top {field.warning || errors[key]
+                  class="group border p-0 align-middle {field.warning || errors[key]
                     ? 'border-warn'
                     : 'border-line'} {selected === key ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60' : ''}"
                   title={field.warning ?? undefined}

@@ -137,8 +137,9 @@ let closing = false;
 // The app's commands that change the map run one after another, in the order asked (a save after the edit typed).
 let queue: Promise<unknown> = Promise.resolve();
 
-let history: Place[] = [];
-let at = -1;
+// The title bar's back and forward buttons follow these.
+let history = $state<Place[]>([]);
+let at = $state(-1);
 // Answers that come back after a newer request (another map, another object) are dropped.
 let mapGeneration = 0;
 let objectAsked = 0;
@@ -710,6 +711,13 @@ function walk(by: number): void {
   show(place.kind, place.id, false);
 }
 
+// The mouse's back and forward buttons walk the history too, as in a browser.
+function walkByMouse(event: MouseEvent): void {
+  if (event.button !== 3 && event.button !== 4) return;
+  event.preventDefault();
+  walk(event.button === 3 ? -1 : 1);
+}
+
 function switchKind(each: Kind): void {
   const id = picked[each];
   if (id) {
@@ -884,10 +892,20 @@ onMount(() => {
 });
 </script>
 
-<svelte:window {onkeydown} oncontextmenu={(event) => !typingIn(event.target) && event.preventDefault()} />
+<svelte:window
+  {onkeydown}
+  onmouseup={walkByMouse}
+  oncontextmenu={(event) => !typingIn(event.target) && event.preventDefault()}
+/>
 
 <div class="grid h-full grid-cols-1 grid-rows-[23px_44px_1fr_26px]">
-  <TitleBar title={windowTitle(map?.path ?? null)} />
+  <TitleBar
+    title={windowTitle(map?.path ?? null)}
+    canBack={at > 0}
+    canForward={at < history.length - 1}
+    onback={() => walk(-1)}
+    onforward={() => walk(1)}
+  />
   <header class="flex items-center gap-2.5 border-b border-line bg-surface px-3">
     <OpenMapMenu
       buttonClass="flex shrink-0 items-center rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg disabled:opacity-50"

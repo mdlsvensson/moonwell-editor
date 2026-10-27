@@ -6,7 +6,7 @@
 import Plus from "@lucide/svelte/icons/plus";
 import X from "@lucide/svelte/icons/x";
 import { type FieldView, type Hit, type Kind, search } from "./api.ts";
-import { type Lookup, listIds, listKinds } from "./fields.ts";
+import { type Lookup, listIds, listKinds, searchPrompt } from "./fields.ts";
 import Popover from "./Popover.svelte";
 import { addId, removeId } from "./values.ts";
 
@@ -100,7 +100,10 @@ function focusOnMount(element: HTMLInputElement): void {
 }
 </script>
 
-<span class="flex min-w-0 flex-wrap items-center gap-1 {compact ? 'max-w-72' : ''}">
+<!-- In a level grid's cell the chips and + sit in the cell's middle (Sven, 2026-10-27). -->
+<span
+  class="flex min-w-0 flex-wrap items-center gap-1 {compact ? 'max-w-72 justify-center px-1 py-0.5' : ''}"
+>
   {#each objects as object, at (at)}
     <span
       class="inline-flex items-center rounded border border-line bg-raised text-[12.5px] {field.changed
@@ -147,7 +150,7 @@ function focusOnMount(element: HTMLInputElement): void {
   <Popover anchor={addButton} onclose={close}>
     <input
       class="w-[300px] rounded-[5px] border border-line bg-bg px-2 py-1 text-fg outline-none focus:border-accent"
-      placeholder="Search by name or id…"
+      placeholder={searchPrompt(kinds)}
       aria-label="Search"
       bind:value={query}
       {oninput}

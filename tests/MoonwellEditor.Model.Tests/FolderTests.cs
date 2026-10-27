@@ -153,8 +153,20 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
             Objects(units, ["Human", "Melee", "Buildings"]));
         Assert.Equal(["Hpal", "Hamg", "Hmkg", "Hblm"], Objects(units, ["Human", "Melee", "Heroes"]));
 
-        // unitui.slk files the High Elf Archmage in the campaign, though the skin text says otherwise.
-        Assert.Equal(["Human", "Campaign", "Heroes"], units.Single(entry => entry.Id == "Haah").Path);
+        // unitui.slk files the High Elf Archmage in the campaign, though the skin text says otherwise, and World Editor
+        // shows a campaign hero by its proper name; its campaign heroes go by class, then by name (Sven's screenshot).
+        var kelen = units.Single(entry => entry.Id == "Haah");
+        Assert.Equal(["Human", "Campaign", "Heroes"], kelen.Path);
+        Assert.Equal("Kelen the Seeker", kelen.Name);
+        Assert.Equal(
+            [
+                "Garek", "Landen", "Leonid", "Anasterian Sunstrider", "Thalorien Dawnseeker", "Kelen the Seeker",
+                "Admiral Proudmoore", "Antonidas", "Antonidas", "Arthas", "Arthas", "Dagren the Orcslayer",
+                "Halahk the Lifebringer", "Ilastar", "Jaina", "Jennalla Deemspring", "Kael", "Lord Garithos",
+                "Lord Maxwell Tyrosus", "Lord Nicholas Buzan", "Magroth the Defender", "Muradin Bronzebeard",
+                "Renault Mograine", "Sally Whitemane", "Sir Gregory Edmunson", "Sylvanas Windrunner", "Tomas", "Uther",
+            ],
+            units.Where(entry => entry.Path.SequenceEqual(["Human", "Campaign", "Heroes"])).Select(entry => entry.Name));
 
         // The map's custom objects stay first.
         Assert.Equal(["Custom"], units[0].Path);
