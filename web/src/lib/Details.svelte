@@ -4,8 +4,11 @@
  * by category (which open and close), per-level fields as grids. The fields are editors unless the object is read
  * only.
  */
+
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import ChevronsDownUp from "@lucide/svelte/icons/chevrons-down-up";
+import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 import Copy from "@lucide/svelte/icons/copy";
 import Lock from "@lucide/svelte/icons/lock";
 import Plus from "@lucide/svelte/icons/plus";
@@ -15,6 +18,7 @@ import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import FieldRow from "./FieldRow.svelte";
 import { groupFields, isChanged, type Lookup, type Row, shownValue } from "./fields.ts";
 import LevelGrid from "./LevelGrid.svelte";
+import { labelColumnWidth } from "./measure.ts";
 import { kindText } from "./tree.ts";
 
 type Props = {
@@ -62,6 +66,20 @@ const changedCount = $derived(
   groupFields(view.fields, "", true).reduce((sum, category) => sum + category.rows.length, 0),
 );
 
+// The values start just past the widest name of the object's fields shown one per row, filtered or not, so they
+// stay put while the filter changes (measured once the fonts are in).
+let fontsReady = $state(false);
+document.fonts?.ready.then(() => (fontsReady = true));
+const labelWidth = $derived.by(() => {
+  void fontsReady;
+  const labels = groupFields(view.fields, "", false).flatMap((category) =>
+    category.rows
+      .filter((row) => row.levels === null)
+      .map((row) => ({ label: row.label, id: row.id })),
+  );
+  return labelColumnWidth(labels, showIds);
+});
+
 const editable = $derived(view.readOnly === null);
 const custom = $derived(view.baseId !== null);
 
@@ -104,6 +122,11 @@ function runs(rows: Row[]): { grid: boolean; rows: Row[] }[] {
   return result;
 }
 
+/** Closes every category (true) or opens every one (false); they stay so from object to object. */
+function collapseAll(collapse: boolean): void {
+  closed = collapse ? Object.fromEntries(categories.map((category) => [category.key, true])) : {};
+}
+
 function clearOnEscape(event: KeyboardEvent): void {
   if (event.key === "Escape" && filter) {
     event.stopPropagation();
@@ -112,7 +135,7 @@ function clearOnEscape(event: KeyboardEvent): void {
 }
 </script>
 
-<div class="pb-10">
+<div class="pb-4" style:--label-width="{labelWidth}px">
   <div class="sticky top-0 z-[2] border-b border-line bg-bg px-[18px] pt-3.5 pb-2.5">
     <div class="flex items-start gap-2">
       <h1 class="m-0 flex min-w-0 flex-1 items-baseline gap-2.5 font-heading text-xl font-bold text-fg">
@@ -271,4 +294,32 @@ function clearOnEscape(event: KeyboardEvent): void {
       </div>
     {/each}
   {/key}
+
+  <!-- Floats at the bottom of the panel while the fields scroll under it. -->
+  {#if categories.length > 1}
+    <div class="pointer-events-none sticky bottom-3 mt-4 flex justify-center">
+      <div
+        class="pointer-events-auto flex gap-0.5 rounded-full border border-line bg-raised p-0.5 shadow-lg shadow-black/40"
+        role="group"
+        aria-label="Categories"
+      >
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg"
+          onclick={() => collapseAll(true)}
+        >
+          <ChevronsDownUp size={14} />
+          Collapse all
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg"
+          onclick={() => collapseAll(false)}
+        >
+          <ChevronsUpDown size={14} />
+          Expand all
+        </button>
+      </div>
+    </div>
+  {/if}
 </div>

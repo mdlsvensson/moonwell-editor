@@ -51,7 +51,7 @@ async function reset(): Promise<void> {
 </script>
 
 <div
-  class="grid min-h-[30px] grid-cols-[22px_minmax(170px,1fr)_minmax(120px,260px)_24px] items-center border-t border-line hover:bg-surface"
+  class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)_24px] items-center border-t border-line hover:bg-surface"
 >
   <span class="h-[18px] w-1 justify-self-center rounded-sm {field.changed ? 'bg-changed' : ''}"></span>
   <span class="py-1 pr-2" title={editable && field.modes ? title : undefined}>
