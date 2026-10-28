@@ -19,7 +19,7 @@ public sealed class SettingsTests : IDisposable
     {
         var settings = new Settings(_folder)
         {
-            GameDataFolder = @"C:\Games\war3.w3mod",
+            GameFolder = @"C:\Games\war3.w3mod",
         };
         settings.RecentMaps.Add(@"C:\Maps\arena.w3x");
         settings.RecentMaps.Add(@"C:\Maps\duel.w3x");
@@ -27,7 +27,7 @@ public sealed class SettingsTests : IDisposable
 
         var again = new Settings(_folder);
 
-        Assert.Equal(@"C:\Games\war3.w3mod", again.GameDataFolder);
+        Assert.Equal(@"C:\Games\war3.w3mod", again.GameFolder);
         Assert.Equal([@"C:\Maps\arena.w3x", @"C:\Maps\duel.w3x"], again.RecentMaps);
     }
 
@@ -55,7 +55,7 @@ public sealed class SettingsTests : IDisposable
     {
         var settings = new Settings(_folder);
 
-        Assert.Null(settings.GameDataFolder);
+        Assert.Null(settings.GameFolder);
         Assert.Empty(settings.RecentMaps);
     }
 
@@ -67,18 +67,18 @@ public sealed class SettingsTests : IDisposable
 
         var settings = new Settings(_folder);
 
-        Assert.Null(settings.GameDataFolder);
+        Assert.Null(settings.GameFolder);
         Assert.Empty(settings.RecentMaps);
     }
 
     [Fact]
     public void Save_creates_the_folder_and_writes_camel_case_json()
     {
-        var settings = new Settings(Path.Combine(_folder, "deeper")) { GameDataFolder = "x" };
+        var settings = new Settings(Path.Combine(_folder, "deeper")) { GameFolder = "x" };
 
         settings.Save();
 
         var text = File.ReadAllText(Path.Combine(_folder, "deeper", "settings.json"));
-        Assert.Contains("\"gameDataFolder\"", text);
+        Assert.Contains("\"gameFolder\"", text);
     }
 }

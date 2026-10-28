@@ -289,7 +289,7 @@ so later starts are fast. Nothing of Blizzard's is shipped or committed.
   `C:\Users\mdlsvensson\Downloads\Work\war3.w3mod`, chosen once and kept in the app's settings.
 - **Milestone 5** reads the same files from the user's Warcraft III install (CASC storage), so modders need no export.
   `War3Net.IO.Casc` is empty; the milestone starts with a spike of the C# CASC readers (for example CASCLib from
-  CASCExplorer), checking that one reads Warcraft III Reforged.
+  CASCExplorer), checking that one reads Warcraft III Reforged. Done 2026-10-28 (see Sven, 2026-10-28).
 - **Referencing the generator:** Sven, 2026-10-27: the editor is independent of Moonwell. The reading part of the
   generator is its own package, `Moonwell.GameData` (from 0.3.0-preview.1), which Moonwell's generator and the editor
   both use; the editor no longer compiles anything from the wc3-cs checkout.
@@ -411,9 +411,9 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     remembered in the window's storage, and the open map's details, with its Data Set and Data Version from
     `war3map.w3i` and the tables the game reads under them. The values shown are still the base tables'.
   - The logo is wc3.dev's mark (`wc3-dev/public/favicon.svg`), as the exe's icon, the page's and the title bar's.
-  - Icons and models come from the Warcraft III install's CASC storage (the usual folder, or
-    `MOONWELL_EDITOR_GAME`), read by the editor's own reader (`MoonwellEditor.Assets`, ported from a scratch reader;
-    CascLib's .NET wrapper is an alpha with a native DLL), the map's imports first. The tree shows each object's
+  - Icons and models come from the Warcraft III install's CASC storage, read by the editor's own reader (ported from
+    a scratch reader; CascLib's .NET wrapper is an alpha with a native DLL; in Moonwell's package since 2026-10-28),
+    the map's imports first. The tree shows each object's
     icon; icon fields show theirs and get a picker of the game's command and passive buttons; model fields get a
     picker with a turning preview (war3-model, with the CAMS and LITE chunks of the game's MDX 1800 models left out).
   - The values and objects follow the map's Data Set and Data Version, as World Editor's do: the values of the
@@ -512,6 +512,15 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     as `,%`). The icon, hotkey and costs show but are edited in their fields. Save sends the changed texts as one
     edit, a colour as `|cAARRGGBB ... |r` and a line break as the text already breaks its lines (`|n` when it has
     none). An ability's turned-off tooltip shows only when it has one.
+- **Sven, 2026-10-28:** the editor reads the game data from the Warcraft III install, with no export. The install
+  reader is in Moonwell's package (Sven's choice): `Moonwell.GameData` 0.3.0-preview.3 has the CASC reader,
+  `GameTables.OpenInstall` and `GameInstall`, and the editor shares one open install between the game data, the icons
+  and the models. The folder is the one chosen in Settings → Game data, else `MOONWELL_WAR3`, else the usual folder;
+  without one the first screen asks for it. Settings → Game data shows the folder and the game version, with Change
+  folder…. The cache is kept per build of the game (its build key), so an update builds it again. *(Agent's calls: a
+  `war3.w3mod` export chosen there still loads, with the icons of the install found for it; the export chosen before
+  is not carried over, so the install is found at the next start; the first screen asks rather than opening the
+  dialog by itself.)*
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

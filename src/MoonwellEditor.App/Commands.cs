@@ -7,14 +7,15 @@ using Data = MoonwellEditor.GameData.GameData;
 namespace MoonwellEditor.App;
 
 /// <summary>Where the game data stands: which folder, whether it is loaded, and why it failed if it did.</summary>
-/// <param name="Source">The game data folder being used, or null when none is set.</param>
+/// <param name="Source">The install's folder (or an export's) being used, or null when none is chosen or found.</param>
 /// <param name="Loaded">True once the data is ready for the commands that need it.</param>
 /// <param name="Error">Why the load failed, or null.</param>
 /// <param name="Version">
 /// Grows by one each time the state changes, so the page can drop a state older than the one it has (a reply that
 /// was on its way when a newer event came).
 /// </param>
-public sealed record GameDataState(string? Source, bool Loaded, string? Error, int Version);
+/// <param name="Game">The install's game version once loaded (<c>3.0.1.24371</c>); null for an export or before.</param>
+public sealed record GameDataState(string? Source, bool Loaded, string? Error, int Version, string? Game = null);
 
 /// <summary>Where the open map stands, sent with the <c>sessionChanged</c> event.</summary>
 /// <param name="Dirty">True when there are edits that are not saved.</param>
@@ -105,6 +106,7 @@ public sealed class Commands
     private readonly Func<string, string?> _askFolder;
     private readonly Func<string, string?> _askArchive;
     private readonly Func<string, Data> _load;
+    private readonly Func<string?> _findGame;
     private readonly object _lock = new();
 
     // The map from the command line, until the page asks for it.
@@ -125,12 +127,15 @@ public sealed class Commands
     private Session? _session;
 
     /// <summary>Makes the commands.</summary>
-    /// <param name="settings">Where the game data folder is remembered.</param>
+    /// <param name="settings">Where the Warcraft III folder chosen is remembered.</param>
     /// <param name="askFolder">
     /// Asks the user for a folder, with the text given for the dialog; gives null when they cancel. It may be called on
     /// any thread.
     /// </param>
-    /// <param name="load">Loads the game data from a folder; the app uses <c>GameData.Load</c> with its cache folder.</param>
+    /// <param name="load">
+    /// Loads the game data from an install's folder (or an export's); the app uses <c>GameData.Load</c> with its cache
+    /// folder.
+    /// </param>
     /// <param name="startupMap">
     /// The map (a folder or an archive file) the app was started with (its first command-line argument), which the
     /// <c>startup</c> command gives once; null for none.
@@ -140,13 +145,19 @@ public sealed class Commands
     /// null when they cancel. It may be called on any thread. Null for none: <c>openMap</c> with <c>archive</c> then
     /// opens nothing, as if the user cancelled.
     /// </param>
+    /// <param name="findGame">
+    /// Finds the Warcraft III install when none is chosen (the app uses <c>GameInstall.Find</c>); null when there is
+    /// none. Null for no search.
+    /// </param>
     public Commands(
         Settings settings,
         Func<string, string?> askFolder,
         Func<string, Data> load,
         string? startupMap = null,
-        Func<string, string?>? askArchive = null)
+        Func<string, string?>? askArchive = null,
+        Func<string?>? findGame = null)
     {
+        _findGame = findGame ?? (() => null);
         _settings = settings;
         _askFolder = askFolder;
         _askArchive = askArchive ?? (_ => null);
@@ -220,11 +231,14 @@ public sealed class Commands
     /// <summary>The background load that is running or ran last. Awaiting it never throws.</summary>
     public Task Loading { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Starts loading the game data from the folder in the settings, if there is one.</summary>
+    /// <summary>
+    /// Starts loading the game data from the folder in the settings, else from the install it finds; with neither the
+    /// page asks for the folder.
+    /// </summary>
     /// <returns>The background load, which ends when the data is loaded or has failed.</returns>
     public Task StartLoading()
     {
-        var folder = _settings.GameDataFolder;
+        var folder = _settings.GameFolder ?? _findGame();
         if (!string.IsNullOrEmpty(folder))
         {
             Begin(folder, false);
@@ -246,7 +260,7 @@ public sealed class Commands
 
             if (_source == null)
             {
-                throw new CommandException("gameDataMissing", "No game data folder is chosen yet.");
+                throw new CommandException("gameDataMissing", "No Warcraft III install is found or chosen yet.");
             }
 
             throw _error == null
@@ -270,7 +284,7 @@ public sealed class Commands
     public Task<object?> Run(string command, JsonElement args)
     {
         // The lists World Editor offers from the install's files (ground textures) wait for the install to open.
-        if (command == "choices" && Assets is { Ready: false, Error: null } assets)
+        if (command == "choices" && Assets is { Ready: false, Error: null } assets && Loaded)
         {
             return assets.Loading.ContinueWith(_ => Run(command, args), TaskScheduler.Default).Unwrap();
         }
@@ -603,7 +617,7 @@ public sealed class Commands
         var assets = Assets;
         return assets == null
             ? new AssetList(false, "This window shows no game files.", "", [])
-            : new AssetList(assets.Ready, assets.Error, assets.GameFolder, assets.List(kind, mode));
+            : new AssetList(assets.Ready, assets.Error, assets.Folder, assets.List(kind, mode));
     }
 
     private object? UiScale(int percent)
@@ -717,17 +731,29 @@ public sealed class Commands
 
     private static CommandException BadRequest(string message) => new("badRequest", message);
 
+    // True once game data is loaded.
+    private bool Loaded
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _data != null;
+            }
+        }
+    }
+
     private GameDataState State()
     {
         lock (_lock)
         {
-            return new GameDataState(_source, _data != null, _error, _version);
+            return new GameDataState(_source, _data != null, _error, _version, _data?.GameVersion);
         }
     }
 
     private GameDataState ChooseGameData()
     {
-        var folder = _askFolder("Choose the game data folder (a war3.w3mod export)");
+        var folder = _askFolder("Choose the Warcraft III folder (the one with Warcraft III Launcher.exe)");
         if (!string.IsNullOrEmpty(folder))
         {
             Begin(folder, true);
@@ -768,7 +794,7 @@ public sealed class Commands
 
                 if (save)
                 {
-                    _settings.GameDataFolder = folder;
+                    _settings.GameFolder = folder;
                     _settings.Save();
                 }
             }

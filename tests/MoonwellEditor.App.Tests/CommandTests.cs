@@ -535,7 +535,7 @@ public sealed class CommandTests(GameDataFixture fixture, ITestOutputHelper outp
             return true;
         }
 
-        var settings = new Settings(Path.Combine(_root, "settings")) { GameDataFolder = fixture.Folder };
+        var settings = new Settings(Path.Combine(_root, "settings")) { GameFolder = fixture.Folder };
         var data = fixture.Data;
         commands = new Commands(
             settings,

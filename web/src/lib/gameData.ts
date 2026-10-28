@@ -1,14 +1,16 @@
 import { call } from "./bridge.ts";
 
 /**
- * Where the game data stands in the app: the folder in use, whether it is loaded, and why it failed. `version` grows
- * each time the state changes in the app.
+ * Where the game data stands in the app: the Warcraft III folder in use (or an export's), whether it is loaded, and
+ * why it failed. `version` grows each time the state changes in the app; `game` is the install's game version once
+ * loaded.
  */
 export type GameDataState = {
   source: string | null;
   loaded: boolean;
   error: string | null;
   version: number;
+  game?: string | null;
 };
 
 /** What the first-start screen or the status bar should say about the game data. */
@@ -19,7 +21,7 @@ export function gameData(): Promise<GameDataState> {
   return call<GameDataState>("gameData");
 }
 
-/** Opens the app's folder dialog; the app loads the folder chosen and answers with the new state. */
+/** Opens the app's folder dialog for the Warcraft III folder; the app loads it and answers with the new state. */
 export function chooseGameData(): Promise<GameDataState> {
   return call<GameDataState>("chooseGameData");
 }

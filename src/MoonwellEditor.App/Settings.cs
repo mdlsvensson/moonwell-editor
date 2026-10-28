@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace MoonwellEditor.App;
 
 /// <summary>
-/// What the app remembers between runs: the game data folder and the maps opened lately. It is kept as JSON in
-/// <c>settings.json</c> in one folder (the app uses <c>%LOCALAPPDATA%\MoonwellEditor</c>). A missing or damaged file
+/// What the app remembers between runs: the Warcraft III folder chosen and the maps opened lately. It is kept as JSON
+/// in <c>settings.json</c> in one folder (the app uses <c>%LOCALAPPDATA%\MoonwellEditor</c>). A missing or damaged file
 /// gives the defaults, so a bad settings file never stops the app from starting.
 /// </summary>
 public sealed class Settings
@@ -19,12 +19,16 @@ public sealed class Settings
     {
         _path = Path.Combine(folder, "settings.json");
         var stored = Read(_path);
-        GameDataFolder = stored?.GameDataFolder;
+        GameFolder = stored?.GameFolder;
         RecentMaps = stored?.RecentMaps ?? [];
     }
 
-    /// <summary>The game data folder (a <c>war3.w3mod</c> export), or null before the user has chosen one.</summary>
-    public string? GameDataFolder { get; set; }
+    /// <summary>
+    /// The Warcraft III install's folder the user chose (or a <c>war3.w3mod</c> export), or null when they have not
+    /// chosen one: the app then reads the install it finds (Sven, 2026-10-28). An export chosen before 2026-10-28 was
+    /// kept as <c>gameDataFolder</c>, which is no longer read.
+    /// </summary>
+    public string? GameFolder { get; set; }
 
     /// <summary>How many maps <see cref="RememberMap"/> keeps.</summary>
     public const int RecentMapsKept = 10;
@@ -53,7 +57,7 @@ public sealed class Settings
     public void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var stored = new Stored { GameDataFolder = GameDataFolder, RecentMaps = RecentMaps };
+        var stored = new Stored { GameFolder = GameFolder, RecentMaps = RecentMaps };
 
         // Written to a side file first, so a crash half way never leaves a broken settings file.
         var temporary = _path + ".tmp";
@@ -75,7 +79,7 @@ public sealed class Settings
 
     private sealed class Stored
     {
-        public string? GameDataFolder { get; set; }
+        public string? GameFolder { get; set; }
 
         public List<string>? RecentMaps { get; set; }
     }

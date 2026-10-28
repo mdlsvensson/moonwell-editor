@@ -28,8 +28,85 @@ public sealed class CommandsTests : IDisposable
         Func<string?>? ask = null,
         string? savedFolder = null)
     {
-        var settings = new Settings(_folder) { GameDataFolder = savedFolder };
+        var settings = new Settings(_folder) { GameFolder = savedFolder };
         return new Commands(settings, _ => ask == null ? null : ask(), load);
+    }
+
+    [Fact]
+    public async Task Without_a_chosen_folder_the_install_found_is_loaded()
+    {
+        string? loaded = null;
+        var commands = new Commands(
+            new Settings(_folder),
+            _ => null,
+            folder =>
+            {
+                loaded = folder;
+                throw new IOException("stop here");
+            },
+            findGame: () => @"C:\Games\Warcraft III");
+
+        await commands.StartLoading();
+
+        Assert.Equal(@"C:\Games\Warcraft III", loaded);
+        Assert.Null(new Settings(_folder).GameFolder);
+    }
+
+    [Fact]
+    public async Task A_chosen_folder_comes_before_the_install_found()
+    {
+        string? loaded = null;
+        var commands = new Commands(
+            new Settings(_folder) { GameFolder = @"C:\Chosen" },
+            _ => null,
+            folder =>
+            {
+                loaded = folder;
+                throw new IOException("stop here");
+            },
+            findGame: () => @"C:\Games\Warcraft III");
+
+        await commands.StartLoading();
+
+        Assert.Equal(@"C:\Chosen", loaded);
+    }
+
+    [Fact]
+    public async Task Without_a_chosen_folder_or_an_install_the_page_asks_for_one()
+    {
+        var commands = new Commands(
+            new Settings(_folder),
+            _ => null,
+            _ => throw new InvalidOperationException("must not load"),
+            findGame: () => null);
+
+        await commands.StartLoading();
+        var state = await Ask(commands, "gameData");
+
+        Assert.Equal(JsonValueKind.Null, state.GetProperty("result").GetProperty("source").ValueKind);
+        Assert.Equal("gameDataMissing", Assert.Throws<CommandException>(() => commands.NeedGameData()).Code);
+    }
+
+    [Fact]
+    public async Task Choosing_the_install_loads_it_with_its_game_version()
+    {
+        var install = Moonwell.GameData.GameInstall.Find();
+        if (install == null)
+        {
+            Console.WriteLine("No Warcraft III install found; skipped");
+            return;
+        }
+
+        var cache = Path.Combine(_folder, "cache");
+        var commands = Make(path => MoonwellEditor.GameData.GameData.Load(path, cache), () => install);
+
+        await Ask(commands, "chooseGameData");
+        await commands.Loading;
+        var after = (await Ask(commands, "gameData")).GetProperty("result");
+
+        Assert.True(after.GetProperty("loaded").GetBoolean());
+        Assert.Equal(Moonwell.GameData.GameInstall.Build(install).Version, after.GetProperty("game").GetString());
+        Assert.Equal(install, new Settings(_folder).GameFolder);
     }
 
     [Fact]
@@ -127,12 +204,12 @@ public sealed class CommandsTests : IDisposable
     public async Task Choosing_a_folder_that_fails_keeps_the_old_setting()
     {
         var commands = Make(_ => throw new DirectoryNotFoundException("bad"), () => @"C:\bad", savedFolder: @"C:\old");
-        new Settings(_folder) { GameDataFolder = @"C:\old" }.Save();
+        new Settings(_folder) { GameFolder = @"C:\old" }.Save();
 
         await Ask(commands, "chooseGameData");
         await commands.Loading;
 
-        Assert.Equal(@"C:\old", new Settings(_folder).GameDataFolder);
+        Assert.Equal(@"C:\old", new Settings(_folder).GameFolder);
     }
 
     [Fact]
@@ -144,7 +221,7 @@ public sealed class CommandsTests : IDisposable
 
         Assert.True(reply.GetProperty("ok").GetBoolean());
         Assert.Equal(JsonValueKind.Null, reply.GetProperty("result").GetProperty("source").ValueKind);
-        Assert.Null(new Settings(_folder).GameDataFolder);
+        Assert.Null(new Settings(_folder).GameFolder);
     }
 
     [Fact]
@@ -167,7 +244,7 @@ public sealed class CommandsTests : IDisposable
         Assert.Equal(folder, reply.GetProperty("result").GetProperty("source").GetString());
         Assert.True(after.GetProperty("result").GetProperty("loaded").GetBoolean());
         Assert.NotNull(commands.NeedGameData());
-        Assert.Equal(folder, new Settings(_folder).GameDataFolder);
+        Assert.Equal(folder, new Settings(_folder).GameFolder);
     }
 
     [Fact]

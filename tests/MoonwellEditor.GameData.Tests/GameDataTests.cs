@@ -281,8 +281,7 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
         // Left otherwise as written, the copy is used, so the test tells using a cache from building again.
         Assert.Equal("999", FootmanHitPoints(_ => { }));
         Assert.Equal("420", FootmanHitPoints(cache => cache["Code"] = Guid.NewGuid().ToString("N")));
-        Assert.Equal("420", FootmanHitPoints(cache => cache["Newest"] = cache["Newest"]!.GetValue<long>() - 1));
-        Assert.Equal("420", FootmanHitPoints(cache => cache["Files"] = cache["Files"]!.GetValue<int>() + 1));
+        Assert.Equal("420", FootmanHitPoints(cache => cache["Stamp"] = "export 0 0"));
     }
 
     /// <summary>
@@ -324,7 +323,8 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     /// <summary>Everything a <see cref="GameData"/> holds, as JSON, for comparing two loads.</summary>
-    private static string Snapshot(GameData data)
+    /// <summary>The data as JSON, with the folder it was read from unless <paramref name="source"/> is false.</summary>
+    internal static string Snapshot(GameData data, bool source = true)
     {
         var kinds = Enum.GetValues<ObjectKind>().Select(kind => new
         {
@@ -333,6 +333,8 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
             data.Kind(kind).Fields,
             data.Kind(kind).Objects,
         });
-        return JsonSerializer.Serialize(new { data.Source, data.Choices, Kinds = kinds });
+        return source
+            ? JsonSerializer.Serialize(new { data.Source, data.Choices, Kinds = kinds })
+            : JsonSerializer.Serialize(new { data.Choices, Kinds = kinds });
     }
 }

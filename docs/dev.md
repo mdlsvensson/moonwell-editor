@@ -69,11 +69,18 @@ The app is then `src/MoonwellEditor.App/bin/Release/net10.0-windows/win-x64/publ
 A single-file exe (`-p:PublishSingleFile=true`) builds, but it is not one file yet: the page (`wwwroot`), WebView2's
 `WebView2Loader.dll` and `runtimes` stay beside it. It has not been run.
 
-## Icons and models
+## The game
 
-The tree's icons and the icon and model pickers read the Warcraft III install's own storage, from
-`C:\Program Files (x86)\Warcraft III`, or the folder in `MOONWELL_EDITOR_GAME`. Without an install the editor works,
-with no icons. `MoonwellEditor.Assets.Tests` reads the install too, and checks nothing when there is none.
+The editor reads the game data (fields, standard objects, lists), the tree's icons and the icon and model pickers
+from the Warcraft III install's own storage, with Moonwell's reader (`Moonwell.GameData`). It uses the folder chosen
+in Settings → Game data, else the folder in `MOONWELL_WAR3`, else `C:\Program Files (x86)\Warcraft III`. Without one
+it asks for the folder. A `war3.w3mod` export chosen there still works, with the icons of the install it finds.
+
+The game data is cached in `%LOCALAPPDATA%\MoonwellEditor\gamedata`, once per build of the game (its build key in
+`.build.info`), so an update of the game builds it again.
+
+The tests that need the game read the install the same way and check nothing when there is none. The tests that
+compare with an export read the folder in `MOONWELL_EDITOR_GAME_DATA`.
 
 ## Interface text
 

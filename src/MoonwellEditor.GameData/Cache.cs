@@ -1,20 +1,22 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Moonwell.GameData;
 using MoonwellEditor.Files;
 
 namespace MoonwellEditor.GameData;
 
 /// <summary>
 /// The game data of a folder saved as JSON in a cache folder, as <c>&lt;hash of the folder's path&gt;.json</c>, with
-/// the newest write time and the number of the folder's files and the version of the code that made it: a cache whose
-/// folder or code has changed since is not used.
+/// a stamp of what it was read from (an install's build key, which every update of the game changes; an export's
+/// newest write time and number of files) and the version of the code that made it: a cache whose game or code has
+/// changed since is not used.
 /// </summary>
 internal static class Cache
 {
     // Raised whenever what is cached changes (these records, or what Moonwell's reader makes), so an older cache is
     // built again.
-    private const int Format = 7;
+    private const int Format = 8;
 
     /// <summary>
     /// The version of the code that builds the data: the module ids of this assembly and of Moonwell's reader
@@ -23,7 +25,7 @@ internal static class Cache
     /// </summary>
     public static string CodeVersion { get; } =
         typeof(Cache).Assembly.ManifestModule.ModuleVersionId.ToString("N")
-        + typeof(Moonwell.GameData.ExportTables).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+        + typeof(GameTables).Assembly.ManifestModule.ModuleVersionId.ToString("N");
 
     /// <summary>The cache's file for a game data folder.</summary>
     public static string PathOf(string folder, string cacheFolder)
@@ -33,8 +35,8 @@ internal static class Cache
         return Path.Combine(cacheFolder, hash + ".json");
     }
 
-    /// <summary>The newest write time and the number of the folder's files, which change when any file does.</summary>
-    public static (long Newest, int Files) Stamp(string folder)
+    /// <summary>An export's stamp: the newest write time and the number of its files, which change when any file does.</summary>
+    public static string Stamp(string folder)
     {
         long newest = 0;
         var files = 0;
@@ -44,14 +46,17 @@ internal static class Cache
             files++;
         }
 
-        return (newest, files);
+        return $"export {newest} {files}";
     }
+
+    /// <summary>An install's stamp: its build key.</summary>
+    public static string Stamp(GameBuild build) => "build " + build.Key;
 
     /// <summary>
     /// The cached data of the folder, or null when there is no cache, it is of another stamp, format or code version,
     /// or it cannot be read.
     /// </summary>
-    public static GameData? Read(string path, string folder, (long Newest, int Files) stamp)
+    public static GameData? Read(string path, string folder, string stamp)
     {
         if (!File.Exists(path))
         {
@@ -71,7 +76,7 @@ internal static class Cache
         }
 
         if (file?.Kinds == null || file.Choices == null || file.Format != Format || file.Code != CodeVersion
-            || file.Newest != stamp.Newest || file.Files != stamp.Files
+            || file.Stamp != stamp
             || !string.Equals(file.Folder, Normalized(folder), StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -88,11 +93,11 @@ internal static class Cache
             kinds[kind] = new KindData(kind, cached.LevelField, cached.Fields, cached.Objects, cached.Effects);
         }
 
-        return new GameData(folder, kinds, file.Choices);
+        return new GameData(folder, file.GameVersion, kinds, file.Choices);
     }
 
     /// <summary>Saves the data, through a temporary file so a reader never sees half a cache.</summary>
-    public static void Write(string path, GameData data, (long Newest, int Files) stamp)
+    public static void Write(string path, GameData data, string stamp)
     {
         var kinds = new Dictionary<string, CachedKind>(StringComparer.Ordinal);
         foreach (var kind in Enum.GetValues<ObjectKind>())
@@ -103,7 +108,7 @@ internal static class Cache
         }
 
         var file = new CacheFile(
-            Format, CodeVersion, Normalized(data.Source), stamp.Newest, stamp.Files, data.Choices, kinds);
+            Format, CodeVersion, Normalized(data.Source), stamp, data.GameVersion, data.Choices, kinds);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         using (var stream = File.Create(temporary))
@@ -121,8 +126,8 @@ internal static class Cache
         int Format,
         string Code,
         string Folder,
-        long Newest,
-        int Files,
+        string Stamp,
+        string? GameVersion,
         IReadOnlyDictionary<string, ChoiceList> Choices,
         IReadOnlyDictionary<string, CachedKind> Kinds);
 

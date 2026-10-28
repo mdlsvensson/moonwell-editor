@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Moonwell.GameData;
 using MoonwellEditor.Assets;
 using MoonwellEditor.Files;
 
@@ -7,7 +8,8 @@ namespace MoonwellEditor.App;
 /// <summary>
 /// The icons and models the page shows (Sven, 2026-10-27): the open map's own files first (its imports), then the
 /// game's, from the Warcraft III install's storage. Icons go to the page as PNG; models and their textures as the bytes
-/// the files hold. The install is opened in the background once; until then, or without one, nothing is found.
+/// the files hold. The install is the one the game data is read from (<see cref="Use"/>), or, for game data read from
+/// an export, the one found for it (<see cref="Open"/>); until then, or without one, nothing is found.
 /// </summary>
 public sealed class GameAssets : IDisposable
 {
@@ -17,37 +19,81 @@ public sealed class GameAssets : IDisposable
     private readonly Func<IMapStore?> _map;
     private readonly ConcurrentDictionary<string, byte[]?> _icons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _lists = [];
+    private readonly TaskCompletionSource _first = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // An install put aside for another stays open until the window closes: a request may still be reading it.
+    private readonly List<GameFiles> _retired = [];
+    private Task _opening = Task.CompletedTask;
     private GameFiles? _files;
 
-    /// <summary>Starts opening the install in <paramref name="gameFolder"/>; <paramref name="map"/> gives the open map.</summary>
-    public GameAssets(string gameFolder, Func<IMapStore?> map)
+    /// <summary>Makes the assets; <paramref name="map"/> gives the open map.</summary>
+    public GameAssets(Func<IMapStore?> map)
     {
         _map = map;
-        GameFolder = gameFolder;
-        Loading = Task.Run(() =>
-        {
-            try
-            {
-                _files = GameFiles.Open(gameFolder);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                Error = exception.Message;
-            }
-        });
     }
 
-    /// <summary>The Warcraft III install's folder.</summary>
-    public string GameFolder { get; }
+    /// <summary>The Warcraft III install's folder; empty before there is one.</summary>
+    public string Folder => _files?.Storage.Folder ?? "";
 
-    /// <summary>The background opening of the install. Awaiting it never throws.</summary>
-    public Task Loading { get; }
+    /// <summary>
+    /// Ends once the first install is open, or has failed to open. Awaiting it never throws; without any install it
+    /// never ends, so await it only where game data is loaded.
+    /// </summary>
+    public Task Loading => _first.Task;
 
     /// <summary>Why the install could not be opened; null when it was, or while it opens.</summary>
     public string? Error { get; private set; }
 
-    /// <summary>True once the install is open.</summary>
+    /// <summary>True once an install is open.</summary>
     public bool Ready => _files != null;
+
+    /// <summary>Takes the files of an install open already (the game data's), in place of any before.</summary>
+    public void Use(GameFiles files)
+    {
+        lock (_lists)
+        {
+            if (_files != null && _files != files)
+            {
+                _retired.Add(_files);
+            }
+
+            _files = files;
+            _lists.Clear();
+        }
+
+        _icons.Clear();
+        Error = null;
+        _first.TrySetResult();
+    }
+
+    /// <summary>Notes why the install could not be opened.</summary>
+    public void Failed(string error)
+    {
+        Error = error;
+        _first.TrySetResult();
+    }
+
+    /// <summary>Opens the install in <paramref name="gameFolder"/> in the background; null when none was found.</summary>
+    public void Open(string? gameFolder)
+    {
+        _opening = Task.Run(() =>
+        {
+            if (gameFolder == null)
+            {
+                Failed("No Warcraft III install was found for the icons and models.");
+                return;
+            }
+
+            try
+            {
+                Use(GameFiles.Open(gameFolder));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Failed(exception.Message);
+            }
+        });
+    }
 
     /// <summary>
     /// A file's bytes: the map's file of that name, else the game's in the graphics mode (<c>sd</c>, <c>hd</c>,
@@ -121,8 +167,12 @@ public sealed class GameAssets : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        Loading.Wait();
+        _opening.Wait();
         _files?.Dispose();
+        foreach (var files in _retired)
+        {
+            files.Dispose();
+        }
     }
 
     // As World Editor writes a path into object data: back slashes, and the extension it names files by.

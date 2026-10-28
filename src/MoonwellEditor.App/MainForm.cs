@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
+using Moonwell.GameData;
 
 namespace MoonwellEditor.App;
 
@@ -52,16 +53,17 @@ public sealed class MainForm : Form
         var appData = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MoonwellEditor");
         var cache = Path.Combine(appData, "gamedata");
+        // The map is asked for only once the commands are made.
+        var assets = new GameAssets(() => _commands!.Store);
         _commands = new Commands(
             new Settings(appData),
             AskForFolder,
-            folder => GameData.GameData.Load(folder, cache),
+            folder => LoadGame(folder, cache, assets),
             startupMap,
-            AskForArchive);
+            AskForArchive,
+            () => GameInstall.Find());
         _bridge = new Bridge(_commands.Run);
-        _commands.Assets = new GameAssets(
-            Environment.GetEnvironmentVariable("MOONWELL_EDITOR_GAME") ?? Assets.GameFiles.DefaultFolder,
-            () => _commands.Store);
+        _commands.Assets = assets;
         _commands.GameDataChanged += state => Notify("gameData", state);
         _commands.SessionChanged += state => Notify("sessionChanged", state);
         _commands.CloseAsking += () => OnWindowThread(_closeGuard.PageAsking);
@@ -151,6 +153,31 @@ public sealed class MainForm : Form
     /// <summary>Sends a message (for example from <see cref="Bridge.Event"/>) to the page. Call it from the UI thread.</summary>
     /// <param name="message">The message, as JSON text.</param>
     public void Post(string message) => _web.CoreWebView2.PostWebMessageAsString(message);
+
+    // The game data of an install, whose files the icons and models are read from too; or of an export, with the icons
+    // and models of the install found for it.
+    private static GameData.GameData LoadGame(string folder, string cache, GameAssets assets)
+    {
+        if (!GameData.GameData.IsInstall(folder))
+        {
+            assets.Open(GameInstall.Find());
+            return GameData.GameData.Load(folder, cache);
+        }
+
+        GameFiles files;
+        try
+        {
+            files = GameFiles.Open(folder);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            assets.Failed(exception.Message);
+            throw;
+        }
+
+        assets.Use(files);
+        return GameData.GameData.Load(files, cache);
+    }
 
     // Commands run on a background task, but a dialog must open on the window's own thread.
     private string? AskForFolder(string description) =>

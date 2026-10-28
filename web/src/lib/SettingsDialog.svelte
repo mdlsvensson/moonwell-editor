@@ -34,10 +34,12 @@ type Props = {
   onkeymap: (keymap: Keymap) => void;
   map: MapInfo | null;
   data: GameDataState | null;
+  /** Opens the app's dialog for another Warcraft III folder. */
+  onchoose: () => void;
   onclose: () => void;
 };
 
-let { theme, ontheme, keymap, onkeymap, map, data, onclose }: Props = $props();
+let { theme, ontheme, keymap, onkeymap, map, data, onchoose, onclose }: Props = $props();
 
 type Tab = "general" | "hotkeys" | "map" | "data";
 const tabs: { tab: Tab; name: string }[] = [
@@ -326,6 +328,9 @@ function resetAll(): void {
       {/if}
     {:else}
       {@render row(t("settings.data.folder"), data?.source ?? t("settings.data.noneChosen"), true)}
+      {#if data?.game}
+        {@render row(t("settings.data.game"), data.game, true)}
+      {/if}
       {@render row(
         t("settings.data.state"),
         data?.error
@@ -334,6 +339,13 @@ function resetAll(): void {
             ? t("settings.data.loaded")
             : t("settings.data.loading"),
       )}
+      <button
+        type="button"
+        class="mt-3 rounded-md border border-line px-3 py-1 text-body hover:border-muted"
+        onclick={onchoose}
+      >
+        {t("settings.data.change")}
+      </button>
     {/if}
   </div>
 

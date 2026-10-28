@@ -1144,7 +1144,7 @@ onMount(() => {
       <div class="flex max-w-lg flex-col gap-3 px-6">
         <h1 class="font-heading text-2xl font-bold text-fg">{t("welcome.title")}</h1>
         <p>
-          {#each tParts("welcome.text") as part, index (index)}{#if part.slot === "file"}<span class="font-mono text-fg">war3.w3mod</span>{:else}{part.text}{/if}{/each}
+          {#each tParts("welcome.text") as part, index (index)}{#if part.slot === "file"}<span class="font-mono text-fg">Warcraft III Launcher.exe</span>{:else}{part.text}{/if}{/each}
         </p>
         {#if view === "failed" && data}
           <p class="text-warn" data-testid="game-data-error">
@@ -1454,6 +1454,7 @@ onMount(() => {
     onkeymap={(changed) => (keymap = changed)}
     {map}
     {data}
+    onchoose={choose}
     onclose={() => (settingsOpen = false)}
   />
 {/if}

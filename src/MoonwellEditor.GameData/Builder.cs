@@ -53,9 +53,15 @@ internal static class Builder
     // The metadata types the editor gives a list of its own (above), as a choice.
     private static readonly string[] OwnLists = ["tilesetList", "destructableCategory", "doodadCategory"];
 
-    public static GameData Build(string folder)
+    /// <summary>
+    /// Makes the game data from the tables, reading the two tables Moonwell's reader does not (<see cref="UnitUi"/>,
+    /// <see cref="UpgradeEffects"/>) through <paramref name="read"/>, by their paths in the tables.
+    /// </summary>
+    /// <param name="tables">The game's tables, of the install or an export.</param>
+    /// <param name="source">The install's or the export's folder.</param>
+    /// <param name="read">A file of the tables by its path (<c>units/unitui.slk</c>); null when there is none.</param>
+    public static GameData Build(GameTables tables, string source, Func<string, byte[]?> read)
     {
-        var tables = ExportTables.Read(folder);
         var listed = Choices.All(tables, null);
         var fieldsOf = new Dictionary<Kind, IReadOnlyList<Field>>();
         var objectsOf = new Dictionary<Kind, IReadOnlyList<MoonwellObject>>();
@@ -92,11 +98,11 @@ internal static class Builder
                 kind,
                 fields,
                 objectsOf[kind],
-                kind == Kind.Unit ? UnitUiOf(folder) : [],
-                kind == Kind.Upgrade ? EffectsOf(tables, folder, lists) : null);
+                kind == Kind.Unit ? UnitUiOf(read(UnitUi)) : [],
+                kind == Kind.Upgrade ? EffectsOf(tables, read(UpgradeEffects), lists) : null);
         }
 
-        return new GameData(folder, kinds, lists);
+        return new GameData(source, tables.Build?.Version, kinds, lists);
     }
 
     /// <summary>The kind as the Object Editor names it.</summary>
@@ -113,7 +119,7 @@ internal static class Builder
     };
 
     private static KindData KindDataOf(
-        ExportTables tables,
+        GameTables tables,
         Kind kind,
         IReadOnlyList<Field> fields,
         IReadOnlyList<MoonwellObject> objects,
@@ -199,7 +205,7 @@ internal static class Builder
     /// first balance set's it exists in.
     /// </summary>
     private static ObjectRows PrimaryRows(
-        ExportTables tables,
+        GameTables tables,
         Kind kind,
         MoonwellObject obj,
         Dictionary<string, ObjectRows> baseRows,
@@ -220,7 +226,7 @@ internal static class Builder
     }
 
     private static StandardObject Object(
-        ExportTables tables,
+        GameTables tables,
         ObjectKind kind,
         string? levelField,
         MoonwellObject obj,
@@ -346,19 +352,18 @@ internal static class Builder
 
     /// <summary>
     /// The <see cref="UnitUiColumns"/> of each unit in the base <c>unitui.slk</c>, as the table writes them (a cell it
-    /// leaves empty is absent); empty when the folder has no such table.
+    /// leaves empty is absent); empty when the tables have no such table.
     /// </summary>
-    private static Dictionary<string, Dictionary<string, string>> UnitUiOf(string folder)
+    private static Dictionary<string, Dictionary<string, string>> UnitUiOf(byte[]? bytes)
     {
         var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
-        var path = Path.Combine(folder, UnitUi);
-        if (!File.Exists(path))
+        if (bytes == null)
         {
             return result;
         }
 
         SylkTable table;
-        using (var stream = File.OpenRead(path))
+        using (var stream = new MemoryStream(bytes))
         {
             table = new SylkParser(keepText: true).Parse(stream);
         }
@@ -405,22 +410,22 @@ internal static class Builder
         return result;
     }
 
-    /// <summary>A list the editor makes itself, its labels from the export's World Editor strings.</summary>
-    private static ChoiceList OwnList(ExportTables tables, bool flags, (string Value, string Key)[] entries) =>
+    /// <summary>A list the editor makes itself, its labels from the World Editor strings.</summary>
+    private static ChoiceList OwnList(GameTables tables, bool flags, (string Value, string Key)[] entries) =>
         new(flags, "string", entries.Select(entry => new ChoiceEntry(entry.Value, tables.Label(entry.Key), [])).ToList());
 
     /// <summary>
     /// The fields each upgrade effect uses, from <see cref="UpgradeEffects"/>: their data type, World Editor's label,
     /// and how they are typed (a whole number, a real, a choice of <paramref name="lists"/>, an ability or a unit).
-    /// Empty when the folder has no such table.
+    /// Empty when the tables have no such table.
     /// </summary>
     private static Dictionary<string, IReadOnlyList<UpgradeEffectField>> EffectsOf(
-        ExportTables tables,
-        string folder,
+        GameTables tables,
+        byte[]? effects,
         IReadOnlyDictionary<string, ChoiceList> lists)
     {
         var found = new Dictionary<string, List<UpgradeEffectField>>(StringComparer.Ordinal);
-        foreach (var row in Rows(Path.Combine(folder, UpgradeEffects)))
+        foreach (var row in Rows(effects))
         {
             if (row.GetValueOrDefault("effectID") is not { Length: > 0 } effect
                 || row.GetValueOrDefault("dataType") is not { Length: > 0 } dataType)
@@ -452,16 +457,16 @@ internal static class Builder
     }
 
     /// <summary>The rows of a table, each by its column names, the cells as written; empty when there is no file.</summary>
-    private static List<Dictionary<string, string>> Rows(string path)
+    private static List<Dictionary<string, string>> Rows(byte[]? bytes)
     {
         var result = new List<Dictionary<string, string>>();
-        if (!File.Exists(path))
+        if (bytes == null)
         {
             return result;
         }
 
         SylkTable table;
-        using (var stream = File.OpenRead(path))
+        using (var stream = new MemoryStream(bytes))
         {
             table = new SylkParser(keepText: true).Parse(stream);
         }
@@ -507,15 +512,15 @@ internal static class Builder
     }
 
     /// <summary>
-    /// The label of a <c>WESTRING_</c> key, or the empty string when the export has none; any other text as it is.
+    /// The label of a <c>WESTRING_</c> key, or the empty string when the tables have none; any other text as it is.
     /// </summary>
-    private static string Resolved(ExportTables tables, string text)
+    private static string Resolved(GameTables tables, string text)
     {
         var label = tables.Label(text);
         return label == text && text.StartsWith(KeyPrefix, StringComparison.Ordinal) ? "" : label;
     }
 
-    /// <summary>A choice value's label, or its text when the export has no label for it.</summary>
+    /// <summary>A choice value's label, or its text when the tables have no label for it.</summary>
     private static string LabelOf(ChoiceMember member) => member.Label.Length > 0 ? member.Label : member.Text;
 
     private static string Cell(MetaRow meta, string column) =>
