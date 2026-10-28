@@ -563,6 +563,10 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - TipTap: the tooltip editor's texts, in place of the editor's own editable-text code; `richText.ts` still reads
     and writes the markup. The texts gain their own undo and redo. *(Agent's calls: copying a text gives the game's
     markup and a paste is read as markup, so colours and placeholders survive both; a paste was plain text before.)*
+- **Sven, 2026-10-29:** a number box's up and down arrows are the editor's own (two chevrons in the faint grey, shown
+  while the box is hovered or has the cursor), in place of the browser's grey block; a click steps by 1 and the value
+  is sent once the clicks stop, as before. *(Agent's call: drawn by the field editor, since the browser's arrows,
+  restyled, no longer stepped down from their lower half.)*
   - A bits field (Extra Versions, Pick Flags...) reads its values as the game's data spells them, each bit's own value
     (1, 2, 4): before, the editor read 6 as bits 1 and 2, so it ticked the wrong entries and wrote the wrong bits. A bit
     World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's

@@ -132,6 +132,8 @@
   "field.resetLabel": "Reset {field}",
   "field.resetTitle": "Back to the standard value: {value}",
   "field.standard": "Standard: {value}",
+  "field.stepDown": "One less",
+  "field.stepUp": "One more",
   "flags.bit": "Bit {bit}",
   "flags.none": "None",
   "graphics.de": "Definitive Edition",

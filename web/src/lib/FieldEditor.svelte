@@ -5,6 +5,8 @@
  * and picker. A value the app refuses keeps what was typed, with the reason in `error`. The table's cell editor starts
  * it with what was typed into the cell (`initial`), and sends or drops the typed value itself (`commit`, `cancel`).
  */
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
@@ -108,6 +110,7 @@ const options = $derived.by((): SelectOption[] =>
 );
 // A number box's arrows send the value once they stop.
 let stepping: ReturnType<typeof setTimeout> | undefined;
+let numberBox: HTMLInputElement | undefined = $state();
 // A real shows with three decimals, and a file by the names of the objects that use it while the box is not being
 // edited (its path while it is), as World Editor shows them (Sven, 2026-10-27).
 let focused = $state(false);
@@ -214,6 +217,19 @@ function onkeydown(event: KeyboardEvent): void {
   }
 }
 
+// The number box's arrows (Sven, 2026-10-29): a step of 1 up or down, sent once they stop, as the browser's own did.
+function step(by: number): void {
+  if (!numberBox) return;
+  const now = numberBox.value === "" ? 0 : Number(numberBox.value);
+  if (!Number.isFinite(now)) return;
+  const next = String(Math.round((now + by) * 1e6) / 1e6);
+  numberBox.value = next;
+  setDraft(next);
+  refused = null;
+  clearTimeout(stepping);
+  stepping = setTimeout(commit, 400);
+}
+
 function oninput(event: Event): void {
   setDraft((event.currentTarget as HTMLInputElement | HTMLTextAreaElement).value);
   refused = null;
@@ -252,10 +268,12 @@ function oninput(event: Event): void {
   {:else if editor === "ids"}
     <IdsEditor {field} {lookup} {compact} onset={send} {onopen} />
   {:else if editor === "number"}
+    <span class="group/number relative inline-flex max-w-full align-top {compact ? 'w-full' : ''}">
     <input
       type="number"
-      class="{boxClass} px-1.5"
+      class="{boxClass} pr-4 pl-1.5"
       style:width="calc({numberWidth}ch + 30px)"
+      bind:this={numberBox}
       step={field.type === "int" ? 1 : "any"}
       value={draft ?? boxValue}
       {placeholder}
@@ -277,6 +295,24 @@ function oninput(event: Event): void {
         commit();
       }}
     />
+    <!-- The box's arrows, shown while it is hovered or has the cursor; a click keeps the cursor where it was. -->
+    <span
+      class="absolute inset-y-px right-px flex w-3.5 flex-col opacity-0 group-hover/number:opacity-100 group-focus-within/number:opacity-100"
+    >
+      {#each [{ by: 1, Icon: ChevronUp, name: t("field.stepUp") }, { by: -1, Icon: ChevronDown, name: t("field.stepDown") }] as arrow (arrow.by)}
+        <button
+          type="button"
+          tabindex="-1"
+          class="flex flex-1 cursor-pointer items-center justify-center text-faint hover:text-fg"
+          aria-label={arrow.name}
+          onmousedown={(event) => event.preventDefault()}
+          onclick={() => step(arrow.by)}
+        >
+          <arrow.Icon size={11} strokeWidth={2.5} />
+        </button>
+      {/each}
+    </span>
+    </span>
   {:else if multiline}
     <textarea
       class="{boxClass} block min-h-[4.5em] w-full resize-y px-1.5"

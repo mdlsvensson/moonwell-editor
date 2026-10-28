@@ -129,6 +129,12 @@ body {
     background: var(--raised);
     color: var(--fg);
   }
+
+  /* A number box's own arrows are hidden: the field editor draws its own (Sven, 2026-10-29). */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    display: none;
+  }
 }
 
 /* Scroll bars are a thin, see-through bar with no track and no arrows. */
