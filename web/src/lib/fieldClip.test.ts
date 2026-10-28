@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FieldView } from "./api.ts";
-import { copiedField, copyField, fits } from "./fieldClip.ts";
+import { copiedField, copyField, copyRange, fits } from "./fieldClip.ts";
 
 function field(over: Partial<FieldView> & { id: string; type: string }): FieldView {
   return {
@@ -78,5 +78,17 @@ describe("pasting a copied field", () => {
     expect(fits(copyField(armor), name)).toBe(false);
     expect(fits(copyField(hostile), hitPoints)).toBe(false);
     expect(fits(copyField(abilities), name)).toBe(false);
+  });
+});
+
+describe("copyRange", () => {
+  it("keeps a total's range as the game writes it, for a paste into another total only", () => {
+    const clip = copyRange("Attack 1 - Damage", { min: 12, max: 13 });
+    expect(copiedField()).toBe(clip);
+    expect(clip.value).toBe("12 - 13");
+    expect(clip.range).toEqual({ min: 12, max: 13 });
+    expect(fits(clip, hitPoints)).toBe(false);
+    expect(fits(clip, speed)).toBe(false);
+    expect(fits(clip, name)).toBe(false);
   });
 });

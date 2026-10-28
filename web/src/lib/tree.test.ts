@@ -16,11 +16,11 @@ function entry(id: string, path: string[], name = id): TreeEntry {
 
 const entries = [
   entry("hfoo", ["human", "Melee", "Units"], "Footman"),
-  entry("h000", ["Custom"], "Spearman"),
+  entry("h000", ["Custom", "human", "Melee", "Units"], "Spearman"),
   entry("hkni", ["human", "Melee", "Units"], "Knight"),
   entry("Hpal", ["human", "Melee", "Heroes"], "Paladin"),
   entry("ogru", ["orc", "Melee", "Units"], "Grunt"),
-  entry("h001", ["Custom"], "Champion"),
+  entry("h001", ["Custom", "orc", "Melee", "Units"], "Champion"),
 ];
 
 /** Each row as a short text: `[+]`/`[-]` for an open/closed group, the id for an object. */
@@ -34,7 +34,7 @@ function shape(lines: Line[]): string[] {
 const allOpen = () => true;
 
 describe("the tree's rows", () => {
-  it("put the standard objects grouped by path first, then the custom ones, as World Editor does", () => {
+  it("put the standard objects grouped by path first, then the custom ones in the same folders, as World Editor does", () => {
     expect(shape(treeLines(entries, "unit", "", allOpen))).toEqual([
       `[-] ${t("tree.standard")} 4`,
       "[-] human 3",
@@ -49,7 +49,13 @@ describe("the tree's rows", () => {
       "[-] Units 1",
       "ogru",
       `[-] ${t("tree.custom")} 2`,
+      "[-] human 1",
+      "[-] Melee 1",
+      "[-] Units 1",
       "h000",
+      "[-] orc 1",
+      "[-] Melee 1",
+      "[-] Units 1",
       "h001",
     ]);
   });
@@ -62,8 +68,8 @@ describe("the tree's rows", () => {
       "[+] Melee 3",
       "[+] orc 1",
       `[-] ${t("tree.custom")} 2`,
-      "h000",
-      "h001",
+      "[+] human 1",
+      "[+] orc 1",
     ]);
   });
 
@@ -77,7 +83,13 @@ describe("the tree's rows", () => {
     expect(shape(treeLines(entries, "unit", "", open))).toEqual([
       `[+] ${t("tree.standard")} 4`,
       `[-] ${t("tree.custom")} 2`,
+      "[-] human 1",
+      "[-] Melee 1",
+      "[-] Units 1",
       "h000",
+      "[-] orc 1",
+      "[-] Melee 1",
+      "[-] Units 1",
       "h001",
     ]);
   });
@@ -100,7 +112,13 @@ describe("the tree's rows", () => {
       "unit:human/Melee",
       "unit:human/Melee/Units",
     ]);
-    expect(groupKeys("unit", entries[1] as TreeEntry)).toEqual(["unit:Custom"]);
+    // A custom object's folders are keyed under Custom, apart from the standard ones.
+    expect(groupKeys("unit", entries[1] as TreeEntry)).toEqual([
+      "unit:Custom",
+      "unit:Custom/human",
+      "unit:Custom/human/Melee",
+      "unit:Custom/human/Melee/Units",
+    ]);
   });
 
   it("show races as World Editor names them", () => {

@@ -37,6 +37,47 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
     }
 
     [Fact]
+    public void A_custom_object_is_filed_by_its_own_values_where_the_map_sets_them()
+    {
+        var footman = Standard("hfoo", "human");
+        var none = (string _) => (string?)null;
+
+        // As its base, under its own id and name; a capital letter makes a hero.
+        var copy = Folders.AsFiled(ObjectKind.Unit, "h000", "Guard", "", footman, none);
+        Assert.Equal(("h000", "Guard"), (copy.Id, copy.Name));
+        Assert.Equal(["Human", "Melee", "Units"], Folders.Of(ObjectKind.Unit, copy));
+        Assert.Equal(
+            ["Human", "Melee", "Heroes"],
+            Folders.Of(ObjectKind.Unit, Folders.AsFiled(ObjectKind.Unit, "H000", "Guard", "", footman, none)));
+
+        // Its race, campaign and building where the map sets them.
+        var set = new Dictionary<string, string> { ["urac"] = "orc", ["ucam"] = "1", ["ubdg"] = "1" };
+        Assert.Equal(
+            ["Orc", "Campaign", "Buildings"],
+            Folders.Of(
+                ObjectKind.Unit,
+                Folders.AsFiled(ObjectKind.Unit, "h001", "Hut", "", footman, set.GetValueOrDefault)));
+
+        // A hidden base does not hide the custom object; an item by its class; an ability by Hero Ability.
+        var hidden = Standard("zshv", "other", hidden: true);
+        Assert.False(Folders.AsFiled(ObjectKind.Unit, "n000", "Shiva", "", hidden, none).Hidden);
+        Assert.Equal(
+            ["Charged"],
+            Folders.Of(
+                ObjectKind.Item,
+                Folders.AsFiled(
+                    ObjectKind.Item, "I000", "Potion", "", Standard("phea", "", category: "Permanent"),
+                    new Dictionary<string, string> { ["icla"] = "Charged" }.GetValueOrDefault)));
+        Assert.Equal(
+            ["Human", "Heroes"],
+            Folders.Of(
+                ObjectKind.Ability,
+                Folders.AsFiled(
+                    ObjectKind.Ability, "A000", "Bolt", "", Standard("AHtb", "human", category: "unit"),
+                    new Dictionary<string, string> { ["aher"] = "1" }.GetValueOrDefault)));
+    }
+
+    [Fact]
     public void Other_kinds_list_a_folder_by_name_after_worlds_editors_sort_column()
     {
         // Compared as written, as World Editor lists Call To Arms (Town Hall) before Call to Arms (Peasant).
@@ -240,7 +281,7 @@ public sealed class FolderTests(GameDataFixture fixture, ITestOutputHelper outpu
         Assert.Equal("", session.Tree(ObjectKind.Doodad)[^1].Icon);
 
         // The map's custom objects stay first.
-        Assert.Equal(["Custom"], units[0].Path);
+        Assert.Equal("Custom", units[0].Path[0]);
     }
 
     /// <summary>The folders right under <paramref name="parent"/>, in the order the tree first shows them.</summary>

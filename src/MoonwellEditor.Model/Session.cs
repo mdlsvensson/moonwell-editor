@@ -161,8 +161,9 @@ public sealed partial class Session
     }
 
     /// <summary>
-    /// The kind's tree: the map's custom objects first, in file order, then every standard object in World Editor's
-    /// folder order (see <see cref="Folders"/>).
+    /// The kind's tree: the map's custom objects first, under Custom in the folders World Editor files them in and in
+    /// its order (see <see cref="Folders.AsFiled"/>), then every standard object in World Editor's folder order (see
+    /// <see cref="Folders"/>).
     /// </summary>
     public IReadOnlyList<TreeEntry> Tree(ObjectKind kind)
     {
@@ -170,15 +171,29 @@ public sealed partial class Session
         var data = _game.Kind(kind);
         var resolver = ResolverOf(kind, data);
         var tree = new List<TreeEntry>();
-        foreach (var custom in map.Customs())
+        var customs = map.Customs()
+            .Select(custom =>
+            {
+                var standard = data.Object(custom.BaseId);
+                var filed = Folders.AsFiled(
+                    kind,
+                    custom.Id,
+                    resolver.Name(standard, custom, custom.Id),
+                    resolver.Suffix(standard, custom),
+                    standard,
+                    field => resolver.MapText(field, custom));
+                return (Custom: custom, Standard: standard, Filed: filed);
+            })
+            .ToDictionary(each => each.Filed.Id, StringComparer.Ordinal);
+        foreach (var filed in Folders.Sorted(kind, customs.Values.Select(each => each.Filed)))
         {
-            var standard = data.Object(custom.BaseId);
+            var (custom, standard, _) = customs[filed.Id];
             tree.Add(new TreeEntry(
                 custom.Id,
                 custom.BaseId,
-                resolver.Name(standard, custom, custom.Id),
-                resolver.Suffix(standard, custom),
-                ["Custom"],
+                filed.Name,
+                filed.Suffix,
+                ["Custom", .. Folders.Of(kind, filed)],
                 custom.HasMods,
                 resolver.Icon(standard, custom),
                 resolver.IconModes(standard, custom)));

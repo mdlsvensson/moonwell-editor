@@ -1,6 +1,7 @@
 /**
- * The rows of a kind's tree: the standard objects grouped by their path, then the map's custom objects. The
- * tree pane draws only the rows in view, so it works from this flat list.
+ * The rows of a kind's tree: the standard objects grouped by their path, then the map's custom objects, grouped by
+ * theirs in the same folders (Sven, 2026-10-28). The tree pane draws only the rows in view, so it works from this flat
+ * list.
  */
 import type { Kind, TreeEntry } from "./api.ts";
 import { t } from "./text.ts";
@@ -29,9 +30,9 @@ export function groupName(name: string): string {
   return groupNames[name] ?? name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-/** True for one of the map's custom objects (its path is `["Custom"]`). */
+/** True for one of the map's custom objects (its path starts with `Custom`, then its folders). */
 export function isCustom(entry: TreeEntry): boolean {
-  return entry.path.length === 1 && entry.path[0] === "Custom";
+  return entry.path[0] === "Custom";
 }
 
 /** The key of the Custom group of a kind. */
@@ -46,11 +47,9 @@ export function standardKey(kind: Kind): string {
 
 /** The keys of the groups an object is in, broadest first (Standard, then its path): what must be open for it to show. */
 export function groupKeys(kind: Kind, entry: TreeEntry): string[] {
-  if (isCustom(entry)) return [customKey(kind)];
-  return [
-    standardKey(kind),
-    ...entry.path.map((_, depth) => `${kind}:${entry.path.slice(0, depth + 1).join("/")}`),
-  ];
+  const keys = entry.path.map((_, depth) => `${kind}:${entry.path.slice(0, depth + 1).join("/")}`);
+  // A custom object's path starts with Custom, whose key is the Custom heading's.
+  return isCustom(entry) ? keys : [standardKey(kind), ...keys];
 }
 
 /** The kinds' names, as the kind buttons show them. */
@@ -104,35 +103,27 @@ export function treeLines(
   const open = (key: string) => needle !== "" || isOpen(key);
   const result: Line[] = [];
 
-  const root: Group = { name: "", key: "", groups: new Map(), entries: [], count: 0 };
-  for (const entry of shown) {
-    if (isCustom(entry)) continue;
-    const keys = groupKeys(kind, entry);
-    let group = root;
-    group.count++;
-    entry.path.forEach((name, depth) => {
-      let child = group.groups.get(name);
-      if (!child) {
-        child = { name, key: keys[depth + 1] ?? "", groups: new Map(), entries: [], count: 0 };
-        group.groups.set(name, child);
-      }
-      child.count++;
-      group = child;
-    });
-    group.entries.push(entry);
-  }
-  // Standard opens and closes like Custom (Sven, 2026-10-27).
-  const standardOpen = open(standardKey(kind));
-  if (root.count > 0) {
-    result.push({
-      type: "group",
-      key: standardKey(kind),
-      name: t("tree.standard"),
-      depth: -1,
-      open: standardOpen,
-      count: root.count,
-    });
-  }
+  // The objects grouped by their folders: the standard ones by their path, the custom ones by theirs after Custom.
+  const grow = (from: TreeEntry[], custom: boolean): Group => {
+    const root: Group = { name: "", key: "", groups: new Map(), entries: [], count: 0 };
+    for (const entry of from) {
+      const keys = groupKeys(kind, entry);
+      const path = custom ? entry.path.slice(1) : entry.path;
+      let group = root;
+      group.count++;
+      path.forEach((name, depth) => {
+        let child = group.groups.get(name);
+        if (!child) {
+          child = { name, key: keys[depth + 1] ?? "", groups: new Map(), entries: [], count: 0 };
+          group.groups.set(name, child);
+        }
+        child.count++;
+        group = child;
+      });
+      group.entries.push(entry);
+    }
+    return root;
+  };
   const walk = (group: Group, depth: number) => {
     for (const child of group.groups.values()) {
       const childOpen = open(child.key);
@@ -150,12 +141,29 @@ export function treeLines(
       result.push({ type: "entry", key: `e:${entry.id}`, entry, depth });
     }
   };
-  if (standardOpen) walk(root, 0);
+
+  // Standard opens and closes like Custom (Sven, 2026-10-27).
+  const standard = grow(
+    shown.filter((entry) => !isCustom(entry)),
+    false,
+  );
+  const standardOpen = open(standardKey(kind));
+  if (standard.count > 0) {
+    result.push({
+      type: "group",
+      key: standardKey(kind),
+      name: t("tree.standard"),
+      depth: -1,
+      open: standardOpen,
+      count: standard.count,
+    });
+  }
+  if (standardOpen) walk(standard, 0);
 
   // The Custom group comes after Standard, as World Editor's Custom Units come after its Standard Units, and shows
   // only while the kind has custom objects (Sven, 2026-10-27).
-  const custom = shown.filter(isCustom);
-  if (custom.length > 0) {
+  const custom = grow(shown.filter(isCustom), true);
+  if (custom.count > 0) {
     const key = customKey(kind);
     const customOpen = open(key);
     result.push({
@@ -164,13 +172,9 @@ export function treeLines(
       name: t("tree.custom"),
       depth: -1,
       open: customOpen,
-      count: custom.length,
+      count: custom.count,
     });
-    if (customOpen) {
-      for (const entry of custom) {
-        result.push({ type: "entry", key: `e:${entry.id}`, entry, depth: 0 });
-      }
-    }
+    if (customOpen) walk(custom, 0);
   }
   return result;
 }

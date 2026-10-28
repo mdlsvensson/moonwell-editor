@@ -345,6 +345,13 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
     /// field belongs to (skin or main) is looked at first. A modification matches by field and level, whatever its
     /// data pointer.
     /// </summary>
+    /// <summary>The map's value of a field (at level 1 for a field of each level), as text; null when it sets none.</summary>
+    internal string? MapText(string fieldId, MapObject map)
+    {
+        var field = data.Field(fieldId);
+        return field == null ? null : MapValue(field, field.PerLevel ? 1 : 0, map);
+    }
+
     private string? MapValue(FieldInfo field, int level, MapObject? map)
     {
         if (map == null)

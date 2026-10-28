@@ -1,17 +1,20 @@
 /**
  * Copying a field's value and pasting it into another field, as World Editor does (Sven, 2026-10-27): a value only
- * goes into a field that can hold it.
+ * goes into a field that can hold it. A total of dice (Attack 1 - Damage 12 — 13) is copied as its range, which goes
+ * into any other total (Sven, 2026-10-28).
  */
 import type { FieldView } from "./api.ts";
+import { type Range, rangeText } from "./dice.ts";
 import { listIds, listKinds } from "./fields.ts";
 
-/** A copied field value, with what kind of value it is. */
+/** A copied field value, with what kind of value it is; a total's has the type `range` and its range. */
 export type FieldClip = {
   label: string;
   type: string;
   choice: string | null;
   listOf: string | null;
   value: string;
+  range?: Range;
 };
 
 let kept: FieldClip | null = null;
@@ -30,6 +33,12 @@ export function copyField(field: FieldView): FieldClip {
     listOf: field.listOf,
     value: field.value,
   };
+  return kept;
+}
+
+/** Keeps a total's range for a paste into another total. */
+export function copyRange(label: string, range: Range): FieldClip {
+  kept = { label, type: "range", choice: null, listOf: null, value: rangeText(range), range };
   return kept;
 }
 

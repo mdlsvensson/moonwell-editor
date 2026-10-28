@@ -19,9 +19,16 @@ import { type Component, tick } from "svelte";
 import type { ChoiceList, FieldView, Kind, ObjectView } from "./api.ts";
 import type { MenuItem } from "./ContextMenu.svelte";
 import DiceRow from "./DiceRow.svelte";
-import { diceGroups, withTotals } from "./dice.ts";
+import {
+  type DiceFields,
+  diceGroups,
+  rangeEdits,
+  rangeOf,
+  totalLabel,
+  withTotals,
+} from "./dice.ts";
 import FieldRow from "./FieldRow.svelte";
-import { copiedField, copyField, fits } from "./fieldClip.ts";
+import { copiedField, copyField, copyRange, fits } from "./fieldClip.ts";
 import {
   type ButtonPair,
   buttonPair,
@@ -83,7 +90,8 @@ let {
 }: Props = $props();
 
 let root: HTMLDivElement | undefined = $state();
-// The selected field and level, as `field:level` (Sven, 2026-10-27); it goes with the object.
+// The selected field and level, as `field:level` (Sven, 2026-10-27), or a total of dice as `base:total` (Sven,
+// 2026-10-28); it goes with the object.
 let selected = $state<string | null>(null);
 let selectedOf = "";
 $effect.pre(() => {
@@ -104,6 +112,73 @@ function select(field: FieldView): void {
 
 function selectedField(): FieldView | undefined {
   return view.fields.find((field) => keyOf(field) === selected);
+}
+
+/** A total's key in `selected`: its base field's id, then `:total`. */
+function totalKey(dice: DiceFields): string {
+  return `${dice.base.id}:total`;
+}
+
+/** The selected total of dice, with its name; undefined when a field (or nothing) is selected. */
+function selectedTotal(): { label: string; dice: DiceFields } | undefined {
+  const group = diceGroups.find((each) => `${each.base}:total` === selected);
+  if (!group) return undefined;
+  const find = (id: string) => view.fields.find((field) => field.id === id && field.level === 0);
+  const base = find(group.base);
+  const dice = find(group.dice);
+  const sides = find(group.sides);
+  return base && dice && sides
+    ? { label: totalLabel(base.label), dice: { base, dice, sides } }
+    : undefined;
+}
+
+function copyTotal(label: string, dice: DiceFields): void {
+  const range = rangeOf(dice);
+  const clip = copyRange(label, range);
+  navigator.clipboard?.writeText(clip.value).catch(() => {});
+  onnotice(t("details.copied", { field: label }), false);
+}
+
+async function pasteTotal(label: string, dice: DiceFields): Promise<void> {
+  const clip = copiedField();
+  if (!clip) {
+    onnotice(t("details.nothingCopied"), false);
+    return;
+  }
+  if (!editable) {
+    onnotice(t("details.readOnly", { reason: view.readOnly ?? "" }), true);
+    return;
+  }
+  if (!clip.range) {
+    onnotice(t("details.doesNotFit", { from: clip.label, to: label }), true);
+    return;
+  }
+  const edits = rangeEdits(dice, clip.range);
+  const error = edits.length === 0 ? null : await onfields(edits);
+  onnotice(error ?? t("details.pasted", { from: clip.label, to: label }), error !== null);
+}
+
+/** The context menu of a total: copy and paste its range, and reset its three fields. */
+function totalMenu(label: string, dice: DiceFields, x: number, y: number): void {
+  const clip = copiedField();
+  const parts = [dice.base, dice.dice, dice.sides];
+  onmenu(x, y, [
+    { label: t("details.menu.copy"), shortcut: "Ctrl C", run: () => copyTotal(label, dice) },
+    {
+      label: clip ? t("details.menu.pasteField", { field: clip.label }) : t("details.menu.paste"),
+      shortcut: "Ctrl V",
+      disabled: !clip?.range || !editable,
+      run: () => pasteTotal(label, dice),
+    },
+    { separator: true },
+    {
+      label: t("details.menu.reset"),
+      disabled: !editable || !parts.some((part) => part.changed),
+      run: async () => {
+        for (const part of parts) if (part.changed) await onreset(part);
+      },
+    },
+  ]);
 }
 
 function copy(field: FieldView): void {
@@ -141,6 +216,13 @@ async function paste(field: FieldView): Promise<void> {
  * so the key goes to the object.
  */
 export function clipKey(key: "c" | "x" | "v"): boolean {
+  const total = selectedTotal();
+  if (total) {
+    if (key === "c") copyTotal(total.label, total.dice);
+    else if (key === "v") pasteTotal(total.label, total.dice);
+    else onnotice(t("details.cannotCut"), false);
+    return true;
+  }
   const field = selectedField();
   if (!field) return false;
   if (key === "c") copy(field);
@@ -212,9 +294,9 @@ $effect(() => {
 });
 // Categories the user closed, by key; they stay closed from object to object.
 let closed = $state<Record<string, boolean>>({});
-// The totals of dice whose base, dice and sides the user hid, by the total's row id; they stay so from object to
-// object.
-let hiddenParts = $state<Record<string, boolean>>({});
+// The totals of dice whose base, dice and sides the user showed, by the total's row id; they start hidden (Sven,
+// 2026-10-28) and stay as the user left them from object to object.
+let shownParts = $state<Record<string, boolean>>({});
 
 const nameOf = namesOf((listOf, id) => lookup(listOf, id));
 const categories = $derived(
@@ -436,8 +518,10 @@ function clearOnEscape(event: KeyboardEvent): void {
                       {selected}
                       onselect={select}
                       onmenu={fieldMenu}
-                      open={!hiddenParts[row.id]}
-                      ontoggle={() => (hiddenParts[row.id] = !hiddenParts[row.id])}
+                      onselecttotal={(dice) => (selected = totalKey(dice))}
+                      ontotalmenu={(dice, x, y) => totalMenu(row.label, dice, x, y)}
+                      open={!!shownParts[row.id]}
+                      ontoggle={() => (shownParts[row.id] = !shownParts[row.id])}
                     />
                   {:else}
                   <FieldRow

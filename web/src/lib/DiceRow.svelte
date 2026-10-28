@@ -27,10 +27,14 @@ type Props = {
   onopen: (kind: Kind, id: string) => void;
   /** Changes several fields as one edit; answers with why it was refused, or null. */
   onfields: (edits: { field: FieldView; value: string }[]) => Promise<string | null>;
-  /** The selected field and level, as `field:level`. */
+  /** The selected field and level, as `field:level`, or a total as `base:total`. */
   selected: string | null;
   onselect: (field: FieldView) => void;
   onmenu: (field: FieldView, x: number, y: number) => void;
+  /** Selects the total itself (not its base), for Ctrl C and Ctrl V. */
+  onselecttotal: (dice: DiceFields) => void;
+  /** A right click on the total, for its context menu. */
+  ontotalmenu: (dice: DiceFields, x: number, y: number) => void;
   /** Whether the three fields show under the total. */
   open: boolean;
   ontoggle: () => void;
@@ -50,6 +54,8 @@ let {
   selected,
   onselect,
   onmenu,
+  onselecttotal,
+  ontotalmenu,
   open,
   ontoggle,
 }: Props = $props();
@@ -153,10 +159,11 @@ async function resetAll(): Promise<void> {
   field?: string,
 )}
   <input
-    class="field-sizing-content min-w-[5ch] max-w-full rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none focus:border-accent {error
+    class="field-sizing-content min-w-[5ch] max-w-full rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-solid focus:border-accent {error
       ? 'border-warn bg-warn-lo'
-      : 'border-line bg-raised hover:border-muted'} {changed ? 'text-changed' : 'text-fg'}"
+      : 'border-transparent bg-transparent hover:border-dashed hover:border-muted'} {changed ? 'text-changed' : 'text-fg'}"
     value={draft ?? String(shown)}
+    placeholder="0"
     data-field={field}
     aria-label={name}
     aria-invalid={!!error}
@@ -174,16 +181,17 @@ async function resetAll(): Promise<void> {
 <div
   data-changed={changed || undefined}
   class="grid min-h-[30px] grid-cols-[22px_var(--label-width,220px)_minmax(120px,1fr)] items-center border-t border-line {selected ===
-  `${fields.base.id}:0`
+  `${fields.base.id}:total`
     ? 'bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/60'
     : 'hover:bg-surface'}"
   role="group"
   aria-label={label}
-  onpointerdown={() => onselect(fields.base)}
+  onfocusin={() => onselecttotal(fields)}
+  onpointerdown={() => onselecttotal(fields)}
   oncontextmenu={(event) => {
     event.preventDefault();
-    onselect(fields.base);
-    onmenu(fields.base, event.clientX, event.clientY);
+    onselecttotal(fields);
+    ontotalmenu(fields, event.clientX, event.clientY);
   }}
 >
   <button

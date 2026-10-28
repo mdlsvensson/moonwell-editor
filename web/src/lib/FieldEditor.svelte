@@ -122,17 +122,26 @@ const title = $derived(
 );
 // Values start at the left of their box, and a box in the details panel is as wide as its value (between 8 characters
 // and the column), as World Editor shows them (Sven, 2026-10-27); a level grid's cell fills its column. The box has a
-// background and border of its own, so it shows as a box on the row (Sven, 2026-10-27).
+// background and border of its own, so it shows as a box on the row (Sven, 2026-10-27). A box that is typed in (a
+// number, a text) shows only its value, as the tooltip editor's texts do: a dashed border on hover, the accent's while
+// it has the cursor, and its placeholder when it is empty (Sven, 2026-10-28). A dropdown keeps its box (`tone`).
 const tone = $derived(
   `${error || field.warning ? "border-warn bg-warn-lo" : `${compact ? "border-transparent" : "border-line"} bg-raised hover:border-muted`} ${
     field.changed ? "text-changed" : "text-fg"
   }`,
 );
-const boxClass = $derived(
-  `min-w-0 rounded border py-[3px] font-mono text-[12.5px] outline-none focus:border-accent ${
-    compact ? "w-full" : "field-sizing-content min-w-[8ch] max-w-full"
-  } ${tone}`,
+const quiet = $derived(
+  `${error || field.warning ? "border-warn bg-warn-lo" : "border-transparent bg-transparent hover:border-dashed hover:border-muted"} ${
+    field.changed ? "text-changed" : "text-fg"
+  }`,
 );
+const boxClass = $derived(
+  `min-w-0 rounded border py-[3px] font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-solid focus:border-accent ${
+    compact ? "w-full" : "field-sizing-content min-w-[8ch] max-w-full"
+  } ${quiet}`,
+);
+// Every box shows something when it is empty: World Editor's empty value (0, 0.000, None), else "(empty)".
+const placeholder = $derived(emptyText(field, choices) || t("field.empty"));
 // A number box is as wide as its value or placeholder, with room for its arrows.
 const numberWidth = $derived(
   Math.max(3, (draft ?? boxValue).length, emptyText(field, choices).length),
@@ -249,7 +258,7 @@ function oninput(event: Event): void {
       style:width="calc({numberWidth}ch + 30px)"
       step={field.type === "int" ? 1 : "any"}
       value={draft ?? boxValue}
-      placeholder={emptyText(field, choices)}
+      {placeholder}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
       aria-invalid={!!error}
@@ -273,6 +282,7 @@ function oninput(event: Event): void {
       class="{boxClass} block min-h-[4.5em] w-full resize-y px-1.5"
       rows="3"
       value={draft ?? field.value}
+      {placeholder}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
       title={t("field.multilineTitle")}
@@ -284,12 +294,9 @@ function oninput(event: Event): void {
     <input
       class="{boxClass} px-1.5"
       value={draft ?? boxValue}
-      placeholder={emptyText(field, choices)}
+      {placeholder}
       size={compact
-        ? Math.max(
-            4,
-            Math.min(24, Math.max((draft ?? boxValue).length, emptyText(field, choices).length) + 1),
-          )
+        ? Math.max(4, Math.min(24, Math.max((draft ?? boxValue).length, placeholder.length) + 1))
         : undefined}
       spellcheck={editor === "text"}
       data-field="{field.id}:{field.level}"
