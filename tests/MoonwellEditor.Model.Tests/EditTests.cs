@@ -287,9 +287,11 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
             Assert.Equal(1, file.Custom[1].SetCount);
         }
 
+        // The tree files custom objects in folders, in World Editor's order, not the file's.
         Assert.Equal(
-            new[] { "h000", "h001", "h002", "H000", "h00Z", "h003" },
-            session.Tree(ObjectKind.Unit).Where(entry => entry.Path[0] == "Custom").Select(entry => entry.Id));
+            new[] { "h000", "h001", "h002", "H000", "h00Z", "h003" }.Order(StringComparer.Ordinal),
+            session.Tree(ObjectKind.Unit).Where(entry => entry.Path[0] == "Custom").Select(entry => entry.Id)
+                .Order(StringComparer.Ordinal));
 
         // Copies: a custom object's records (a TRIGSTR name written inline), a standard object's changes.
         session.Set(ObjectKind.Unit, "hfoo", "uhpm", 0, "500");
@@ -408,8 +410,9 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
         Assert.True(session.Undo());   // 7
         Assert.Equal("Peasant", session.Object(ObjectKind.Unit, "h000")!.Name);
         Assert.Equal(
-            new[] { "h000", created, copied },
-            session.Tree(ObjectKind.Unit).Where(entry => entry.Path[0] == "Custom").Select(entry => entry.Id));
+            new[] { "h000", created, copied }.Order(StringComparer.Ordinal),
+            session.Tree(ObjectKind.Unit).Where(entry => entry.Path[0] == "Custom").Select(entry => entry.Id)
+                .Order(StringComparer.Ordinal));
         Assert.True(session.Undo());   // 6
         Assert.Null(session.Object(ObjectKind.Unit, copied));
         Assert.True(session.Undo());   // 5

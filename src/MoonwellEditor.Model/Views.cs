@@ -6,7 +6,8 @@ namespace MoonwellEditor.Model;
 /// <param name="Name">The name: the map's when it changes the name, else the standard one.</param>
 /// <param name="Suffix">World Editor's suffix (<c>(Evil)</c>), resolved like the name; empty when it has none.</param>
 /// <param name="Path">
-/// Where the object sits in the tree, as World Editor names its folders: <c>["Custom"]</c> for a custom object; for a
+/// Where the object sits in the tree, as World Editor names its folders: for a custom object <c>Custom</c>, then the
+/// folders a standard object with its values sits in (<c>["Custom", "Human", "Melee", "Units"]</c>); for a
 /// standard unit its race, <c>Melee</c> or <c>Campaign</c>, then <c>Units</c>, <c>Buildings</c>, <c>Heroes</c> or
 /// <c>Special</c>; for an item its class, for a destructable or a doodad its category, for an ability its race then
 /// <c>Units</c>, <c>Heroes</c> or <c>Items</c>, for a buff its race then <c>Buffs</c> or <c>Effects</c>, for an

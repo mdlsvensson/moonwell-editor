@@ -200,6 +200,16 @@ function resetAll(): void {
         {t("settings.confirmReload")}
       </label>
 
+      {@render heading(t("settings.start"))}
+      <label class="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={prefs.alphaNotice}
+          onchange={(event) => setPref("alphaNotice", event.currentTarget.checked)}
+        />
+        {t("settings.alphaNotice")}
+      </label>
+
       {@render heading(t("settings.theme"))}
       <button
         type="button"

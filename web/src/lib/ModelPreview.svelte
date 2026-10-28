@@ -141,6 +141,8 @@ function show(
   let stopped = false;
   let frameId = 0;
   let renderer: ModelRenderer | undefined;
+  // The flat maps the classic materials of an HD model are drawn with (see `flatFill`); null when it has none.
+  let maps: MapsFill | null = null;
   // war3-model reads the colour each frame: it fills texture 1 (team colour) with it and draws texture 2 (the hero
   // glow) as a disc of it.
   const colour = vec3.fromValues(...teamRgb(team));
@@ -250,6 +252,11 @@ function show(
       const use = hdTextureUse(model, image);
       if (use) setImage(image, new ImageData(new Uint8ClampedArray(flat[use]), 1, 1));
     }
+    maps = flatFill(model);
+    if (maps) {
+      setImage(flatPaths.normal, new ImageData(new Uint8ClampedArray(flat.normal), 1, 1));
+      setImage(flatPaths.orm, new ImageData(new Uint8ClampedArray(flat.orm), 1, 1));
+    }
 
     const extents: (Extent | undefined)[] = [
       solidExtent(model, model.Sequences[sequence]?.Interval, pose),
@@ -333,11 +340,24 @@ function show(
     const toEye = vec3.create();
     const background = clearColour(into);
     let last = performance.now();
+    let failedFrame = false;
 
     const tick = (now: number) => {
       if (stopped) return;
+      // The next frame is asked for first, so a frame that throws does not stop the drawing: it stopped on the
+      // Footman's Decay Flesh, and no other animation could be picked after it (Sven, 2026-10-28).
+      frameId = requestAnimationFrame(tick);
       const delta = Math.min(100, now - last);
       last = now;
+      try {
+        drawFrame(delta);
+      } catch (e) {
+        if (!failedFrame) console.error("[model] a frame could not be drawn:", e);
+        failedFrame = true;
+      }
+    };
+
+    const drawFrame = (delta: number) => {
       if (!dragging && turning) yaw += (turnSpeed * delta) / 1000;
       vec3.set(target, centre[0], centre[1], centre[2] + lift * radius);
       vec3.set(
@@ -364,8 +384,12 @@ function show(
       // A material's later layers lie on the same surface as its first, so equal depth has to pass.
       gl.depthFunc(gl.LEQUAL);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      draw.render(view, projection, { wireframe: false, levelOfDetail: 0 });
-      frameId = requestAnimationFrame(tick);
+      const restore = maps ? fillMaps(draw, maps) : undefined;
+      try {
+        draw.render(view, projection, { wireframe: false, levelOfDetail: 0 });
+      } finally {
+        restore?.();
+      }
     };
     frameId = requestAnimationFrame(tick);
   }
@@ -457,6 +481,55 @@ function skinnedPose(
   return (index) => {
     const geoset = model.Geosets[index];
     return geoset && posed(geoset, (bone) => nodes[bone]?.matrix);
+  };
+}
+
+/** The paths the flat normal and ORM maps are given, for the layers that have none of their own. */
+const flatPaths = { normal: "moonwell:flat-normal", orm: "moonwell:flat-orm" } as const;
+
+/** The flat maps' texture numbers, and the materials that are drawn with them. */
+type MapsFill = { normal: number; orm: number; materials: number[] };
+
+/**
+ * For the classic materials of an HD model (a layer whose shader is not the HD one, with no normal or ORM layer of its
+ * own): the flat normal and ORM maps, added to the model's textures, and which materials take them. war3-model draws
+ * such a material with its HD shader, which takes the second and third layer's textures as those maps, and throws when
+ * there are none: the Footman's material 7, which only Decay Flesh shows, stopped the drawing (Sven, 2026-10-28). Null
+ * when the model has no such material.
+ */
+function flatFill(model: Model): MapsFill | null {
+  const hd = model.Geosets.some((geoset) => geoset.SkinWeights?.length);
+  const materials = model.Materials.flatMap((material, index) =>
+    material.Layers[0]?.ShaderTypeId !== 1 && material.Layers.length < 3 ? [index] : [],
+  );
+  if (!hd || materials.length === 0) return null;
+  const normal = model.Textures.length;
+  model.Textures.push(
+    { Image: flatPaths.normal, ReplaceableId: 0 } as Model["Textures"][number],
+    { Image: flatPaths.orm, ReplaceableId: 0 } as Model["Textures"][number],
+  );
+  return { normal, orm: normal + 1, materials };
+}
+
+/**
+ * Gives the classic materials the flat maps as their second and third layers' textures for one draw, and returns what
+ * puts them back: war3-model's update reads every entry as a layer of the material, which those have not.
+ */
+function fillMaps(renderer: ModelRenderer, maps: MapsFill): () => void {
+  const ids = (renderer as unknown as { rendererData?: { materialLayerTextureID?: number[][] } })
+    .rendererData?.materialLayerTextureID;
+  const lengths = maps.materials.map((index) => ids?.[index]?.length ?? 0);
+  for (const index of maps.materials) {
+    const layers = ids?.[index];
+    if (!layers) continue;
+    layers[1] ??= maps.normal;
+    layers[2] ??= maps.orm;
+  }
+  return () => {
+    maps.materials.forEach((index, at) => {
+      const layers = ids?.[index];
+      if (layers) layers.length = lengths[at] ?? layers.length;
+    });
   };
 }
 

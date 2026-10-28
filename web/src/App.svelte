@@ -5,7 +5,7 @@ import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import Menu from "@lucide/svelte/icons/menu";
 import Table2 from "@lucide/svelte/icons/table-2";
 import { onMount, tick } from "svelte";
-import AlphaNotice, { alphaUnderstood } from "./lib/AlphaNotice.svelte";
+import AlphaNotice from "./lib/AlphaNotice.svelte";
 import {
   type CellEdit,
   type ChoiceList,
@@ -113,8 +113,8 @@ let zone = $state<"tree" | "details">("tree");
 let settingsOpen = $state(false);
 // The question before a reload from disk with nothing unsaved.
 let confirmingReload = $state(false);
-// The alpha notice the editor opens with, until the user ticks "Don't show this again" (Sven, 2026-10-27).
-let alphaOpen = $state(!alphaUnderstood());
+// The alpha notice the editor opens with, until Settings turns it off (Sven, 2026-10-27; 2026-10-28).
+let alphaOpen = $state(prefs.alphaNotice);
 // The hotkeys, which the settings change.
 let keymap = $state(loadKeymap());
 // Put on before the first paint, so the page never shows the default theme first.

@@ -99,6 +99,71 @@ internal static class Folders
     };
 
     /// <summary>
+    /// A custom object as World Editor files it under Custom, in the same folders as the standard objects (Sven,
+    /// 2026-10-28): its base with the custom object's id, name and suffix, and its own values for what picks a folder
+    /// where the map sets them (a unit's race, campaign, special, building and Display as Neutral Hostile, and a hero by
+    /// its id's capital letter; an item's class; a destructable's or a doodad's category; an ability's race, and Hero
+    /// Ability or Item Ability; a buff's race and Is an Effect; an upgrade's race). It is never hidden. A custom object
+    /// whose base the game data lacks is filed as an object of no race. <paramref name="changed"/> gives the map's value
+    /// of a field by its id, null when the map does not set it. *(Agent's calls: which fields count, not checked in
+    /// World Editor field by field.)*
+    /// </summary>
+    public static StandardObject AsFiled(
+        ObjectKind kind,
+        string id,
+        string name,
+        string suffix,
+        StandardObject? standard,
+        Func<string, string?> changed)
+    {
+        var filed = (standard ?? new StandardObject(
+            id, name, suffix, "", false, false, false, false, "", false, null,
+            new Dictionary<string, string>(),
+            new Dictionary<string, IReadOnlyDictionary<string, string>>())) with
+        {
+            Id = id,
+            Name = name,
+            Suffix = suffix,
+            Hidden = false,
+        };
+
+        bool Flag(string field, bool otherwise) => changed(field) is { } value ? value.Trim() == "1" : otherwise;
+        string Text(string field, string otherwise) => changed(field) is { Length: > 0 } value ? value : otherwise;
+
+        return kind switch
+        {
+            ObjectKind.Unit => filed with
+            {
+                Race = Text("urac", filed.Race),
+                Campaign = Flag("ucam", filed.Campaign),
+                Special = Flag("uspe", filed.Special),
+                Building = Flag("ubdg", filed.Building),
+                Hostile = Flag("uhos", filed.Hostile),
+                Hero = id.Length > 0 && char.IsUpper(id[0]),
+            },
+            ObjectKind.Item => filed with { Category = Text("icla", filed.Category) },
+            ObjectKind.Destructable => filed with { Category = Text("bcat", filed.Category) },
+            ObjectKind.Doodad => filed with { Category = Text("dcat", filed.Category) },
+            ObjectKind.Ability when changed("aher") == null && changed("aite") == null =>
+                filed with { Race = Text("arac", filed.Race) },
+            ObjectKind.Ability => filed with
+            {
+                Race = Text("arac", filed.Race),
+                Category = Flag("aher", filed.Category == "hero") ? "hero"
+                    : Flag("aite", filed.Category == "item") ? "item"
+                    : "unit",
+            },
+            ObjectKind.Buff => filed with
+            {
+                Race = Text("frac", filed.Race),
+                Category = Flag("feff", filed.Category == "1") ? "1" : "0",
+            },
+            ObjectKind.Upgrade => filed with { Race = Text("grac", filed.Race) },
+            _ => filed,
+        };
+    }
+
+    /// <summary>
     /// The standard objects in tree order: by their folders' places in <see cref="Order"/>, level by level, and in
     /// the data's order among folders it does not list. Within a folder, units go by their <c>unitClass</c>
     /// (<see cref="StandardObject.Category"/>: <c>HUnit01</c>, <c>HUnit02</c>...), as World Editor lists them, those

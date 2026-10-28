@@ -3,7 +3,7 @@
  * A small dialog over the page: a title, its text and its buttons. Esc or a click on the veil cancels; the first
  * input, else the first button, gets the focus when it opens, and Tab stays inside it.
  */
-import type { Snippet } from "svelte";
+import type { Component, Snippet } from "svelte";
 
 type Props = {
   title: string;
@@ -16,9 +16,20 @@ type Props = {
   note?: string;
   /** A large dialog that scrolls when it is taller than the window (the tooltip editor). */
   large?: boolean;
+  /** An icon before the title (the alpha notice's warning). */
+  icon?: Component<{ size?: number; class?: string }>;
 };
 
-let { title, oncancel, children, actions, wide = false, note, large = false }: Props = $props();
+let {
+  title,
+  oncancel,
+  children,
+  actions,
+  wide = false,
+  note,
+  large = false,
+  icon: Icon,
+}: Props = $props();
 
 let box: HTMLDivElement | undefined = $state();
 
@@ -78,7 +89,8 @@ function onkeydown(event: KeyboardEvent): void {
     bind:this={box}
     {onkeydown}
   >
-    <h2 class="m-0 mb-2 flex items-baseline gap-2 font-heading text-base font-bold text-fg">
+    <h2 class="m-0 mb-2 flex gap-2 font-heading text-base font-bold text-fg {Icon ? 'items-center' : 'items-baseline'}">
+      {#if Icon}<Icon size={18} class="shrink-0 text-changed" />{/if}
       {title}
       {#if note}<span class="font-mono text-[12.5px] font-normal text-muted">{note}</span>{/if}
     </h2>

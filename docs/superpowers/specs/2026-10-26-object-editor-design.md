@@ -437,7 +437,8 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     field in the details, else the object); the tree's selection looks strong only while the tree is in use.
   - The new-object dialog is titled after its base ("New Sorceress hsor") and checks the id as it is typed. The
     button-position card says only "Button Position". The editor opens with an alpha notice (backups; close the map
-    in World Editor) until "Don't show this again".
+    in World Editor), its warning sign on the title's row; only Settings → General → Start turns it off (Sven,
+    2026-10-28; until then the notice had its own "Don't show this again").
   - The editor shows the data World Editor shows. Its Object Editor (3.0.1, Asset Mode DE) was compared with the
     editor field by field on a copy of `we-heavy-archive`'s map (Peasant, Priest, Sorceress, Paladin, Town Hall,
     Shaman, Claws of Attack +12, Holy Light, Storm Bolt, Devotion Aura's buff, Iron Forged Swords, Ghoul Frenzy, the
@@ -535,6 +536,19 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The side panel kept shaking on the Footman: at one height its scroll bar came and went, which changed its width,
     the model's size with it, and so its height. The panel keeps the scroll bar's room, and a new size no longer loads
     the model again.
+  - A total of dice starts with its three fields hidden. It is selected on its own (not its base): Ctrl C copies its
+    range, and Ctrl V or its context menu pastes a copied range into any total (Attack 1's 12 — 13 onto Attack 2).
+  - The text and number boxes show only their value, as the tooltip editor's texts do: no border or background, a
+    dashed border on hover and the accent's while typing; an empty one shows its placeholder (World Editor's empty
+    value, such as 0 or None, else "(empty)"). Dropdowns, flags and object lists keep their boxes.
+  - The model kept drawing nothing after the Footman's Decay Flesh: war3-model draws the classic material of an HD
+    model (the Footman's material 7, seen only in Decay Flesh) with its HD shader, which then lacks a normal and an ORM
+    texture, and throws. Such a material is drawn with flat ones, and a frame that throws no longer stops the drawing.
+  - Custom objects sit under Custom in the same folders as the standard ones (Human › Melee › Units...), by their own
+    values where the map sets them: a unit's race, campaign, special, building and Display as Neutral Hostile, a hero
+    by its id's capital letter; an item's class; a destructable's or doodad's category; an ability's race and Hero or
+    Item Ability; a buff's race and Is an Effect; an upgrade's race. Within a folder they go in World Editor's order.
+    *(Agent's calls: which fields count, not compared with World Editor field by field.)*
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
