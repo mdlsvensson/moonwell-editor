@@ -52,9 +52,9 @@ public sealed class KindData
     /// <summary>
     /// Whether the field belongs to the object, by Moonwell's rules: a unit field by its use flags (a building's when
     /// <see cref="FieldInfo.ForBuilding"/>, a hero's when <see cref="FieldInfo.ForHero"/>, any other unit's when
-    /// <see cref="FieldInfo.ForUnit"/>); an ability field when the ability's code is one of its
-    /// <see cref="FieldInfo.Specific"/> codes or, for a field of every ability, not one of its
-    /// <see cref="FieldInfo.NotSpecific"/> codes; any field of another kind always.
+    /// <see cref="FieldInfo.ForUnit"/>); an ability field when the metadata lists it for the ability, whether by the
+    /// ability's id or its code (<see cref="StandardObject.Own"/>), or, for a field of every ability, when the ability's
+    /// code is not one of its <see cref="FieldInfo.NotSpecific"/> codes; any field of another kind always.
     /// </summary>
     public bool Applies(FieldInfo field, StandardObject obj) => Applies(_kind, field, obj);
 
@@ -67,7 +67,9 @@ public sealed class KindData
                 return obj.Building ? field.ForBuilding : obj.Hero ? field.ForHero : field.ForUnit;
             case ObjectKind.Ability:
                 var code = obj.Code ?? "";
-                return field.Specific.Count > 0 ? field.Specific.Contains(code) : !field.NotSpecific.Contains(code);
+                return field.Specific.Count > 0
+                    ? obj.Own != null && obj.Own.Contains(field.Id)
+                    : !field.NotSpecific.Contains(code);
             default:
                 return true;
         }

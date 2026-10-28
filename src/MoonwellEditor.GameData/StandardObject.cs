@@ -51,6 +51,11 @@ namespace MoonwellEditor.GameData;
 /// base table lacks.
 /// </param>
 /// <param name="Version">The data's <c>version</c> as written (<c>2</c> for what Reforged added); empty for none.</param>
+/// <param name="Own">
+/// For an ability, the ids of the fields specific to it: those the metadata lists by the ability's own id (Cargo
+/// Capacity, <c>Car1</c>, for <c>Sch2</c>), and those it lists by the ability's code unless a field listed by the id has
+/// the same column; empty for an ability with none. May be empty for other kinds; null when not given.
+/// </param>
 public sealed record StandardObject(
     string Id,
     string Name,
@@ -70,4 +75,5 @@ public sealed record StandardObject(
     bool Hostile = false,
     string Sort = "",
     int Row = 0,
-    string Version = "");
+    string Version = "",
+    IReadOnlyList<string>? Own = null);

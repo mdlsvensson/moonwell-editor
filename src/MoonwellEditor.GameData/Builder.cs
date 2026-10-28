@@ -302,7 +302,8 @@ internal static class Builder
             obj.MissingFrom,
             hostile,
             sort,
-            Version: Clean(Read(rows, "version")) ?? "");
+            Version: Clean(Read(rows, "version")) ?? "",
+            Own: obj.Own);
         return standard with { Modes = Modes(obj, standard, kind, infos) };
     }
 

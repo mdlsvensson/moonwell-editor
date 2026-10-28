@@ -93,6 +93,24 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     [Fact]
+    public void A_field_listed_by_the_abilitys_id_belongs_to_it()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        // Cargo Capacity (Car1) is listed for Sch2 to Sch5 by their ids, though their code (Amtc) lists no field of its
+        // own; World Editor shows it on Sch2 (Sven, 2026-10-28).
+        var abilities = data.Kind(ObjectKind.Ability);
+        var capacity = abilities.Field("Car1")!;
+        Assert.True(abilities.Applies(capacity, abilities.Object("Sch2")!));
+        // A field of every ability still follows the code's notSpecific, and an ability neither its id nor its code
+        // lists does not get it.
+        Assert.False(abilities.Applies(capacity, abilities.Object("AHhb")!));
+    }
+
+    [Fact]
     public void Ability_levels()
     {
         if (Skipped(out var data))
