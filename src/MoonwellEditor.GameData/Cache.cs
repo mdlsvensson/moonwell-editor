@@ -7,10 +7,9 @@ using MoonwellEditor.Files;
 namespace MoonwellEditor.GameData;
 
 /// <summary>
-/// The game data of a folder saved as JSON in a cache folder, as <c>&lt;hash of the folder's path&gt;.json</c>, with
-/// a stamp of what it was read from (an install's build key, which every update of the game changes; an export's
-/// newest write time and number of files) and the version of the code that made it: a cache whose game or code has
-/// changed since is not used.
+/// The game data of an install saved as JSON in a cache folder, as <c>&lt;hash of the folder's path&gt;.json</c>,
+/// with a stamp of the build it was read from (its build key, which every update of the game changes) and the version
+/// of the code that made it: a cache whose game or code has changed since is not used.
 /// </summary>
 internal static class Cache
 {
@@ -33,20 +32,6 @@ internal static class Cache
         var key = Encoding.UTF8.GetBytes(Normalized(folder).ToUpperInvariant());
         var hash = Convert.ToHexStringLower(SHA256.HashData(key)).Substring(0, 16);
         return Path.Combine(cacheFolder, hash + ".json");
-    }
-
-    /// <summary>An export's stamp: the newest write time and the number of its files, which change when any file does.</summary>
-    public static string Stamp(string folder)
-    {
-        long newest = 0;
-        var files = 0;
-        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories))
-        {
-            newest = Math.Max(newest, file.LastWriteTimeUtc.Ticks);
-            files++;
-        }
-
-        return $"export {newest} {files}";
     }
 
     /// <summary>An install's stamp: its build key.</summary>

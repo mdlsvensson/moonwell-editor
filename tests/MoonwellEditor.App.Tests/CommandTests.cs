@@ -5,18 +5,19 @@ using Xunit.Abstractions;
 namespace MoonwellEditor.App.Tests;
 
 /// <summary>
-/// The game data folder named by <c>MOONWELL_EDITOR_GAME_DATA</c>, loaded once for the test class. The cache lives
-/// under the system temp folder and is kept between runs, so only the first run builds it.
+/// The game data of the Warcraft III install on this computer (MOONWELL_WAR3, else the usual folder), loaded once for
+/// the test class. The cache lives under the system temp folder and is kept between runs, so only the first run of a
+/// build of the game builds it.
 /// </summary>
 public sealed class GameDataFixture
 {
     /// <summary>Loads the game data, or sets <see cref="Reason"/> when it cannot.</summary>
     public GameDataFixture()
     {
-        var folder = Environment.GetEnvironmentVariable("MOONWELL_EDITOR_GAME_DATA");
-        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        var folder = Moonwell.GameData.GameInstall.Find();
+        if (folder == null)
         {
-            Reason = "MOONWELL_EDITOR_GAME_DATA is not set to an existing game data folder (war3.w3mod); skipped";
+            Reason = "No Warcraft III install found; set MOONWELL_WAR3 to run these tests";
             return;
         }
 

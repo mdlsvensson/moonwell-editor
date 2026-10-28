@@ -154,19 +154,13 @@ public sealed class MainForm : Form
     /// <param name="message">The message, as JSON text.</param>
     public void Post(string message) => _web.CoreWebView2.PostWebMessageAsString(message);
 
-    // The game data of an install, whose files the icons and models are read from too; or of an export, with the icons
-    // and models of the install found for it.
+    // The game data of an install, whose files the icons and models are read from too.
     private static GameData.GameData LoadGame(string folder, string cache, GameAssets assets)
     {
-        if (!GameData.GameData.IsInstall(folder))
-        {
-            assets.Open(GameInstall.Find());
-            return GameData.GameData.Load(folder, cache);
-        }
-
         GameFiles files;
         try
         {
+            GameData.GameData.RequireInstall(folder);
             files = GameFiles.Open(folder);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

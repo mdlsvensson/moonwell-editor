@@ -17,27 +17,18 @@ public static class Lossy
 }
 
 /// <summary>
-/// The game data folder named by <c>MOONWELL_EDITOR_GAME_DATA</c>, loaded once per test run for every test class of the
-/// <see cref="GameDataCollection"/>. The cache lives under the system temp folder and is kept between runs, so only the
-/// first run builds it.
+/// The game data of the Warcraft III install on this computer (MOONWELL_WAR3, else the usual folder), loaded once per
+/// test run for every test class of the <see cref="GameDataCollection"/>. The cache lives under the system temp folder
+/// and is kept between runs, so only the first run of a build of the game builds it.
 /// </summary>
 public sealed class GameDataFixture
 {
-    /// <summary>The environment variable that names the game data folder.</summary>
-    public const string Variable = "MOONWELL_EDITOR_GAME_DATA";
-
     public GameDataFixture()
     {
-        var folder = Environment.GetEnvironmentVariable(Variable);
-        if (string.IsNullOrEmpty(folder))
+        var folder = Moonwell.GameData.GameInstall.Find();
+        if (folder == null)
         {
-            Reason = $"{Variable} is not set; set it to a game data folder (war3.w3mod) to run this test";
-            return;
-        }
-
-        if (!Directory.Exists(folder))
-        {
-            Reason = $"{Variable} names {folder}, which does not exist; skipped";
+            Reason = "No Warcraft III install found; set MOONWELL_WAR3 to run this test";
             return;
         }
 

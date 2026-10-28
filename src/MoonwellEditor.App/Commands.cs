@@ -7,14 +7,14 @@ using Data = MoonwellEditor.GameData.GameData;
 namespace MoonwellEditor.App;
 
 /// <summary>Where the game data stands: which folder, whether it is loaded, and why it failed if it did.</summary>
-/// <param name="Source">The install's folder (or an export's) being used, or null when none is chosen or found.</param>
+/// <param name="Source">The install's folder being used, or null when none is chosen or found.</param>
 /// <param name="Loaded">True once the data is ready for the commands that need it.</param>
 /// <param name="Error">Why the load failed, or null.</param>
 /// <param name="Version">
 /// Grows by one each time the state changes, so the page can drop a state older than the one it has (a reply that
 /// was on its way when a newer event came).
 /// </param>
-/// <param name="Game">The install's game version once loaded (<c>3.0.1.24371</c>); null for an export or before.</param>
+/// <param name="Game">The install's game version once loaded (<c>3.0.1.24371</c>); null before.</param>
 public sealed record GameDataState(string? Source, bool Loaded, string? Error, int Version, string? Game = null);
 
 /// <summary>Where the open map stands, sent with the <c>sessionChanged</c> event.</summary>
@@ -133,8 +133,8 @@ public sealed class Commands
     /// any thread.
     /// </param>
     /// <param name="load">
-    /// Loads the game data from an install's folder (or an export's); the app uses <c>GameData.Load</c> with its cache
-    /// folder.
+    /// Loads the game data from an install's folder; the app uses <c>GameData.Load</c> with its cache folder, which
+    /// refuses any other folder.
     /// </param>
     /// <param name="startupMap">
     /// The map (a folder or an archive file) the app was started with (its first command-line argument), which the

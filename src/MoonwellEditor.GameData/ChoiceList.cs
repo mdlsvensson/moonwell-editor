@@ -8,7 +8,7 @@ public sealed record ChoiceList(bool Flags, string Store, IReadOnlyList<ChoiceEn
 
 /// <summary>One value of a <see cref="ChoiceList"/>.</summary>
 /// <param name="Value">How the data and the object file spell it: <c>normal</c>, or a bit's number for bits.</param>
-/// <param name="Label">World Editor's English label (<c>Normal</c>), or the value when the export has none.</param>
+/// <param name="Label">World Editor's English label (<c>Normal</c>), or the value when the tables have none.</param>
 /// <param name="Alternates">
 /// The other spellings the game's data uses for the value (<c>aliv</c> for <c>alive</c>); empty when none.
 /// </param>

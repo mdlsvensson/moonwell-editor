@@ -8,8 +8,8 @@ namespace MoonwellEditor.App;
 /// <summary>
 /// The icons and models the page shows (Sven, 2026-10-27): the open map's own files first (its imports), then the
 /// game's, from the Warcraft III install's storage. Icons go to the page as PNG; models and their textures as the bytes
-/// the files hold. The install is the one the game data is read from (<see cref="Use"/>), or, for game data read from
-/// an export, the one found for it (<see cref="Open"/>); until then, or without one, nothing is found.
+/// the files hold. The install is the one the game data is read from (<see cref="Use"/>); until then, or without one,
+/// nothing is found.
 /// </summary>
 public sealed class GameAssets : IDisposable
 {
@@ -23,7 +23,6 @@ public sealed class GameAssets : IDisposable
 
     // An install put aside for another stays open until the window closes: a request may still be reading it.
     private readonly List<GameFiles> _retired = [];
-    private Task _opening = Task.CompletedTask;
     private GameFiles? _files;
 
     /// <summary>Makes the assets; <paramref name="map"/> gives the open map.</summary>
@@ -71,28 +70,6 @@ public sealed class GameAssets : IDisposable
     {
         Error = error;
         _first.TrySetResult();
-    }
-
-    /// <summary>Opens the install in <paramref name="gameFolder"/> in the background; null when none was found.</summary>
-    public void Open(string? gameFolder)
-    {
-        _opening = Task.Run(() =>
-        {
-            if (gameFolder == null)
-            {
-                Failed("No Warcraft III install was found for the icons and models.");
-                return;
-            }
-
-            try
-            {
-                Use(GameFiles.Open(gameFolder));
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                Failed(exception.Message);
-            }
-        });
     }
 
     /// <summary>
@@ -167,7 +144,6 @@ public sealed class GameAssets : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _opening.Wait();
         _files?.Dispose();
         foreach (var files in _retired)
         {

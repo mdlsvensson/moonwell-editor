@@ -57,8 +57,8 @@ internal static class Builder
     /// Makes the game data from the tables, reading the two tables Moonwell's reader does not (<see cref="UnitUi"/>,
     /// <see cref="UpgradeEffects"/>) through <paramref name="read"/>, by their paths in the tables.
     /// </summary>
-    /// <param name="tables">The game's tables, of the install or an export.</param>
-    /// <param name="source">The install's or the export's folder.</param>
+    /// <param name="tables">The install's tables.</param>
+    /// <param name="source">The install's folder.</param>
     /// <param name="read">A file of the tables by its path (<c>units/unitui.slk</c>); null when there is none.</param>
     public static GameData Build(GameTables tables, string source, Func<string, byte[]?> read)
     {

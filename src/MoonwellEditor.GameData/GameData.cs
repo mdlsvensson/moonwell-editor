@@ -5,8 +5,8 @@ namespace MoonwellEditor.GameData;
 
 /// <summary>
 /// The game's standard data: every kind's fields and standard objects and the values World Editor offers for its
-/// choice types, worked out by Moonwell's game-data reader from the Warcraft III install (Sven, 2026-10-28), or from a
-/// <c>war3.w3mod</c> export of it.
+/// choice types, worked out by Moonwell's game-data reader from the Warcraft III install, and only from the install: an
+/// export of its files may be incomplete (Sven, 2026-10-28).
 /// </summary>
 public sealed class GameData
 {
@@ -24,55 +24,38 @@ public sealed class GameData
         Choices = choices;
     }
 
-    /// <summary>The install's (or the export's) folder the data was read from.</summary>
+    /// <summary>The install's folder the data was read from.</summary>
     public string Source { get; }
 
-    /// <summary>The install's game version (<c>3.0.1.24371</c>); null for an export, which does not say.</summary>
+    /// <summary>The install's game version (<c>3.0.1.24371</c>).</summary>
     public string? GameVersion { get; }
 
     /// <summary>The values World Editor offers, by metadata type (<c>attackType</c>, <c>targetList</c>).</summary>
     public IReadOnlyDictionary<string, ChoiceList> Choices { get; }
 
-    /// <summary>True when the folder holds a Warcraft III install (it has <c>.build.info</c>), not an export.</summary>
-    public static bool IsInstall(string folder) => File.Exists(Path.Combine(folder, ".build.info"));
-
     /// <summary>
-    /// Reads the game data of the install in <paramref name="folder"/>, or of the export there, as
-    /// <see cref="Load(GameFiles, string)"/> does.
+    /// Checks that <paramref name="folder"/> holds a Warcraft III install: it has <c>.build.info</c>, as the game's
+    /// folder does and an export does not.
     /// </summary>
-    /// <exception cref="DirectoryNotFoundException">The folder does not exist, or holds neither an install nor an export.</exception>
+    /// <exception cref="DirectoryNotFoundException">It does not.</exception>
+    public static void RequireInstall(string folder)
+    {
+        if (!File.Exists(Path.Combine(folder, ".build.info")))
+        {
+            throw new DirectoryNotFoundException(
+                $"{folder} is not a Warcraft III install: it has no .build.info. Choose the game's own folder, the one "
+                + "with Warcraft III Launcher.exe.");
+        }
+    }
+
+    /// <summary>Reads the game data of the install in <paramref name="folder"/>, as <see cref="Load(GameFiles, string)"/> does.</summary>
+    /// <exception cref="DirectoryNotFoundException">The folder holds no install.</exception>
     /// <exception cref="IOException">The install's storage cannot be read.</exception>
     public static GameData Load(string folder, string cacheFolder)
     {
-        if (!Directory.Exists(folder))
-        {
-            throw new DirectoryNotFoundException($"the folder {folder} does not exist");
-        }
-
-        if (IsInstall(folder))
-        {
-            using var files = GameFiles.Open(folder);
-            return Load(files, cacheFolder);
-        }
-
-        if (!Directory.Exists(Path.Combine(folder, "units")))
-        {
-            throw new DirectoryNotFoundException(
-                $"{folder} holds no Warcraft III install (it has no .build.info) and no war3.w3mod export");
-        }
-
-        var path = Cache.PathOf(folder, cacheFolder);
-        var stamp = Cache.Stamp(folder);
-        var cached = Cache.Read(path, folder, stamp);
-        if (cached != null)
-        {
-            return cached;
-        }
-
-        using var tables = GameTables.OpenExport(folder);
-        var data = Builder.Build(tables, folder, relative => ReadExport(folder, relative));
-        Cache.Write(path, data, stamp);
-        return data;
+        RequireInstall(folder);
+        using var files = GameFiles.Open(folder);
+        return Load(files, cacheFolder);
     }
 
     /// <summary>
@@ -100,11 +83,4 @@ public sealed class GameData
 
     /// <summary>The fields and standard objects of one kind.</summary>
     public KindData Kind(ObjectKind kind) => _kinds[kind];
-
-    // A file of an export by its path in the tables; null when there is none.
-    private static byte[]? ReadExport(string folder, string relative)
-    {
-        var path = Path.Combine(folder, relative);
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
-    }
 }

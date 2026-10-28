@@ -225,29 +225,6 @@ public sealed class CommandsTests : IDisposable
     }
 
     [Fact]
-    public async Task Choosing_a_folder_loads_it_and_saves_the_setting()
-    {
-        var folder = Environment.GetEnvironmentVariable("MOONWELL_EDITOR_GAME_DATA");
-        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-        {
-            Console.WriteLine("MOONWELL_EDITOR_GAME_DATA is not set to an existing game data folder; skipped");
-            return;
-        }
-
-        var cache = Path.Combine(_folder, "cache");
-        var commands = Make(path => MoonwellEditor.GameData.GameData.Load(path, cache), () => folder);
-
-        var reply = await Ask(commands, "chooseGameData");
-        await commands.Loading;
-        var after = await Ask(commands, "gameData");
-
-        Assert.Equal(folder, reply.GetProperty("result").GetProperty("source").GetString());
-        Assert.True(after.GetProperty("result").GetProperty("loaded").GetBoolean());
-        Assert.NotNull(commands.NeedGameData());
-        Assert.Equal(folder, new Settings(_folder).GameFolder);
-    }
-
-    [Fact]
     public async Task A_newer_state_has_a_higher_version()
     {
         var release = new ManualResetEventSlim();

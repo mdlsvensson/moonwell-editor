@@ -24,9 +24,9 @@ public sealed class Settings
     }
 
     /// <summary>
-    /// The Warcraft III install's folder the user chose (or a <c>war3.w3mod</c> export), or null when they have not
-    /// chosen one: the app then reads the install it finds (Sven, 2026-10-28). An export chosen before 2026-10-28 was
-    /// kept as <c>gameDataFolder</c>, which is no longer read.
+    /// The Warcraft III install's folder the user chose, or null when they have not chosen one: the app then reads the
+    /// install it finds (Sven, 2026-10-28). The export chosen before 2026-10-28 was kept as <c>gameDataFolder</c>,
+    /// which is no longer read: only an install is.
     /// </summary>
     public string? GameFolder { get; set; }
 

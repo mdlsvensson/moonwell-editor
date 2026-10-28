@@ -517,10 +517,10 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   `GameTables.OpenInstall` and `GameInstall`, and the editor shares one open install between the game data, the icons
   and the models. The folder is the one chosen in Settings → Game data, else `MOONWELL_WAR3`, else the usual folder;
   without one the first screen asks for it. Settings → Game data shows the folder and the game version, with Change
-  folder…. The cache is kept per build of the game (its build key), so an update builds it again. *(Agent's calls: a
-  `war3.w3mod` export chosen there still loads, with the icons of the install found for it; the export chosen before
-  is not carried over, so the install is found at the next start; the first screen asks rather than opening the
-  dialog by itself.)*
+  folder…. The cache is kept per build of the game (its build key), so an update builds it again. Only the install's
+  folder is taken, never a `war3.w3mod` export, which may be incomplete (Sven, later the same day). *(Agent's calls:
+  the export chosen before is not carried over, so the install is found at the next start; the first screen asks
+  rather than opening the dialog by itself.)*
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

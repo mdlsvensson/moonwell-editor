@@ -19,7 +19,7 @@ public sealed class SettingsTests : IDisposable
     {
         var settings = new Settings(_folder)
         {
-            GameFolder = @"C:\Games\war3.w3mod",
+            GameFolder = @"C:\Games\Warcraft III",
         };
         settings.RecentMaps.Add(@"C:\Maps\arena.w3x");
         settings.RecentMaps.Add(@"C:\Maps\duel.w3x");
@@ -27,7 +27,7 @@ public sealed class SettingsTests : IDisposable
 
         var again = new Settings(_folder);
 
-        Assert.Equal(@"C:\Games\war3.w3mod", again.GameFolder);
+        Assert.Equal(@"C:\Games\Warcraft III", again.GameFolder);
         Assert.Equal([@"C:\Maps\arena.w3x", @"C:\Maps\duel.w3x"], again.RecentMaps);
     }
 

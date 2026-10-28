@@ -3,8 +3,8 @@ namespace MoonwellEditor.GameData;
 /// <summary>One field of one kind of object, as World Editor's metadata and Moonwell's game-data reader give it.</summary>
 /// <param name="Id">The field id (<c>uhpm</c>).</param>
 /// <param name="Label">
-/// World Editor's English label (<c>Hit Points Maximum (Base)</c>), or the field's Moonwell name when the export has
-/// none.
+/// World Editor's English label (<c>Hit Points Maximum (Base)</c>), or the field's Moonwell name when the tables
+/// have none.
 /// </param>
 /// <param name="Category">The metadata's <c>category</c> as written (<c>stats</c>, <c>art</c>); empty for none.</param>
 /// <param name="Sort">The metadata's <c>sort</c> (<c>c4a00</c>), World Editor's order; empty for none.</param>

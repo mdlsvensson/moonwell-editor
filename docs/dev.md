@@ -74,13 +74,15 @@ A single-file exe (`-p:PublishSingleFile=true`) builds, but it is not one file y
 The editor reads the game data (fields, standard objects, lists), the tree's icons and the icon and model pickers
 from the Warcraft III install's own storage, with Moonwell's reader (`Moonwell.GameData`). It uses the folder chosen
 in Settings → Game data, else the folder in `MOONWELL_WAR3`, else `C:\Program Files (x86)\Warcraft III`. Without one
-it asks for the folder. A `war3.w3mod` export chosen there still works, with the icons of the install it finds.
+it asks for the folder. It takes only the install's folder (the one with `.build.info`), never a `war3.w3mod` export,
+which may be incomplete.
 
 The game data is cached in `%LOCALAPPDATA%\MoonwellEditor\gamedata`, once per build of the game (its build key in
 `.build.info`), so an update of the game builds it again.
 
-The tests that need the game read the install the same way and check nothing when there is none. The tests that
-compare with an export read the folder in `MOONWELL_EDITOR_GAME_DATA`.
+The tests that need the game read the install the same way and check nothing when there is none. Only the
+map-archive test that opens Blizzard's `(4)losttemple.w3m` takes it from a folder, `maps` in the folder in
+`MOONWELL_EDITOR_GAME_DATA`.
 
 ## Interface text
 

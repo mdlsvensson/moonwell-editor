@@ -79,7 +79,7 @@ public static class AssetNames
                     continue;
                 }
 
-                // An object the export has no name for goes by its id, as the tree shows it.
+                // An object the tables have no name for goes by its id, as the tree shows it.
                 var bare = standard.Name.Length > 0 ? standard.Name : standard.Id;
                 var name = standard.Suffix.Length > 0 ? $"{bare} {standard.Suffix}" : bare;
                 foreach (var (info, tag) in fields)
