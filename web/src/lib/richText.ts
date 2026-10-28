@@ -103,6 +103,66 @@ export function markupOf(segments: readonly Segment[], newline = "|n"): string {
   return out;
 }
 
+/** A node of the editor's document, as TipTap's JSON has it. */
+export type DocNode = {
+  type?: string;
+  text?: string;
+  attrs?: Record<string, unknown>;
+  marks?: { type: string; attrs?: Record<string, unknown> }[];
+  content?: DocNode[];
+};
+
+/** The editor's names for a placeholder chip and the colour mark. */
+export const tokenNode = "token";
+export const colorMark = "color";
+
+/** The pieces as the inline nodes of TipTap's document: text with a colour mark, hard breaks and placeholder chips. */
+export function inlineOf(segments: readonly Segment[]): DocNode[] {
+  const marks = (color: string | null) =>
+    color ? [{ type: colorMark, attrs: { color } }] : undefined;
+  return segments.flatMap((segment): DocNode[] => {
+    if (segment.type === "break") return [{ type: "hardBreak" }];
+    if (segment.type === "token") {
+      return [{ type: tokenNode, attrs: { token: segment.token }, marks: marks(segment.color) }];
+    }
+    return segment.text === ""
+      ? []
+      : [{ type: "text", text: segment.text, marks: marks(segment.color) }];
+  });
+}
+
+/** The pieces as TipTap's document: one paragraph, its lines split by hard breaks. */
+export function docOf(segments: readonly Segment[]): DocNode {
+  const content = inlineOf(segments);
+  return { type: "doc", content: [{ type: "paragraph", ...(content.length ? { content } : {}) }] };
+}
+
+/** The pieces of TipTap's nodes: a document, its paragraphs (a line break between two) or inline nodes. */
+export function segmentsOfDoc(nodes: readonly DocNode[]): Segment[] {
+  const segments: Segment[] = [];
+  const colorOf = (node: DocNode) => {
+    const color = node.marks?.find((mark) => mark.type === colorMark)?.attrs?.color;
+    return typeof color === "string" ? color : null;
+  };
+  const walk = (node: DocNode) => {
+    if (node.type === "text" && node.text) {
+      const color = colorOf(node);
+      const last = segments[segments.length - 1];
+      if (last?.type === "text" && last.color === color) last.text += node.text;
+      else segments.push({ type: "text", text: node.text, color });
+    } else if (node.type === "hardBreak") {
+      segments.push({ type: "break" });
+    } else if (node.type === tokenNode && typeof node.attrs?.token === "string") {
+      segments.push({ type: "token", token: node.attrs.token, color: colorOf(node) });
+    } else {
+      if (node.type === "paragraph" && segments.length > 0) segments.push({ type: "break" });
+      for (const child of node.content ?? []) walk(child);
+    }
+  };
+  for (const node of nodes) walk(node);
+  return segments;
+}
+
 /** A colour as CSS (`#rrggbb`) from the markup's `aarrggbb`. */
 export function cssColor(color: string): string {
   return `#${color.slice(2)}`;

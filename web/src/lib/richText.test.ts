@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   cssColor,
+  docOf,
+  inlineOf,
   markupColor,
   markupOf,
   newlineOf,
   segmentsOf,
+  segmentsOfDoc,
   tokenOf,
   tokenParts,
 } from "./richText.ts";
@@ -111,5 +114,43 @@ describe("tokenParts", () => {
   it("puts a placeholder back together", () => {
     expect(tokenOf({ id: "AHhb", key: "DataB", level: 3, percent: true })).toBe("<AHhb,DataB3,%>");
     expect(tokenOf({ id: "AHhb", key: "Dur", level: 0, percent: false })).toBe("<AHhb,Dur>");
+  });
+});
+
+describe("docOf and segmentsOfDoc", () => {
+  it("make the editor's document of the pieces, and the pieces of it again", () => {
+    const markup = "Train |cffffcc00F|rootman|nCan <AHhb,Dur1> |c80ff0000<AHhb,DataA1,%>|r%";
+    const doc = docOf(segmentsOf(markup));
+    expect(doc.content?.[0]?.content?.slice(0, 4)).toEqual([
+      { type: "text", text: "Train ", marks: undefined },
+      { type: "text", text: "F", marks: [{ type: "color", attrs: { color: "ffffcc00" } }] },
+      { type: "text", text: "ootman", marks: undefined },
+      { type: "hardBreak" },
+    ]);
+    expect(markupOf(segmentsOfDoc([doc]))).toBe(markup);
+  });
+
+  it("give an empty text an empty paragraph", () => {
+    expect(docOf([])).toEqual({ type: "doc", content: [{ type: "paragraph" }] });
+    expect(segmentsOfDoc([docOf([])])).toEqual([]);
+  });
+
+  it("join text of one colour split across nodes, and break between paragraphs", () => {
+    expect(
+      segmentsOfDoc([
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "a" },
+            { type: "text", text: "b" },
+          ],
+        },
+        { type: "paragraph", content: inlineOf([{ type: "text", text: "c", color: "ff00ff00" }]) },
+      ]),
+    ).toEqual([
+      { type: "text", text: "ab", color: null },
+      { type: "break" },
+      { type: "text", text: "c", color: "ff00ff00" },
+    ]);
   });
 });
