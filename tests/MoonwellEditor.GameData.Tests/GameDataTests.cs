@@ -229,6 +229,23 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     [Fact]
+    public void A_suffix_is_the_first_entry_of_its_list_with_its_bracket_closed()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        // As World Editor shows them, in the tree and in the Text - Editor Suffix field (Sven, 2026-10-28).
+        var units = data.Kind(ObjectKind.Unit);
+        Assert.Equal("(ruined)", units.Object("nvr0")!.Suffix);
+        Assert.Equal("(Morphed)", units.Object("Eevm")!.Suffix);
+        var abilities = data.Kind(ObjectKind.Ability);
+        Assert.Equal("(New)", abilities.Object("Afrc")!.Suffix);
+        Assert.Equal("(Neutral Hostile 3)", abilities.Object("Awrg")!.Suffix);
+    }
+
+    [Fact]
     public void Object_details()
     {
         if (Skipped(out var data))

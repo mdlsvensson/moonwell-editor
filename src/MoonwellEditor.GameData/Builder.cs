@@ -269,20 +269,9 @@ internal static class Builder
         // World Editor shows a campaign hero by its proper name (Haah, the High Elf Archmage, as Kelen the Seeker).
         var properName = Clean(Read(rows, "Propernames"))?.Split(',')[0].Trim();
         var name = campaign && obj.IsHero && !string.IsNullOrEmpty(properName) ? Resolved(tables, properName) : obj.Name;
-        // The suffix is the whole cell, not Moonwell's EditorSuffix: for 11 objects (Eevm, nvr0-2, ACad, ANha, Adro,
-        // Afrc, Awrg, Awrh, Awrs) that takes only the comma list's first entry ("(ruined" for "(ruined, two story)"),
-        // which World Editor's tree has not been checked against.
-        var suffix = Resolved(tables, Clean(Read(rows, "EditorSuffix")) ?? "");
-        // An upgrade keeps a suffix per level; World Editor names it by its first (Glyph of Fortification (Upgrade 1)).
-        // A doodad has no suffix field, and World Editor shows none (the data's "(Default)" is not shown: Wooden Coffin).
-        if (kind == ObjectKind.Upgrade)
-        {
-            suffix = suffix.Split(',')[0].Trim();
-        }
-        else if (kind == ObjectKind.Doodad)
-        {
-            suffix = "";
-        }
+        // Moonwell's suffix is the one World Editor shows: the comma list's first entry, its bracket closed (nvr0's
+        // "(ruined, two story)" is "(ruined)"; Sven, 2026-10-28), an upgrade's first level's, none for a doodad.
+        var suffix = obj.EditorSuffix;
 
         var standard = new StandardObject(
             obj.Id,
