@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- Sven's War3Net fork; 6.1.2-moonwell.4 writes object files back byte for byte. -->
     <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.4" />
+    <!-- Moonwell's game-data reader, for the tables the game reads under a map's data option (DataOptions). -->
+    <PackageReference Include="Moonwell.GameData" Version="0.3.0-local.1" />
   </ItemGroup>
 
 </Project>

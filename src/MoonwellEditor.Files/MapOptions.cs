@@ -1,3 +1,4 @@
+using Moonwell.GameData;
 using War3Net.Build.Extensions;
 using War3Net.Build.Info;
 
@@ -14,7 +15,6 @@ namespace MoonwellEditor.Files;
 public sealed record MapOptions(string DataSet, string DataVersion, string Values, string Objects)
 {
     private const string InfoFile = "war3map.w3i";
-    private const string Base = "base";
 
     /// <summary>The map's option from its <c>war3map.w3i</c>; null when the map has none or it cannot be read.</summary>
     public static MapOptions? Read(IMapStore store) =>
@@ -58,37 +58,26 @@ public sealed record MapOptions(string DataSet, string DataVersion, string Value
         }
     }
 
-    /// <summary>The option for a data set and version, as the game reads them.</summary>
+    /// <summary>
+    /// The option for a data set and version, with the tables the game reads under it as Moonwell's reader gives them
+    /// (<see cref="DataOptions.TablesOf"/>).
+    /// </summary>
     public static MapOptions Of(GameDataSet set, GameDataVersion version)
     {
-        var setName = set switch
+        var (setOption, setName) = set switch
         {
-            GameDataSet.Custom => "Custom",
-            GameDataSet.Melee => "Melee",
-            _ => "Default",
+            GameDataSet.Custom => (DataSetOption.Custom, "Custom"),
+            GameDataSet.Melee => (DataSetOption.Melee, "Melee"),
+            _ => (DataSetOption.Default, "Default"),
         };
-        var versionName = version switch
+        var (versionOption, versionName) = version switch
         {
-            GameDataVersion.RoC => "Reign of Chaos",
-            GameDataVersion.TFT => "Frozen Throne",
-            _ => "Forsaken Kingdom",
+            GameDataVersion.RoC => (DataVersionOption.ReignOfChaos, "Reign of Chaos"),
+            GameDataVersion.TFT => (DataVersionOption.FrozenThrone, "Frozen Throne"),
+            _ => (DataVersionOption.ForsakenKingdom, "Forsaken Kingdom"),
         };
 
-        // Forsaken Kingdom reads the base tables under any set; Melee + Frozen Throne the base values with custom_v1's
-        // objects; otherwise Reign of Chaos reads the _v0 tables (melee_v0 under Melee) and Frozen Throne custom_v1.
-        if (version is not (GameDataVersion.RoC or GameDataVersion.TFT))
-        {
-            return new MapOptions(setName, versionName, Base, Base);
-        }
-
-        if (set == GameDataSet.Melee)
-        {
-            return version == GameDataVersion.RoC
-                ? new MapOptions(setName, versionName, "melee_v0", "melee_v0")
-                : new MapOptions(setName, versionName, Base, "custom_v1");
-        }
-
-        var tables = version == GameDataVersion.RoC ? "custom_v0" : "custom_v1";
-        return new MapOptions(setName, versionName, tables, tables);
+        var tables = DataOptions.TablesOf(setOption, versionOption);
+        return new MapOptions(setName, versionName, tables.Values, tables.Objects);
     }
 }

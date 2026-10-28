@@ -40,7 +40,7 @@ public sealed class GameData
     /// <exception cref="DirectoryNotFoundException">It does not.</exception>
     public static void RequireInstall(string folder)
     {
-        if (!File.Exists(Path.Combine(folder, ".build.info")))
+        if (!GameInstall.IsInstall(folder))
         {
             throw new DirectoryNotFoundException(
                 $"{folder} is not a Warcraft III install: it has no .build.info. Choose the game's own folder, the one "
@@ -76,7 +76,7 @@ public sealed class GameData
         }
 
         using var tables = GameTables.OpenInstall(files);
-        var data = Builder.Build(tables, folder, relative => files.Storage.Read("War3.w3mod:" + relative));
+        var data = Builder.Build(tables, folder);
         Cache.Write(path, data, stamp);
         return data;
     }
