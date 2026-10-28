@@ -535,6 +535,20 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The side panel kept shaking on the Footman: at one height its scroll bar came and went, which changed its width,
     the model's size with it, and so its height. The panel keeps the scroll bar's room, and a new size no longer loads
     the model again.
+- **Sven, 2026-10-28, the dependency pass:** libraries take over code the editor kept itself, where one does the job
+  well; the rest stays the editor's own (the tree's and table's drawing of only the rows in view, the hotkeys, the
+  spreadsheet paste, the search).
+  - Bits UI: the dropdowns, the menus (the right-click one and ☰), the popovers and the dialogs, which keep their looks.
+    They gain typed letters in menus, lists that open above near the window's bottom, a popover that follows its
+    button as the page scrolls (it closed before) and hides while the button is out of view, Esc closing one layer at
+    a time, and the focus going back to what opened a dialog. *(Agent's calls: the four components keep their names
+    and props, so the rest of the page did not change; the scroll behaviour; a menu no longer closes when the window
+    loses the focus.)*
+  - Pfim: the DDS icons, in place of the editor's own DXT decoder. Its colours differ from the old decoder's by at
+    most 2 in 255 (rounding), the alpha not at all, over the install's 1,280 DDS icons.
+  - TipTap: the tooltip editor's texts, in place of the editor's own editable-text code; `richText.ts` still reads
+    and writes the markup. The texts gain their own undo and redo. *(Agent's calls: copying a text gives the game's
+    markup and a paste is read as markup, so colours and placeholders survive both; a paste was plain text before.)*
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
@@ -545,8 +559,10 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
 
 - C#: .NET 10, nullable on, warnings as errors, implicit usings, `.editorconfig` as Moonwell's (4 spaces, LF).
   `Moonwell.War3Net.Build.Core` from nuget.org; `Microsoft.Web.WebView2` for the window. xUnit for tests, as Moonwell.
+  `War3Net.Drawing.Blp` and Pfim (Sven, 2026-10-28) read the icons.
 - Front end: Svelte 5, TypeScript, Vite, Tailwind CSS 4, Lucide, fontsource. Exact versions pinned. Biome (2 spaces,
-  100 columns). Vitest, with the bridge mocked.
+  100 columns). Vitest, with the bridge mocked. Bits UI for the popups and TipTap for the tooltip texts (Sven,
+  2026-10-28); war3-model and dds-parser for the model preview.
 - npm (no pnpm), LF line ends.
 - Release: a self-contained Windows build (`dotnet publish`), about 60-100 MB; WebView2 is part of Windows 10 and 11.
 
