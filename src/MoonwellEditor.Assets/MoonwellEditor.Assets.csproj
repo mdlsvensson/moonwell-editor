@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Pfim's DDS reader, for the icons the game stores as DDS. -->
+    <PackageReference Include="Pfim" Version="0.11.4" />
     <!-- War3Net's BLP reader, for the icons the game still stores as BLP. -->
     <PackageReference Include="War3Net.Drawing.Blp" Version="6.0.2" />
   </ItemGroup>

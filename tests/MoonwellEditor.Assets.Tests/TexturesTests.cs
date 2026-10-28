@@ -41,6 +41,15 @@ public sealed class TexturesTests : IClassFixture<TexturesTests.Install>
         Assert.Equal(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G' }, png[..4]);
     }
 
+    [Fact]
+    public void A_damaged_dds_gives_no_image()
+    {
+        var header = new byte[128];
+        "DDS "u8.CopyTo(header);
+        Assert.Null(Textures.Decode(header));
+        Assert.Null(Textures.Decode([.. "DDS "u8, .. new byte[200]]));
+    }
+
     /// <summary>The install, opened once for the class.</summary>
     public sealed class Install : IDisposable
     {
