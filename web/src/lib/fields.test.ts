@@ -238,9 +238,10 @@ describe("the value shown", () => {
       flags: true,
       store: "int",
       entries: [
-        { value: "0", label: "Small" },
-        { value: "1", label: "Medium" },
-        { value: "2", label: "Large" },
+        { value: "1", label: "Small" },
+        { value: "2", label: "Medium" },
+        { value: "4", label: "Large" },
+        { value: "8", label: "Unlisted", hidden: true },
       ],
     },
   };
@@ -278,6 +279,8 @@ describe("the value shown", () => {
   it("lists the labels of the bits a number holds", () => {
     expect(show({ type: "choice", choice: "defenseTypeBits", value: "5" })).toBe("Small, Large");
     expect(show({ type: "choice", choice: "defenseTypeBits", value: "0" })).toBe("None");
+    // A hidden bit is not shown.
+    expect(show({ type: "choice", choice: "defenseTypeBits", value: "12" })).toBe("Large");
   });
 
   it("names the objects of a list where they are known", () => {

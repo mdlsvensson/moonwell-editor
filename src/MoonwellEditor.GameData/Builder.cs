@@ -78,7 +78,13 @@ internal static class Builder
             lists[type] = new ChoiceList(
                 choice.Flags,
                 choice.Store,
-                choice.Members.Select(member => new ChoiceEntry(member.Text, LabelOf(member), member.Alternates)).ToList());
+                choice.Members
+                    .Select(member => new ChoiceEntry(
+                        member.Text,
+                        LabelOf(member),
+                        member.Alternates,
+                        Hidden: member.Name.StartsWith("Unlisted", StringComparison.Ordinal)))
+                    .ToList());
         }
 
         lists["tilesetList"] = OwnList(tables, true, Tilesets);

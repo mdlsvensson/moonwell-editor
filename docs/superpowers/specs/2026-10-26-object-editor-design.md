@@ -563,6 +563,11 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - TipTap: the tooltip editor's texts, in place of the editor's own editable-text code; `richText.ts` still reads
     and writes the markup. The texts gain their own undo and redo. *(Agent's calls: copying a text gives the game's
     markup and a paste is read as markup, so colours and placeholders survive both; a paste was plain text before.)*
+  - A bits field (Extra Versions, Pick Flags...) reads its values as the game's data spells them, each bit's own value
+    (1, 2, 4): before, the editor read 6 as bits 1 and 2, so it ticked the wrong entries and wrote the wrong bits. A bit
+    World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's
+    6) is not offered or shown, as World Editor shows none, and stays in the value when the others are ticked (Sven's
+    choice). What the game does with that bit is not known.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

@@ -46,7 +46,9 @@ export function isExtendedTooltip(field: Pick<FieldView, "id">): boolean {
 
 /**
  * The values a flags field holds: the entries' values as the list spells them, then any the list does not know, as
- * written. For a list stored as a number, the numbers of its set bits (value n is bit n).
+ * written. For a list stored as a number, the values of its set bits, as the game's data spells them (`1`, `2`, `4`:
+ * 6 holds 2 and 4; Sven, 2026-10-28: the editor read 6 as bits 1 and 2 before, so it ticked the wrong entries and
+ * wrote the wrong bits).
  */
 export function parseFlags(value: string, list: ChoiceList): string[] {
   if (list.store === "int") {
@@ -54,7 +56,7 @@ export function parseFlags(value: string, list: ChoiceList): string[] {
     if (Number.isNaN(number)) return [];
     const bits: string[] = [];
     for (let bit = 0; bit < 32; bit++) {
-      if ((number >> bit) & 1) bits.push(String(bit));
+      if ((number >> bit) & 1) bits.push(String(1 << bit));
     }
     return bits;
   }
@@ -69,7 +71,7 @@ export function formatFlags(ticked: Iterable<string>, list: ChoiceList): string 
   const set = [...ticked];
   if (list.store === "int") {
     let number = 0;
-    for (const bit of set) number |= 1 << Number(bit);
+    for (const bit of set) number |= Number(bit);
     return String(number);
   }
   const known = list.entries.map((entry) => entry.value).filter((value) => set.includes(value));

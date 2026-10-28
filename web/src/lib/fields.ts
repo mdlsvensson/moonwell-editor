@@ -359,7 +359,10 @@ function choiceText(list: ChoiceList, value: string): string {
   if (list.store === "int") {
     const number = Number.parseInt(value, 10);
     if (Number.isNaN(number)) return value;
-    const set = list.entries.filter((entry) => (number >> Number(entry.value)) & 1);
+    // A hidden bit (one World Editor does not list) is not shown, as World Editor shows none (Sven, 2026-10-28).
+    const set = list.entries.filter(
+      (entry) => !entry.hidden && (number & Number(entry.value)) !== 0,
+    );
     return set.length === 0 ? "None" : set.map((entry) => entry.label).join(", ");
   }
   return listIds(value).map(label).join(", ");

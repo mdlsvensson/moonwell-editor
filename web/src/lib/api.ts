@@ -154,6 +154,11 @@ export type ChoiceEntry = {
   alternates?: string[];
   /** The heading the value is listed under (a building's shadow under Buildings); absent or null for none. */
   group?: string | null;
+  /**
+   * True for a bit World Editor does not list but the game's data uses (Extra Versions' 4): not offered or shown, and
+   * kept in a value that holds it (Sven, 2026-10-28).
+   */
+  hidden?: boolean;
 };
 
 /** The values World Editor offers for one type of field. */

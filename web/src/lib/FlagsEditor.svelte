@@ -3,7 +3,8 @@
  * A flags field (any values of a list): a button with the labels of the values it holds, which opens a list of
  * checkboxes. Each tick is sent at once, as the data spells the list (`air,enemies`, or bits as a number). The button
  * is a box like the other fields' and as wide as its widest single choice, and says None when nothing is ticked (Sven,
- * 2026-10-27); more labels than fit are cut, with all of them in its tooltip.
+ * 2026-10-27); more labels than fit are cut, with all of them in its tooltip. A bit World Editor does not list is not
+ * offered, but stays in the value when the others are ticked (Sven, 2026-10-28).
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ChoiceList, FieldView } from "./api.ts";
@@ -32,14 +33,15 @@ let sent = $state<string | null>(null);
 let waiting = 0;
 
 const ticked = $derived(parseFlags(sent ?? field.value, list));
-// The list's entries, then any value the field holds that the list does not know (so it can be taken out).
+// The list's entries but the hidden ones, then any value the field holds that the list does not know (so it can be
+// taken out).
 const options = $derived([
-  ...list.entries,
+  ...list.entries.filter((entry) => !entry.hidden),
   ...ticked
     .filter((value) => !list.entries.some((entry) => entry.value === value))
     .map((value) => ({
       value,
-      label: list.store === "int" ? t("flags.bit", { bit: value }) : value,
+      label: list.store === "int" ? t("flags.bit", { bit: Math.log2(Number(value) >>> 0) }) : value,
     })),
 ]);
 

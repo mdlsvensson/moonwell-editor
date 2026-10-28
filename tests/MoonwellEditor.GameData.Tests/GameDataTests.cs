@@ -79,6 +79,23 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     [Fact]
+    public void A_bit_World_Editor_does_not_list_is_hidden_and_bits_are_their_values()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        // Extra Versions lists Reign of Chaos (1) and The Frozen Throne (2); the 4 that 20 standard units hold (the
+        // Priest's 6) is kept but hidden (Sven, 2026-10-28).
+        var versions = data.Choices["versionFlags"].Entries;
+        Assert.Equal(
+            [("1", false), ("2", false), ("4", true)],
+            versions.Select(entry => (entry.Value, entry.Hidden)));
+        Assert.Equal("6", data.Kind(ObjectKind.Unit).Object("hmpr")!.Values["uver"]);
+    }
+
+    [Fact]
     public void Hero_fields_only_on_heroes()
     {
         if (Skipped(out var data))

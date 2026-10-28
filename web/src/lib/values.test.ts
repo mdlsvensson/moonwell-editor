@@ -53,14 +53,14 @@ const attackType: ChoiceList = {
   ],
 };
 
-// A list stored as a number: value n is bit n.
+// A list stored as a number: each value is its bit's own value, as the game's data spells them.
 const pathing: ChoiceList = {
   flags: true,
   store: "int",
   entries: [
-    { value: "0", label: "Ground" },
-    { value: "1", label: "Air" },
-    { value: "2", label: "Building" },
+    { value: "1", label: "Ground" },
+    { value: "2", label: "Air" },
+    { value: "4", label: "Building" },
   ],
 };
 
@@ -127,13 +127,29 @@ describe("flags", () => {
     expect(formatFlags([], targets)).toBe("");
   });
 
-  it("reads and writes a list stored as a number as its bits", () => {
-    expect(parseFlags("6", pathing)).toEqual(["1", "2"]);
-    expect(formatFlags(["2", "1"], pathing)).toBe("6");
+  it("reads and writes a list stored as a number as its bits' values", () => {
+    expect(parseFlags("6", pathing)).toEqual(["2", "4"]);
+    expect(formatFlags(["4", "2"], pathing)).toBe("6");
     expect(formatFlags([], pathing)).toBe("0");
     // A bit the list does not know is kept.
-    expect(parseFlags("9", pathing)).toEqual(["0", "3"]);
-    expect(formatFlags(["0", "3"], pathing)).toBe("9");
+    expect(parseFlags("9", pathing)).toEqual(["1", "8"]);
+    expect(formatFlags(["1", "8"], pathing)).toBe("9");
+  });
+
+  it("keeps a hidden bit when another is ticked (Extra Versions' 4 on the Priest)", () => {
+    const versions: ChoiceList = {
+      flags: true,
+      store: "int",
+      entries: [
+        { value: "1", label: "Reign of Chaos" },
+        { value: "2", label: "The Frozen Throne" },
+        { value: "4", label: "Unlisted", hidden: true },
+      ],
+    };
+    const ticked = parseFlags("6", versions);
+    expect(ticked).toEqual(["2", "4"]);
+    expect(formatFlags([...ticked, "1"], versions)).toBe("7");
+    expect(formatFlags(["4"], versions)).toBe("4");
   });
 });
 
