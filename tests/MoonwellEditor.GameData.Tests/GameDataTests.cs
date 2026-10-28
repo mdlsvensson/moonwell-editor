@@ -105,9 +105,13 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
         var abilities = data.Kind(ObjectKind.Ability);
         var capacity = abilities.Field("Car1")!;
         Assert.True(abilities.Applies(capacity, abilities.Object("Sch2")!));
-        // A field of every ability still follows the code's notSpecific, and an ability neither its id nor its code
-        // lists does not get it.
+        // An ability that neither its id nor its code lists does not get it.
         Assert.False(abilities.Applies(capacity, abilities.Object("AHhb")!));
+        // A field listed by the id takes the column from one listed by the code: AIls (code Alsh) has Idps on DataA,
+        // not Lsh1.
+        var ils = abilities.Object("AIls")!;
+        Assert.True(abilities.Applies(abilities.Field("Idps")!, ils));
+        Assert.False(abilities.Applies(abilities.Field("Lsh1")!, ils));
     }
 
     [Fact]
