@@ -5,14 +5,13 @@ export type SelectOption = { value: string; label: string; group?: string };
 
 <script lang="ts">
 /**
- * A dropdown in the page's colours (Sven, 2026-10-27), in place of the browser's select: a
- * button as wide as its widest choice (the values are in a fixed-width font, so that is its length in characters) that
- * opens the list under it. The list takes the arrows, Home, End, Enter, Esc and a typed letter; choices can sit under
- * group headings.
+ * A dropdown in the page's colours (Sven, 2026-10-27), on Bits UI's select (Sven, 2026-10-28): a button as wide as its
+ * widest choice (the values are in a fixed-width font, so that is its length in characters) that opens the list under
+ * it, or above it when there is no room below. The list takes the arrows, Home, End, Enter, Esc and typed letters;
+ * choices can sit under group headings.
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import { tick } from "svelte";
-import Popover from "./Popover.svelte";
+import { Select } from "bits-ui";
 
 type Props = {
   options: SelectOption[];
@@ -44,117 +43,59 @@ let {
   disabled = false,
 }: Props = $props();
 
-let open = $state(false);
-let button: HTMLButtonElement | undefined = $state();
-let list: HTMLDivElement | undefined = $state();
-let active = $state(0);
-
 const chosen = $derived(options.find((option) => option.value === value));
 // The widest label, in characters (and one spare, so it is never cut); the padding, border, gaps and chevron take 32
 // pixels.
 const width = $derived(
   `calc(${Math.max(4, missing.length, ...options.map((option) => option.label.length)) + 1}ch + 32px)`,
 );
-
-async function show(): Promise<void> {
-  active = Math.max(0, options.indexOf(chosen as SelectOption));
-  open = true;
-  await tick();
-  list?.focus();
-  scrollToActive();
-}
-
-function pick(option: SelectOption | undefined): void {
-  open = false;
-  button?.focus();
-  if (option && option.value !== value) onpick(option.value);
-}
-
-function scrollToActive(): void {
-  list?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
-}
-
-function move(to: number): void {
-  active = Math.max(0, Math.min(options.length - 1, to));
-  scrollToActive();
-}
-
-function onbuttonkey(event: KeyboardEvent): void {
-  if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
-    event.preventDefault();
-    show();
-  }
-}
-
-function onlistkey(event: KeyboardEvent): void {
-  if (event.key === "ArrowDown") move(active + 1);
-  else if (event.key === "ArrowUp") move(active - 1);
-  else if (event.key === "Home") move(0);
-  else if (event.key === "End") move(options.length - 1);
-  else if (event.key === "PageDown") move(active + 8);
-  else if (event.key === "PageUp") move(active - 8);
-  else if (event.key === "Enter" || event.key === " ") pick(options[active]);
-  else if (event.key === "Tab") open = false;
-  else if (event.key.length === 1 && /\S/.test(event.key)) {
-    // A letter goes to the next choice that starts with it, as a select does.
-    const letter = event.key.toLowerCase();
-    const order = [...options.slice(active + 1), ...options.slice(0, active + 1)];
-    const next = order.find((option) => option.label.toLowerCase().startsWith(letter));
-    if (next) move(options.indexOf(next));
-  } else return;
-  event.preventDefault();
-}
 </script>
 
-<button
-  type="button"
-  class="flex min-w-0 cursor-pointer items-center gap-1 rounded border py-[3px] pr-1 pl-1.5 text-left font-mono text-[12.5px] focus:border-accent focus:outline-none disabled:cursor-default disabled:text-faint {tone} {compact
-    ? 'w-full'
-    : 'max-w-full'}"
-  style:width={compact ? undefined : width}
-  data-field={field}
+<Select.Root
+  type="single"
+  {value}
+  onValueChange={(picked) => picked !== value && onpick(picked)}
+  items={options}
   {disabled}
-  aria-label={label}
-  aria-haspopup="listbox"
-  aria-expanded={open}
-  bind:this={button}
-  onclick={() => (open ? (open = false) : show())}
-  onkeydown={onbuttonkey}
 >
-  <span class="min-w-0 flex-1 truncate" title={chosen?.label ?? missing}>{chosen?.label ?? missing}</span>
-  <ChevronDown size={12} class="shrink-0 text-faint" />
-</button>
-{#if open && button}
-  <Popover anchor={button} onclose={() => (open = false)}>
-    <div
-      class="flex flex-col outline-none"
-      role="listbox"
-      tabindex="-1"
-      aria-label={label}
-      aria-activedescendant="select-option-{active}"
-      bind:this={list}
-      onkeydown={onlistkey}
+  <Select.Trigger
+    class="flex min-w-0 cursor-pointer items-center gap-1 rounded border py-[3px] pr-1 pl-1.5 text-left font-mono text-[12.5px] focus:border-accent focus:outline-none disabled:cursor-default disabled:text-faint {tone} {compact
+      ? 'w-full'
+      : 'max-w-full'}"
+    style={compact ? undefined : `width: ${width}`}
+    data-field={field}
+    aria-label={label}
+  >
+    <span class="min-w-0 flex-1 truncate" title={chosen?.label ?? missing}>{chosen?.label ?? missing}</span>
+    <ChevronDown size={12} class="shrink-0 text-faint" />
+  </Select.Trigger>
+  <Select.Portal>
+    <Select.Content
+      side="bottom"
+      align="start"
+      sideOffset={4}
+      collisionPadding={8}
+      data-popup
+      class="z-40 w-max max-w-[360px] min-w-[200px] rounded-lg border border-line bg-surface p-1.5 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)] outline-none"
     >
-      {#each options as option, index (index)}
-        {#if option.group && option.group !== options[index - 1]?.group}
-          <div class="px-2 pt-1.5 pb-0.5 text-[11px] tracking-[.06em] text-faint uppercase">{option.group}</div>
-        {/if}
-        <div
-          id="select-option-{index}"
-          data-index={index}
-          role="option"
-          tabindex="-1"
-          aria-selected={option.value === value}
-          class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 {index === active
-            ? 'bg-hover text-fg'
-            : ''} {option.value === value ? 'text-accent-hi' : ''} {option.group ? 'pl-3' : ''}"
-          onpointermove={() => (active = index)}
-          onclick={() => pick(option)}
-          onkeydown={() => {}}
-        >
-          <span class="truncate" title={option.label}>{option.label}</span>
-        </div>
-      {/each}
-    </div>
-  </Popover>
-{/if}
+      <Select.Viewport class="max-h-[306px]">
+        {#each options as option, index (index)}
+          {#if option.group && option.group !== options[index - 1]?.group}
+            <div class="px-2 pt-1.5 pb-0.5 text-[11px] tracking-[.06em] text-faint uppercase" role="presentation">
+              {option.group}
+            </div>
+          {/if}
+          <Select.Item
+            value={option.value}
+            label={option.label}
+            class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 outline-none data-highlighted:bg-hover data-highlighted:text-fg data-selected:text-accent-hi {option.group
+              ? 'pl-3'
+              : ''}"
+          >
+            <span class="truncate" title={option.label}>{option.label}</span>
+          </Select.Item>
+        {/each}
+      </Select.Viewport>
+    </Select.Content>
+  </Select.Portal>
+</Select.Root>

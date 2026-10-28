@@ -336,7 +336,8 @@ function onkeydown(event: KeyboardEvent): void {
 // The editor's Enter, Tab and Esc, before the box sees them; a list of choices or an object picker open in it keeps
 // its own keys.
 function editorKeys(event: KeyboardEvent): void {
-  if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;
+  if (event.target instanceof Element && event.target.closest('[role="dialog"], [data-popup]'))
+    return;
   const action = editorAction(event);
   if (!action) return;
   event.preventDefault();

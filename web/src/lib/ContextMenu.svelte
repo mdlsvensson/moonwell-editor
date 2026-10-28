@@ -7,9 +7,12 @@ export type MenuItem =
 
 <script lang="ts">
 /**
- * The menu a right click opens (Sven, 2026-10-27), at the pointer and kept inside the window. The arrow keys move
- * between entries, Enter runs one; a click outside it, Esc, scrolling or a blur closes it.
+ * The menu a right click opens (Sven, 2026-10-27), at the pointer and kept inside the window, on Bits UI's dropdown
+ * menu (Sven, 2026-10-28). The arrow keys and typed letters move between entries, Enter runs one; a click outside it
+ * or Esc closes it.
  */
+import { DropdownMenu } from "bits-ui";
+
 type Props = {
   x: number;
   y: number;
@@ -19,79 +22,41 @@ type Props = {
 
 let { x, y, items, onclose }: Props = $props();
 
-let menu: HTMLDivElement | undefined = $state();
-let top = $state(0);
-let left = $state(0);
-
-$effect(() => {
-  const height = menu?.offsetHeight ?? 0;
-  const width = menu?.offsetWidth ?? 0;
-  top = Math.max(4, Math.min(y, window.innerHeight - height - 4));
-  left = Math.max(4, Math.min(x, window.innerWidth - width - 4));
-  menu?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-
-  const outside = (event: Event) => {
-    if (!(event.target instanceof Node) || !menu?.contains(event.target)) onclose();
-  };
-  window.addEventListener("pointerdown", outside, true);
-  window.addEventListener("scroll", outside, true);
-  window.addEventListener("blur", onclose);
-  return () => {
-    window.removeEventListener("pointerdown", outside, true);
-    window.removeEventListener("scroll", outside, true);
-    window.removeEventListener("blur", onclose);
-  };
-});
-
-function run(item: MenuItem): void {
-  if ("separator" in item || item.disabled) return;
-  onclose();
-  item.run();
-}
-
-function onkeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    onclose();
-  } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    const buttons = [...(menu?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const next = (at + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length;
-    buttons[next]?.focus();
-  }
-}
+// The point the menu opens at, as the box of nothing there.
+const point = $derived({ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) });
 </script>
 
-<div
-  class="fixed z-30 min-w-[210px] rounded-lg border border-line bg-surface p-1 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)]"
-  style:top="{top}px"
-  style:left="{left}px"
-  role="menu"
-  tabindex="-1"
-  bind:this={menu}
-  {onkeydown}
-  oncontextmenu={(event) => event.preventDefault()}
->
-  {#each items as item, index (index)}
-    {#if "separator" in item}
-      <div class="my-1 h-px bg-line" role="separator"></div>
-    {:else}
-      <button
-        type="button"
-        role="menuitem"
-        class="flex w-full items-center gap-6 rounded px-2.5 py-1 text-left focus:outline-none disabled:opacity-40 {item.danger
-          ? 'text-warn'
-          : ''} enabled:hover:bg-hover enabled:focus:bg-hover"
-        disabled={item.disabled}
-        onclick={() => run(item)}
-      >
-        {item.label}
-        {#if item.shortcut}
-          <span class="ml-auto font-mono text-[11.5px] text-faint">{item.shortcut}</span>
+<DropdownMenu.Root open onOpenChange={(open) => !open && onclose()}>
+  <DropdownMenu.Portal>
+    <DropdownMenu.Content
+      customAnchor={point}
+      side="bottom"
+      align="start"
+      collisionPadding={4}
+      onCloseAutoFocus={(event) => event.preventDefault()}
+      data-popup
+      class="z-50 min-w-[210px] rounded-lg border border-line bg-surface p-1 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)] outline-none"
+      oncontextmenu={(event) => event.preventDefault()}
+    >
+      {#each items as item, index (index)}
+        {#if "separator" in item}
+          <DropdownMenu.Separator class="my-1 h-px bg-line" />
+        {:else}
+          <DropdownMenu.Item
+            disabled={item.disabled}
+            textValue={item.label}
+            onSelect={item.run}
+            class="flex w-full cursor-default items-center gap-6 rounded px-2.5 py-1 text-left outline-none data-disabled:opacity-40 data-highlighted:bg-hover {item.danger
+              ? 'text-warn'
+              : ''}"
+          >
+            {item.label}
+            {#if item.shortcut}
+              <span class="ml-auto font-mono text-[11.5px] text-faint">{item.shortcut}</span>
+            {/if}
+          </DropdownMenu.Item>
         {/if}
-      </button>
-    {/if}
-  {/each}
-</div>
+      {/each}
+    </DropdownMenu.Content>
+  </DropdownMenu.Portal>
+</DropdownMenu.Root>
