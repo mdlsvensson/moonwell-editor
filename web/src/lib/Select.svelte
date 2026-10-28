@@ -1,14 +1,14 @@
 <script lang="ts" module>
-/** One choice of a `Select`: its value, its label, a game icon's URL to show before it, and the group it is under. */
-export type SelectOption = { value: string; label: string; icon?: string | null; group?: string };
+/** One choice of a `Select`: its value, its label and the group it is under. */
+export type SelectOption = { value: string; label: string; group?: string };
 </script>
 
 <script lang="ts">
 /**
- * A dropdown in the page's colours (Sven, 2026-10-27), in place of the browser's select, which can show no icons: a
+ * A dropdown in the page's colours (Sven, 2026-10-27), in place of the browser's select: a
  * button as wide as its widest choice (the values are in a fixed-width font, so that is its length in characters) that
- * opens the list under it. The list takes the arrows, Home, End, Enter, Esc and a typed letter; choices can have a game
- * icon and sit under group headings.
+ * opens the list under it. The list takes the arrows, Home, End, Enter, Esc and a typed letter; choices can sit under
+ * group headings.
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import { tick } from "svelte";
@@ -28,9 +28,21 @@ type Props = {
   compact?: boolean;
   /** The `data-field` the details panel finds the editor by. */
   field?: string;
+  /** True when there is nothing to pick: the button shows `missing` and does not open. */
+  disabled?: boolean;
 };
 
-let { options, value, onpick, label, missing = value, tone = "", compact = false, field }: Props = $props();
+let {
+  options,
+  value,
+  onpick,
+  label,
+  missing = value,
+  tone = "",
+  compact = false,
+  field,
+  disabled = false,
+}: Props = $props();
 
 let open = $state(false);
 let button: HTMLButtonElement | undefined = $state();
@@ -38,11 +50,10 @@ let list: HTMLDivElement | undefined = $state();
 let active = $state(0);
 
 const chosen = $derived(options.find((option) => option.value === value));
-const hasIcons = $derived(options.some((option) => option.icon));
 // The widest label, in characters (and one spare, so it is never cut); the padding, border, gaps and chevron take 32
-// pixels, and an icon with its gap 20 more.
+// pixels.
 const width = $derived(
-  `calc(${Math.max(4, missing.length, ...options.map((option) => option.label.length)) + 1}ch + ${hasIcons ? 52 : 32}px)`,
+  `calc(${Math.max(4, missing.length, ...options.map((option) => option.label.length)) + 1}ch + 32px)`,
 );
 
 async function show(): Promise<void> {
@@ -97,11 +108,12 @@ function onlistkey(event: KeyboardEvent): void {
 
 <button
   type="button"
-  class="flex min-w-0 cursor-pointer items-center gap-1 rounded border py-[3px] pr-1 pl-1.5 text-left font-mono text-[12.5px] focus:border-accent focus:outline-none {tone} {compact
+  class="flex min-w-0 cursor-pointer items-center gap-1 rounded border py-[3px] pr-1 pl-1.5 text-left font-mono text-[12.5px] focus:border-accent focus:outline-none disabled:cursor-default disabled:text-faint {tone} {compact
     ? 'w-full'
     : 'max-w-full'}"
   style:width={compact ? undefined : width}
   data-field={field}
+  {disabled}
   aria-label={label}
   aria-haspopup="listbox"
   aria-expanded={open}
@@ -109,9 +121,6 @@ function onlistkey(event: KeyboardEvent): void {
   onclick={() => (open ? (open = false) : show())}
   onkeydown={onbuttonkey}
 >
-  {#if chosen?.icon}
-    <img src={chosen.icon} alt="" class="size-4 shrink-0 rounded-[2px]" draggable="false" />
-  {/if}
   <span class="min-w-0 flex-1 truncate" title={chosen?.label ?? missing}>{chosen?.label ?? missing}</span>
   <ChevronDown size={12} class="shrink-0 text-faint" />
 </button>
@@ -143,13 +152,6 @@ function onlistkey(event: KeyboardEvent): void {
           onclick={() => pick(option)}
           onkeydown={() => {}}
         >
-          {#if hasIcons}
-            {#if option.icon}
-              <img src={option.icon} alt="" class="size-4 shrink-0 rounded-[2px]" draggable="false" />
-            {:else}
-              <span class="size-4 shrink-0"></span>
-            {/if}
-          {/if}
           <span class="truncate" title={option.label}>{option.label}</span>
         </div>
       {/each}

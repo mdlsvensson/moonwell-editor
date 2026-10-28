@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { call, on } from "./bridge.ts";
+import { call, on, onWaiting } from "./bridge.ts";
 import { t } from "./text.ts";
 
 type Listener = (event: { data: string }) => void;
@@ -100,5 +100,20 @@ describe("on", () => {
     webview.reply({ event: "mapOpened", payload: { name: "later" } });
 
     expect(seen).toEqual([{ name: "arena" }]);
+  });
+});
+
+describe("onWaiting", () => {
+  it("counts the commands sent until each is answered, failed ones too", async () => {
+    const counts: number[] = [];
+    const stop = onWaiting((waiting) => counts.push(waiting));
+    const first = call("ping");
+    const second = call("ping");
+    webview.reply({ id: webview.sent[0]?.id, ok: true, result: null });
+    webview.reply({ id: webview.sent[1]?.id, ok: false, error: { code: "failed", message: "no" } });
+    await first;
+    await expect(second).rejects.toThrow("no");
+    stop();
+    expect(counts).toEqual([0, 1, 2, 1, 0]);
   });
 });

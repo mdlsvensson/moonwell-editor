@@ -6,7 +6,7 @@
  * it with what was typed into the cell (`initial`), and sends or drops the typed value itself (`commit`, `cancel`).
  */
 import { onDestroy, untrack } from "svelte";
-import { type ChoiceList, type FieldView, iconUrl, type Kind } from "./api.ts";
+import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
 import {
   assetText,
@@ -18,8 +18,6 @@ import {
   realText,
   shownValue,
 } from "./fields.ts";
-import { choiceIcon } from "./gameIcons.ts";
-import { graphics } from "./graphics.svelte.ts";
 import IdsEditor from "./IdsEditor.svelte";
 import Select, { type SelectOption } from "./Select.svelte";
 import { t } from "./text.ts";
@@ -100,20 +98,14 @@ const list = $derived(listFor(field, choices));
 const shown = $derived(shownValue(field, choices, nameOf));
 // An extended tooltip gets a box of several lines, as does any text that has more than one (Sven, 2026-10-27).
 const multiline = $derived(isExtendedTooltip(field) || field.value.includes("\n"));
-// A list's choices for the dropdown, each with its interface icon when it has one (an armor or attack type).
-const options = $derived.by((): SelectOption[] => {
-  if (!list) return [];
-  const key = field.choice ?? field.meta ?? "";
-  return list.entries.map((entry) => {
-    const icon = choiceIcon(key, entry.value);
-    return {
-      value: entry.value,
-      label: entry.label,
-      icon: icon ? iconUrl(icon, graphics.mode) : null,
-      group: entry.group ?? undefined,
-    };
-  });
-});
+// A list's choices for the dropdown.
+const options = $derived.by((): SelectOption[] =>
+  (list?.entries ?? []).map((entry) => ({
+    value: entry.value,
+    label: entry.label,
+    group: entry.group ?? undefined,
+  })),
+);
 // A number box's arrows send the value once they stop.
 let stepping: ReturnType<typeof setTimeout> | undefined;
 // A real shows with three decimals, and a file by the names of the objects that use it while the box is not being

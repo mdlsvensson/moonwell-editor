@@ -32,7 +32,6 @@ import {
   type Row,
   shownValue,
 } from "./fields.ts";
-import { fieldIcon } from "./gameIcons.ts";
 import LevelGrid from "./LevelGrid.svelte";
 import { labelColumnWidth } from "./measure.ts";
 import { t, tCount } from "./text.ts";
@@ -243,8 +242,6 @@ const labelWidth = $derived.by(() => {
   return labelColumnWidth(labels, showIds) + indent;
 });
 
-const iconOf = (field: FieldView) => fieldIcon(field, view.fields);
-
 const editable = $derived(view.readOnly === null);
 const custom = $derived(view.baseId !== null);
 
@@ -421,7 +418,6 @@ function clearOnEscape(event: KeyboardEvent): void {
                   {selected}
                   onselect={select}
                   onmenu={fieldMenu}
-                  {iconOf}
                 />
               {:else}
                 {#each withTotals(run.rows, view.fields) as row (row.id)}
@@ -440,7 +436,6 @@ function clearOnEscape(event: KeyboardEvent): void {
                       {selected}
                       onselect={select}
                       onmenu={fieldMenu}
-                      icon={iconOf}
                       open={!hiddenParts[row.id]}
                       ontoggle={() => (hiddenParts[row.id] = !hiddenParts[row.id])}
                     />
@@ -461,7 +456,6 @@ function clearOnEscape(event: KeyboardEvent): void {
                     objectKind={view.kind}
                     {kindIcons}
                     onpair={setPair}
-                    icon={iconOf(row.field)}
                   />
                   {/if}
                 {/each}

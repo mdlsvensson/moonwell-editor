@@ -3,10 +3,9 @@
  * Per-level fields as a grid: one row per field, its levels (a doodad's variations) across. When the object can be
  * edited, each cell is the level's editor, with ↺ when the level is changed.
  */
-import { type ChoiceList, type FieldView, iconUrl, type Kind } from "./api.ts";
+import type { ChoiceList, FieldView, Kind } from "./api.ts";
 import FieldEditor from "./FieldEditor.svelte";
 import { isChanged, type Lookup, namesOf, type Row, shownValue } from "./fields.ts";
-import { graphics } from "./graphics.svelte.ts";
 import { t } from "./text.ts";
 
 type Props = {
@@ -24,8 +23,6 @@ type Props = {
   onselect: (field: FieldView) => void;
   /** A right click on a level's cell, for its context menu. */
   onmenu: (field: FieldView, x: number, y: number) => void;
-  /** The game's interface icon a field's row shows before its name (mana for a mana cost); undefined for none. */
-  iconOf?: (field: FieldView) => string | undefined;
 };
 
 let {
@@ -40,7 +37,6 @@ let {
   selected,
   onselect,
   onmenu,
-  iconOf = () => undefined,
 }: Props = $props();
 
 function menuOf(field: FieldView, event: MouseEvent): void {
@@ -96,9 +92,6 @@ async function reset(field: FieldView): Promise<void> {
             <th class="border border-line px-2 py-0.5 text-left font-normal whitespace-nowrap">
               <span class="inline-flex items-center gap-1.5">
                 <span class="h-3.5 w-1 rounded-sm {isChanged(row) ? 'bg-changed' : ''}"></span>
-                {#if iconOf(row.field)}
-                  <img src={iconUrl(iconOf(row.field) ?? "", graphics.mode)} alt="" class="size-4" draggable="false" />
-                {/if}
                 {row.label}
                 {#if showIds}<span class="font-mono text-[12.5px] text-faint">{row.id}</span>{/if}
               </span>

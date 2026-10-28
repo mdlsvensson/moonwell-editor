@@ -406,7 +406,7 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The title bar has back and forward at the left (and the mouse's back and forward buttons walk the history too).
     Uses and Used by open and close; the tooltip preview's place is back, for a later version.
   - Button positions get a command card (4 wide, 3 high): a click sets X and Y as one edit; other values are typed.
-  - Settings (the gear in the header): a theme (Vitesse Dark, Kanagawa Wave and Dragon, Gruvbox Dark, Dracula,
+  - Settings (in the header's menu since 2026-10-28; the gear before): a theme (Vitesse Dark, Kanagawa Wave and Dragon, Gruvbox Dark, Dracula,
     Catppuccin Mocha and Macchiato, Tokyo Night, Nord, One Dark, Rose Pine, Everforest Dark, Solarized Dark),
     remembered in the window's storage, and the open map's details, with its Data Set and Data Version from
     `war3map.w3i` and the tables the game reads under them. The values shown are still the base tables'.
@@ -488,23 +488,27 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The fields' editors (later the same day): a value's box has a background and border of its own; a whole number
     or a real is a number box with the browser's arrows (they send the value once they stop; the wheel scrolls the
     panel, never steps a box); an extended tooltip is a box of several lines. A dropdown is the editor's own, as wide
-    as its widest choice, its choices with the game's icons where they have one (armor and attack types, hero
-    attributes); a flags field is a box as wide as its widest single choice that says None when nothing is ticked.
+    as its widest choice; a flags field is a box as wide as its widest single choice that says None when nothing is ticked.
     The UI scale has 80, 100 and 120% for now.
-  - The game's interface icons (the Human interface's, from the install) beside what they stand for: gold, lumber,
-    food and mana on the fields that hold them (found by the words in their labels) and on the tooltip's cost line;
-    the unit's own armor and attack type on its defense and damage fields.
+  - The game's interface icons (the Human interface's, from the install) for gold, lumber, food and mana on the
+    tooltip's cost line. They were on the fields and in the dropdowns too, until Sven took them out of the fields on
+    2026-10-28.
   - Dice totals: a unit's Attack 1 and Attack 2 damage and its gold and lumber bounties show as the range the game
-    rolls (Attack 1 - Damage 12 - 13: base + dice to base + dice × sides), with the base, number of dice and sides per
-    die under it. A range typed in sets the three as one edit, keeping the number of dice when it splits the range
-    evenly, else the most that do; one number is dice of 1 side. *(Agent's call: World Editor has no such row; the
-    rule for the dice is the agent's.)*
+    rolls (Attack 1 - Damage 12 — 13: base + dice to base + dice × sides), with the base, number of dice and sides per
+    die under it. The lowest and highest typed in set the three as one edit, keeping the number of dice when it splits
+    the range evenly, else the most that do; a range of one number is dice of 1 side. *(Agent's call: World Editor has
+    no such row; the rule for the dice is the agent's.)* Since 2026-10-28 (Sven) the lowest and highest are two boxes
+    with an em dash between them, and the arrow that shows the three sits in the gutter left of the names, so the
+    total's name lines up with the other fields'. *(Agent's calls: the arrow takes the changed colour in place of the
+    row's changed bar; moving from one box to the other sends nothing, so the lowest can pass the old highest.)*
   - Ground Texture is a dropdown of the install's splats (`Splats\UberSplatData.slk`) by World Editor's names for
     them (`WESTRING_UBERSPLAT_<code>`), by name, after None. Shadow Texture (Building) and a destructable's shadow are
     a dropdown of the shadows the standard buildings and destructables use, under Buildings and Destructibles, each
     named by the objects that use it. *(Agent's calls, not seen in World Editor: the order, and naming a shadow by its
     objects.)*
-  - Ctrl and the wheel move the model up and down; the side panel's model has a list of its animations.
+  - Ctrl and the wheel move the model up and down; the side panel's model has a list of its animations. Since
+    2026-10-28 (Sven) a button beside "turn again" puts a moved model back at its height, and the list is always there,
+    empty while the model loads or when it has no animations.
   - The tooltip editor (an object's context menu, or Edit by the tooltip preview): the tooltip as the game shows it,
     its texts edited in place (coloured text in its colour, a placeholder such as `<AHhb,Dur1>` as a chip named for
     the value with the value it has), each naming its field when hovered. A toolbar colours the selection (a colour
@@ -521,6 +525,16 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   folder is taken, never a `war3.w3mod` export, which may be incomplete (Sven, later the same day). *(Agent's calls:
   the export chosen before is not carried over, so the install is found at the next start; the first screen asks
   rather than opening the dialog by itself.)*
+- **Sven, 2026-10-28, later:**
+  - The header: the seven kinds, a divider, then the views (Details, Table, Compare) as icons; at the far right a
+    menu (☰) with Open map folder…, Open map archive…, Reload the map from disk, Save and Settings. *(Agent's calls:
+    the icons, Compare kept as a greyed icon, Settings in the menu since the menu took the gear's place.)*
+  - The status bar shows a turning mark and what is loading in its middle: the game data while it loads, Saving…,
+    and Loading… while the app takes more than 150 ms over a command and the window has the focus (so not while its
+    Open map dialog waits). *(Agent's calls: the 150 ms and the focus rule.)*
+  - The side panel kept shaking on the Footman: at one height its scroll bar came and went, which changed its width,
+    the model's size with it, and so its height. The panel keeps the scroll bar's room, and a new size no longer loads
+    the model again.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.

@@ -1,7 +1,7 @@
 /**
  * Fields that roll dice, shown as one total (Sven, 2026-10-27): a unit's damage per attack and its gold and lumber
  * bounties are a base plus a number of dice with a number of sides each, which the game shows as a range (Damage 12 -
- * 13). The range is worked out from the three fields, and a range typed in sets them.
+ * 13). The range is worked out from the three fields, and a lowest and highest typed in set them.
  */
 import type { FieldView } from "./api.ts";
 import type { Row } from "./fields.ts";
@@ -44,13 +44,9 @@ export function rangeText(range: Range): string {
   return range.min === range.max ? String(range.min) : `${range.min} - ${range.max}`;
 }
 
-/** A range as typed: `12 - 13`, `12-13`, `12 to 13`, or one number; null when it is not one, or runs backwards. */
-export function parseRange(text: string): Range | null {
-  const match = text.trim().match(/^([+-]?\d+)(?:\s*(?:-|–|to)\s*([+-]?\d+))?$/i);
-  if (!match) return null;
-  const min = Number.parseInt(match[1] ?? "", 10);
-  const max = match[2] === undefined ? min : Number.parseInt(match[2], 10);
-  return min <= max ? { min, max } : null;
+/** One end of a range as typed, a whole number (`12`, ` -5 `); null when it is not one. */
+export function parseBound(text: string): number | null {
+  return /^\s*[+-]?\d+\s*$/.test(text) ? Number.parseInt(text, 10) : null;
 }
 
 /**

@@ -1,11 +1,14 @@
 <script lang="ts">
 /**
  * The status bar: whether the map has unsaved edits, a short notice (what a save wrote, what went wrong), the map's
- * problems (a count; a click lists them), and the game data in use: the tables the map's data set reads.
+ * problems (a count; a click lists them), and the game data in use: the tables the map's data set reads. In the
+ * middle, a mark while something loads (Sven, 2026-10-28).
  */
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import X from "@lucide/svelte/icons/x";
 import type { MapOptions, SessionState } from "./api.ts";
+import { onWaiting } from "./bridge.ts";
 import type { GameDataState, GameDataView } from "./gameData.ts";
 import { type TextPart, t, tCount, tParts } from "./text.ts";
 import { noticeTitle } from "./values.ts";
@@ -29,6 +32,8 @@ type Props = {
   /** Why the page cannot talk to the app; "" when it can. */
   connection: string;
   notice: Notice | null;
+  /** What is loading, when the page knows (the game data); null when nothing is, or only the app's commands are. */
+  loading?: string | null;
 };
 
 let {
@@ -40,7 +45,26 @@ let {
   options = null,
   connection,
   notice,
+  loading = null,
 }: Props = $props();
+
+// The app is working on a command for more than a moment (150 ms, so a quick one does not flash the mark) while the
+// window has the focus, so not while one of the app's dialogs (Open map) waits on the user.
+let calling = $state(false);
+$effect(() => onWaiting((waiting) => (calling = waiting > 0)));
+let working = $state(false);
+$effect(() => {
+  if (!calling) {
+    working = false;
+    return;
+  }
+  const since = performance.now();
+  const timer = setInterval(() => {
+    working = performance.now() - since > 150 && document.hasFocus();
+  }, 50);
+  return () => clearInterval(timer);
+});
+const loadingText = $derived(loading ?? (working ? t("status.working") : null));
 
 // The values come from the tables the map's data set reads, as World Editor's do (Sven, 2026-10-27).
 const tables = $derived(
@@ -125,6 +149,17 @@ const folderName = $derived(
       {t("status.dataMissing")}
     {/if}
   </span>
+
+  {#if loadingText}
+    <span
+      class="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-1.5 bg-surface px-2 text-fg"
+      data-testid="loading"
+      role="status"
+    >
+      <LoaderCircle size={13} class="animate-spin text-accent-hi" />
+      {loadingText}
+    </span>
+  {/if}
 
   {#if showProblems && problems.length > 0}
     <div

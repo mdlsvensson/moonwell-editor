@@ -29,6 +29,14 @@ let nextId = 1;
 const pending = new Map<number, Pending>();
 const handlers = new Map<string, Set<(payload: unknown) => void>>();
 const listening = new WeakSet<Webview>();
+// How many commands are waiting for their answer, and who wants to know (the status bar's loading mark).
+let waiting = 0;
+const watchers = new Set<(waiting: number) => void>();
+
+function count(change: number): void {
+  waiting += change;
+  for (const watcher of watchers) watcher(waiting);
+}
 
 function webview(): Webview {
   const found = window.chrome?.webview;
@@ -79,10 +87,32 @@ function errorOf(reply: Reply): BridgeError {
 export async function call<T>(command: string, args: object = {}): Promise<T> {
   const channel = webview();
   const id = nextId++;
+  count(1);
   return new Promise<T>((resolve, reject) => {
-    pending.set(id, { resolve: resolve as (value: never) => void, reject });
+    pending.set(id, {
+      resolve: (value: never) => {
+        count(-1);
+        resolve(value);
+      },
+      reject: (error: Error) => {
+        count(-1);
+        reject(error);
+      },
+    });
     channel.postMessage(JSON.stringify({ id, command, args }));
   });
+}
+
+/**
+ * Tells `handler` how many commands are waiting for their answer, now and each time that changes (Sven, 2026-10-28:
+ * the status bar shows when the app is working). Returns a function that stops telling it.
+ */
+export function onWaiting(handler: (waiting: number) => void): () => void {
+  watchers.add(handler);
+  handler(waiting);
+  return () => {
+    watchers.delete(handler);
+  };
 }
 
 /** Listens to an event the app sends on its own. Returns a function that stops listening. */

@@ -1,7 +1,9 @@
 <script lang="ts">
+import Columns3 from "@lucide/svelte/icons/columns-3";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
-import RotateCw from "@lucide/svelte/icons/rotate-cw";
-import Settings from "@lucide/svelte/icons/settings";
+import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
+import Menu from "@lucide/svelte/icons/menu";
+import Table2 from "@lucide/svelte/icons/table-2";
 import { onMount, tick } from "svelte";
 import AlphaNotice, { alphaUnderstood } from "./lib/AlphaNotice.svelte";
 import {
@@ -47,9 +49,9 @@ import { type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
 import { graphics, viewInMode } from "./lib/graphics.svelte.ts";
 import KindBar from "./lib/KindBar.svelte";
-import { actionOf, loadKeymap } from "./lib/keymap.ts";
+import { actionOf, loadKeymap, shownKey } from "./lib/keymap.ts";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
-import { type OpenEntry, openFrom } from "./lib/openMenu.ts";
+import { type OpenEntry, openEntries, openFrom } from "./lib/openMenu.ts";
 import { prefs } from "./lib/prefs.svelte.ts";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
 import SidePanel from "./lib/SidePanel.svelte";
@@ -504,6 +506,34 @@ async function saveMap(): Promise<boolean> {
  * The reload button (Sven, 2026-10-27): one question, "Are you sure...?", which says so when there are unsaved
  * changes; the settings can turn the question off, but unsaved changes are always asked about.
  */
+/** The menu at the right of the header (Sven, 2026-10-28): opening a map, reloading it, saving, and the settings. */
+function openMainMenu(button: HTMLElement): void {
+  const box = button.getBoundingClientRect();
+  const ready = view === "ready" && !opening;
+  const saveKey = keymap.save[0];
+  menu = {
+    x: box.right,
+    y: box.bottom + 4,
+    items: [
+      ...openEntries.map((entry) => ({
+        label: entry.archive ? t("header.openArchive") : t("header.openFolder"),
+        disabled: !ready,
+        run: () => openAnother(entry),
+      })),
+      { label: t("header.reload"), disabled: !map, run: askReload },
+      { separator: true },
+      {
+        label: saving ? t("header.saving") : t("header.save"),
+        shortcut: saveKey ? shownKey(saveKey) : undefined,
+        disabled: !map || saving || !session?.dirty,
+        run: saveMap,
+      },
+      { separator: true },
+      { label: t("header.settings"), run: () => (settingsOpen = true) },
+    ],
+  };
+}
+
 function askReload(): void {
   if (!prefs.confirmReload && !session?.dirty) reloadFromDisk(false);
   else confirmingReload = true;
@@ -1076,66 +1106,45 @@ onMount(() => {
     forward={history.slice(at + 1).map((place, index) => visitOf(place, at + 1 + index))}
     onjump={(to) => walk(to - at)}
   />
+  <!-- The kinds, then the views as icons; everything else is in the menu at the right (Sven, 2026-10-28). -->
   <header class="flex items-center gap-2.5 border-b border-line bg-surface px-3">
-    <OpenMapMenu
-      buttonClass="flex shrink-0 items-center rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg disabled:opacity-50"
-      disabled={view !== "ready" || opening}
-      onpick={openAnother}
-    />
-    <span class="h-5 w-px shrink-0 bg-line" aria-hidden="true"></span>
     <KindBar {kind} disabled={!map} onkind={switchKind} />
-    {#if map}
-      <span class="h-5 w-px shrink-0 bg-line" aria-hidden="true"></span>
-      <button
-        type="button"
-        class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
-        title={t("header.reload")}
-        aria-label={t("header.reload")}
-        onclick={askReload}
-      >
-        <RotateCw size={17} />
-      </button>
-    {/if}
-    <div class="ml-auto flex shrink-0 gap-0.5" role="group" aria-label={t("header.views")}>
-      {#each [{ key: "details", name: t("header.details") }, { key: "table", name: t("header.table") }] as const as each (each.key)}
+    <span class="h-5 w-px shrink-0 bg-line" aria-hidden="true"></span>
+    <div class="flex shrink-0 gap-0.5" role="group" aria-label={t("header.views")}>
+      {#each [{ key: "details", name: t("header.details"), Icon: Columns3 }, { key: "table", name: t("header.table"), Icon: Table2 }] as const as each (each.key)}
         <button
           type="button"
-          class="rounded-[5px] px-2.5 py-1.5 {page === each.key
+          class="rounded-[5px] p-1.5 {page === each.key
             ? 'bg-accent-lo text-accent-hi'
-            : 'text-muted hover:text-fg disabled:opacity-50 disabled:hover:text-muted'}"
+            : 'text-muted hover:bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted'}"
+          title={each.name}
+          aria-label={each.name}
           aria-pressed={page === each.key}
           disabled={!map}
           onclick={() => (page = each.key)}
         >
-          {each.name}
+          <each.Icon size={17} />
         </button>
       {/each}
       <button
         type="button"
-        class="rounded-[5px] px-2.5 py-1.5 text-muted opacity-50"
+        class="rounded-[5px] p-1.5 text-muted opacity-50"
         disabled
         title={t("header.compareTitle")}
+        aria-label={t("header.compare")}
       >
-        {t("header.compare")}
+        <GitCompareArrows size={17} />
       </button>
     </div>
     <button
       type="button"
-      class="shrink-0 rounded-[5px] bg-accent px-3 py-[5px] font-bold text-bg hover:bg-accent-hi disabled:opacity-40"
-      disabled={!map || saving || !session?.dirty}
-      title={t("header.saveTitle")}
-      onclick={saveMap}
+      class="ml-auto shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
+      title={t("header.menu")}
+      aria-label={t("header.menu")}
+      aria-haspopup="menu"
+      onclick={(event) => openMainMenu(event.currentTarget)}
     >
-      {saving ? t("header.saving") : t("header.save")}
-    </button>
-    <button
-      type="button"
-      class="shrink-0 rounded-[5px] p-1.5 text-muted hover:bg-hover hover:text-fg"
-      title={t("header.settings")}
-      aria-label={t("header.settings")}
-      onclick={() => (settingsOpen = true)}
-    >
-      <Settings size={17} />
+      <Menu size={17} />
     </button>
   </header>
 
@@ -1269,8 +1278,10 @@ onMount(() => {
           </p>
         {/if}
       </section>
+      <!-- The scroll bar's room is always kept, so the panel's width (and the model's size, which follows it) does not
+           change as the scroll bar comes and goes; that made the panel shake (Sven, 2026-10-28). -->
       <aside
-        class="min-h-0 overflow-auto border-l border-line bg-surface p-3"
+        class="min-h-0 overflow-auto border-l border-line bg-surface p-3 [scrollbar-gutter:stable]"
         aria-label={t("main.side")}
       >
         {#if current}
@@ -1296,6 +1307,11 @@ onMount(() => {
     options={map?.options ?? null}
     {connection}
     {notice}
+    loading={!data || view === "loading"
+      ? t("status.loadingData")
+      : saving
+        ? t("header.saving")
+        : null}
   />
 </div>
 

@@ -9,6 +9,7 @@
  * can pick it (Sven, 2026-10-27). The side panel's preview can play any of the model's animations, picked from a list
  * (Sven, 2026-10-27).
  */
+import MoveVertical from "@lucide/svelte/icons/move-vertical";
 import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import { decodeDds, parseHeaders } from "dds-parser";
 import { mat4, quat, vec3 } from "gl-matrix";
@@ -66,17 +67,22 @@ let error = $state("");
 let missing: string[] = $state([]);
 // The model turns by itself until the user drags it; the play button sets it turning again (Sven, 2026-10-27).
 let turning = $state(true);
+// Whether Ctrl and the wheel moved the model up or down; a button puts it back (Sven, 2026-10-28).
+let lifted = $state(false);
 
 /** The preview on show, so a new team colour reaches its renderer without loading the model again. */
 let current: ReturnType<typeof show> | undefined;
 
+// A new size only resizes the canvas: loading the model again for it would hide the animations while it loads, which
+// changes the panel's height, and with it maybe its scroll bar and its width, and so the size again (Sven,
+// 2026-10-28: the side panel shook).
 $effect(() => {
   if (!host) return;
   const preview = show(
     host,
     path,
     fileUrl,
-    size,
+    untrack(() => size),
     untrack(() => teamColor),
   );
   current = preview;
@@ -88,6 +94,10 @@ $effect(() => {
 
 $effect(() => {
   current?.tint(teamColor);
+});
+
+$effect(() => {
+  current?.resize(size);
 });
 
 type Model = ReturnType<typeof parseMDX>;
@@ -126,6 +136,7 @@ function show(
   missing = [];
   sequences = [];
   playing = -1;
+  lifted = false;
   const abort = new AbortController();
   let stopped = false;
   let frameId = 0;
@@ -135,8 +146,11 @@ function show(
   const colour = vec3.fromValues(...teamRgb(team));
   const canvas = document.createElement("canvas");
   const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(px * ratio);
-  canvas.height = Math.round(px * ratio);
+  const sizeTo = (pixels: number) => {
+    canvas.width = Math.round(pixels * ratio);
+    canvas.height = Math.round(pixels * ratio);
+  };
+  sizeTo(px);
   canvas.className = "block size-full touch-none cursor-grab";
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", t("model.previewOf", { path: at }));
@@ -183,8 +197,10 @@ function show(
   let lift = 0;
   const wheel = (event: WheelEvent) => {
     event.preventDefault();
-    if (event.ctrlKey) lift = Math.min(1.5, Math.max(-1.5, lift + (event.deltaY > 0 ? -0.1 : 0.1)));
-    else zoom = Math.min(3.5, Math.max(0.25, zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12)));
+    if (event.ctrlKey) {
+      lift = Math.min(1.5, Math.max(-1.5, lift + (event.deltaY > 0 ? -0.1 : 0.1)));
+      lifted = Math.abs(lift) > 1e-6;
+    } else zoom = Math.min(3.5, Math.max(0.25, zoom * (event.deltaY > 0 ? 1.12 : 1 / 1.12)));
     turning = false;
   };
   canvas.addEventListener("wheel", wheel, { passive: false });
@@ -366,6 +382,15 @@ function show(
         playing = index;
       }
     },
+    /** Gives the canvas a new width and height in pixels; the next frame draws at it. */
+    resize(pixels: number): void {
+      sizeTo(pixels);
+    },
+    /** Puts the model back at the height it was framed at. */
+    lower(): void {
+      lift = 0;
+      lifted = false;
+    },
     /** Sets the team colour to player `player`'s; the next frame draws it. */
     tint(player: number): void {
       vec3.set(colour, ...teamRgb(player));
@@ -533,25 +558,27 @@ function message(e: unknown): string {
         {tCount("model.texturesMissing", missing.length)}
       </p>
     {/if}
-    {#if status === "ready" && !turning}
-      <button
-        type="button"
-        class="absolute bottom-1.5 left-1.5 rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100 cursor-pointer"
-        title={t("model.turnAgain")}
-        aria-label={t("model.turnAgain")}
-        onclick={() => (turning = true)}
-      >
-        <RotateCw size={14} />
-      </button>
+    {#if status === "ready" && (!turning || lifted)}
+      <div class="absolute bottom-1.5 left-1.5 flex gap-1">
+        {#if !turning}
+          {@render overlayButton(t("model.turnAgain"), RotateCw, () => (turning = true))}
+        {/if}
+        {#if lifted}
+          {@render overlayButton(t("model.lower"), MoveVertical, () => current?.lower())}
+        {/if}
+      </div>
     {/if}
   </div>
-  {#if animations && sequences.length > 0}
+  <!-- Always there, also while the model loads or when it has none, so the panel keeps its height. -->
+  {#if animations}
     <Select
       options={sequences.map((name, index) => ({ value: String(index), label: name || t("model.unnamed", { index }) }))}
       value={String(playing)}
       label={t("model.animation")}
+      missing={status === "loading" ? t("model.animationsLoading") : t("model.noAnimations")}
       tone="border-line bg-raised text-fg hover:border-muted"
       compact
+      disabled={sequences.length === 0}
       onpick={(value) => current?.play(Number(value))}
     />
   {/if}
@@ -575,3 +602,15 @@ function message(e: unknown): string {
     </div>
   {/if}
 </div>
+
+{#snippet overlayButton(label: string, Icon: typeof RotateCw, onclick: () => void)}
+  <button
+    type="button"
+    class="cursor-pointer rounded-full bg-surface/70 p-1.5 text-muted opacity-70 hover:text-fg hover:opacity-100"
+    title={label}
+    aria-label={label}
+    {onclick}
+  >
+    <Icon size={14} />
+  </button>
+{/snippet}
