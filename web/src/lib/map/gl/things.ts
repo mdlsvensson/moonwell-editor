@@ -4,12 +4,15 @@
  * the height (without cliff levels) of the corner at the bottom left of the tile it falls in (*claim*, HiveWE). Models
  * load in the background, nearest the camera first; a model that is missing, cannot be read or draws nothing is told
  * to `failed`, and its things become markers. A Classic geoset's team colour is under its texture; an HD geoset's is
- * its texture times the colour where its ORM texture's alpha says (war3-model's HD shader).
+ * its texture times the colour where its ORM texture's alpha says (war3-model's HD shader). Each layer is lit by
+ * the light it is given: the cliffs by the tileset's terrain light, the things by its unit light. A face seen from
+ * behind is lit as its back.
  */
 import type { mat4 } from "gl-matrix";
 import { loadModel, type MapModel, ownGeosets, texturePaths } from "../models.ts";
 import type { Terrain } from "../scene.ts";
 import { type Batch, instanceFloats } from "./batches.ts";
+import { type Lighting, lightingUniforms, litGlsl, setLighting } from "./lighting.ts";
 import { floatTexture, plainTexture, program } from "./program.ts";
 import { makeTexture } from "./textures.ts";
 
@@ -65,8 +68,8 @@ uniform int filterMode;
 uniform bool teamUnder;
 uniform bool teamMasked;
 uniform bool picking;
-uniform vec3 light;
 out vec4 color;
+${litGlsl}
 void main() {
   vec4 texel = texture(diffuse, vUv);
   if (filterMode == 1 && texel.a < 0.75) discard;
@@ -79,8 +82,7 @@ void main() {
   vec3 rgb = texel.rgb;
   if (teamUnder) rgb = mix(vTeam, texel.rgb, texel.a);
   else if (teamMasked) rgb = mix(texel.rgb, texel.rgb * vTeam, texture(orm, vUv).a);
-  float shade = clamp(dot(normalize(vNormal), light) * 0.4 + 0.7, 0.35, 1.2);
-  color = vec4(rgb * vTint * shade, filterMode == 2 ? texel.a : 1.0);
+  color = vec4(lit(rgb, gl_FrontFacing ? vNormal : -vNormal) * vTint, filterMode == 2 ? texel.a : 1.0);
 }`;
 
 /** A geoset on the card: its vertex array (the model's buffers and the batch's copies), and how it draws. */
@@ -134,7 +136,7 @@ export class ModelLayer {
         "teamUnder",
         "teamMasked",
         "picking",
-        "light",
+        ...lightingUniforms,
       ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
     );
     this.relief = floatTexture(gl, terrain.columns, terrain.rows, terrain.relief);
@@ -163,7 +165,7 @@ export class ModelLayer {
 
   draw(
     viewProjection: mat4,
-    light: [number, number, number],
+    light: Lighting,
     picking = false,
     shown: (batch: Batch) => boolean = () => true,
   ): void {
@@ -172,7 +174,7 @@ export class ModelLayer {
     gl.uniformMatrix4fv(this.uniforms.viewProjection ?? null, false, viewProjection);
     gl.uniform2i(this.uniforms.size ?? null, terrain.columns, terrain.rows);
     gl.uniform2f(this.uniforms.origin ?? null, terrain.left, terrain.bottom);
-    gl.uniform3fv(this.uniforms.light ?? null, light);
+    setLighting(gl, this.uniforms, light);
     gl.uniform1i(this.uniforms.picking ?? null, picking ? 1 : 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.relief);

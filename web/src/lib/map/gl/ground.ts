@@ -4,10 +4,11 @@
  * drawn whole, the layers after it in their pieces' alpha over it. A tile under a cliff model is not drawn; one outside
  * the playable area is dimmed. WebGL2 cannot pick one of several samplers by a tile's texture, so each sheet keeps its
  * own texture: an array of its pieces (see cutPieces), compressed as the game's file has it, so a tile never samples
- * its neighbouring pieces (the seams between tiles, Sven 2026-10-29).
+ * its neighbouring pieces (the seams between tiles, Sven 2026-10-29). It is lit by the tileset's terrain light.
  */
 import type { mat4 } from "gl-matrix";
 import type { Terrain, TerrainTexture } from "../scene.ts";
+import { type Lighting, lightingUniforms, litGlsl, setLighting } from "./lighting.ts";
 import { byteTexture, floatTexture, program } from "./program.ts";
 import { plainArray } from "./textures.ts";
 
@@ -56,12 +57,11 @@ flat in float layer;
 flat in float whole;
 flat in float dim;
 uniform sampler2DArray sheet;
-uniform vec3 light;
 out vec4 color;
+${litGlsl}
 void main() {
   vec4 texel = texture(sheet, vec3(uv, layer));
-  float shade = clamp(dot(normalize(normal), light) * 0.45 + 0.65, 0.0, 1.15);
-  color = vec4(texel.rgb * shade * dim, whole > 0.5 ? 1.0 : texel.a);
+  color = vec4(lit(texel.rgb, normal) * dim, whole > 0.5 ? 1.0 : texel.a);
 }`;
 
 /** One texture's pass: its sheet and the tiles that use it, two numbers each (the tile, its piece and wholeness). */
@@ -83,10 +83,9 @@ export class GroundLayer {
   ) {
     this.program = program(gl, vertex, fragment);
     this.uniforms = Object.fromEntries(
-      ["viewProjection", "heights", "flags", "size", "origin", "sheet", "light"].map((name) => [
-        name,
-        gl.getUniformLocation(this.program, name),
-      ]),
+      ["viewProjection", "heights", "flags", "size", "origin", "sheet", ...lightingUniforms].map(
+        (name) => [name, gl.getUniformLocation(this.program, name)],
+      ),
     );
     const across = Math.max(terrain.columns - 1, 0);
     const down = Math.max(terrain.rows - 1, 0);
@@ -132,14 +131,14 @@ export class GroundLayer {
     return this.passes.map((pass) => pass.texture);
   }
 
-  draw(viewProjection: mat4, light: [number, number, number]): void {
+  draw(viewProjection: mat4, light: Lighting): void {
     const { gl, terrain } = this;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
     gl.uniformMatrix4fv(this.uniforms.viewProjection ?? null, false, viewProjection);
     gl.uniform2i(this.uniforms.size ?? null, terrain.columns, terrain.rows);
     gl.uniform2f(this.uniforms.origin ?? null, terrain.left, terrain.bottom);
-    gl.uniform3fv(this.uniforms.light ?? null, light);
+    setLighting(gl, this.uniforms, light);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.heights);
     gl.uniform1i(this.uniforms.heights ?? null, 0);

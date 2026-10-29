@@ -24,6 +24,7 @@ public sealed record WaterLook(string Texture, int Frames, int ShallowMin, int S
 /// <param name="CliffTextures">Each cliff type's texture, in the order the cliff pieces count them.</param>
 /// <param name="Cliffs">The cliff and ramp models.</param>
 /// <param name="Water">How the water looks.</param>
+/// <param name="Lights">The tileset's lights at noon.</param>
 /// <param name="Things">The placed things.</param>
 /// <param name="Regions">The regions.</param>
 /// <param name="Cameras">The cameras.</param>
@@ -38,6 +39,7 @@ public sealed record MapSceneView(
     IReadOnlyList<string> CliffTextures,
     IReadOnlyList<CliffPiece> Cliffs,
     WaterLook Water,
+    SceneLights Lights,
     IReadOnlyList<PlacedThing> Things,
     IReadOnlyList<RegionMark> Regions,
     IReadOnlyList<CameraMark> Cameras,
@@ -63,7 +65,8 @@ public static class MapScene
             }
 
             var things = Placed.Things(read, null, session, mode);
-            return (new MapSceneView(0, 0, 0, 0, "", [], [], [], new WaterLook("", 0, 0, 0, 0, 0), things, regions,
+            return (new MapSceneView(0, 0, 0, 0, "", [], [], [], new WaterLook("", 0, 0, 0, 0, 0),
+                new SceneLights(DayLights.Default, DayLights.Default, []), things, regions,
                 cameras, problems), []);
         }
 
@@ -85,6 +88,7 @@ public static class MapScene
             Cliffs.Textures(terrain, files, mode),
             pieces,
             Look(water, read.Info),
+            DayLights.Read(tileset, files, mode),
             Placed.Things(read, grid, session, mode),
             regions,
             cameras,

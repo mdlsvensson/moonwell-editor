@@ -9,14 +9,12 @@ import { colourToNumber } from "../picking.ts";
 import type { MapScene, PlacedThing, Terrain, ThingKind } from "../scene.ts";
 import { type Batch, cliffBatches, thingBatches } from "./batches.ts";
 import { GroundLayer } from "./ground.ts";
+import { type Lighting, lighting } from "./lighting.ts";
 import { MarkerLayer } from "./markers.ts";
 import { MarksLayer } from "./marks.ts";
 import { makeGroundTexture, makeTexture } from "./textures.ts";
 import { ModelLayer } from "./things.ts";
 import { WaterLayer } from "./water.ts";
-
-/** Where the light comes from: high in the south-west (plan's call; the tileset's own light is not drawn yet). */
-const light: [number, number, number] = [-0.3, -0.35, 0.89];
 
 /** Which layers show: the kinds of placed thing, the regions and the cameras. */
 export type Layers = { kinds: ReadonlySet<ThingKind>; regions: boolean; cameras: boolean };
@@ -47,6 +45,9 @@ export class MapRenderer {
   private readonly marks: MarksLayer;
   /** The things drawn as markers: those without a model, and those whose model draws nothing. */
   private readonly marked: PlacedThing[];
+  /** The tileset's terrain light (ground and cliffs) and unit light (things) at noon. */
+  private readonly terrainLight: Lighting;
+  private readonly unitLight: Lighting;
   private layers: Layers = allLayers;
   private pickTarget: PickTarget | null = null;
   private stopped = false;
@@ -67,6 +68,8 @@ export class MapRenderer {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.clearColor(0.05, 0.05, 0.07, 1);
+    this.terrainLight = lighting(scene.lights.terrain, scene.lights.sky, "terrain");
+    this.unitLight = lighting(scene.lights.units, scene.lights.sky, "units");
     this.ground = new GroundLayer(gl, terrain, scene.textures);
     this.water = new WaterLayer(gl, terrain, scene.water);
     this.marked = scene.things.filter((thing) => !thing.model);
@@ -93,9 +96,9 @@ export class MapRenderer {
     gl.clearColor(0.05, 0.05, 0.07, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const viewProjection = this.viewProjection(view, width, height);
-    this.ground.draw(viewProjection, light);
-    this.cliffs.draw(viewProjection, light);
-    this.things.draw(viewProjection, light, false, this.shown);
+    this.ground.draw(viewProjection, this.terrainLight);
+    this.cliffs.draw(viewProjection, this.terrainLight);
+    this.things.draw(viewProjection, this.unitLight, false, this.shown);
     this.markers.draw(viewProjection);
     this.marks.draw(viewProjection, this.layers.regions, this.layers.cameras);
     this.water.draw(viewProjection);
@@ -118,11 +121,11 @@ export class MapRenderer {
     const viewProjection = this.viewProjection(view, width, height);
     // The ground and cliffs only hide what is behind them.
     gl.colorMask(false, false, false, false);
-    this.ground.draw(viewProjection, light);
-    this.cliffs.draw(viewProjection, light);
+    this.ground.draw(viewProjection, this.terrainLight);
+    this.cliffs.draw(viewProjection, this.terrainLight);
     gl.colorMask(true, true, true, true);
     gl.disable(gl.BLEND);
-    this.things.draw(viewProjection, light, true, this.shown);
+    this.things.draw(viewProjection, this.unitLight, true, this.shown);
     this.markers.draw(viewProjection, true);
     const pixel = new Uint8Array(4);
     gl.readPixels(

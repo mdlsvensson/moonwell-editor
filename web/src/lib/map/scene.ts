@@ -74,6 +74,16 @@ export type CameraMark = {
   fieldOfView: number;
 };
 
+/** One of the tileset's lights at noon: toward it (a unit vector), its colour and its ambient colour. */
+export type SceneLight = {
+  toward: [number, number, number];
+  colour: [number, number, number];
+  ambient: [number, number, number];
+};
+
+/** The tileset's lights at noon; `sky` is the environment map's colour along +x, -x, +y, -y, +z, -z (HD and DE). */
+export type SceneLights = { terrain: SceneLight; units: SceneLight; sky: number[] };
+
 /** Everything the view draws but the terrain's corners. */
 export type MapScene = {
   columns: number;
@@ -85,6 +95,7 @@ export type MapScene = {
   cliffTextures: string[];
   cliffs: CliffPiece[];
   water: WaterLook;
+  lights: SceneLights;
   things: PlacedThing[];
   regions: RegionMark[];
   cameras: CameraMark[];
