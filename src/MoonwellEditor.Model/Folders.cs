@@ -145,7 +145,7 @@ internal static class Folders
                 Special = Flag("uspe", filed.Special),
                 Building = Flag("ubdg", filed.Building),
                 Hostile = Flag("uhos", filed.Hostile),
-                Hero = id.Length > 0 && char.IsUpper(id[0]),
+                Hero = ObjectIds.IsHeroId(id),
             },
             ObjectKind.Item => filed with { Category = Text("icla", filed.Category) },
             ObjectKind.Destructable => filed with { Category = Text("bcat", filed.Category) },

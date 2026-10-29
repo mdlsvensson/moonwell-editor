@@ -673,7 +673,7 @@ public sealed partial class Session
         taken.UnionWith(map.Customs().Select(custom => custom.Id));
         if (id != null)
         {
-            if (!NewIds.Valid(id))
+            if (!ObjectIds.IsValid(id))
             {
                 throw new EditException("idInvalid", Texts.Get("app.error.idInvalid", ("id", id)));
             }
@@ -687,8 +687,8 @@ public sealed partial class Session
             return id;
         }
 
-        var letter = NewIds.Letter(kind, baseId);
-        return NewIds.Next(letter, taken)
+        var letter = ObjectIds.Letter(kind, baseId);
+        return ObjectIds.Next(letter, taken.Contains)
             ?? throw new EditException(
                 "idTaken", Texts.Get("app.error.idsUsedUp", ("first", $"{letter}000"), ("last", $"{letter}ZZZ")));
     }

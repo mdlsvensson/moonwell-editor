@@ -267,6 +267,26 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_typed_id_may_have_signs()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("we-3.0");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // An id is four characters from ! to ~ (Moonwell.MapFiles' ObjectIds); a space or a letter past ASCII is not one.
+        Assert.Equal("A00!", session.Create(ObjectKind.Ability, "AHhb", "A00!"));
+        Assert.Equal("A~#%", session.Create(ObjectKind.Ability, "AHhb", "A~#%"));
+        Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00 ")));
+        Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00å")));
+        Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00!!")));
+        Assert.Equal("idTaken", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00!")));
+    }
+
+    [Fact]
     public void New_ids_follow_world_editor()
     {
         if (Skipped(out var game))

@@ -70,7 +70,7 @@ public sealed class KindData
             return standard;
         }
 
-        var hero = char.IsUpper(id[0]);
+        var hero = ObjectIds.IsHeroId(id);
         return hero == standard.Hero ? standard : standard with { Hero = hero };
     }
 

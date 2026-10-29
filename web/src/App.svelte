@@ -602,13 +602,13 @@ async function startNew(): Promise<void> {
 }
 
 /**
- * Why an id typed for a new object cannot be used, as it is typed: not four letters or digits, or another object of
+ * Why an id typed for a new object cannot be used, as it is typed: not four characters from ! to ~, or another object of
  * the kind has it; null when it can (or is empty, which takes the next free id).
  */
 function idProblem(each: Kind, typed: string): string | null {
   const id = typed.trim();
   if (id === "") return null;
-  if (!/^[0-9A-Za-z]{4}$/.test(id)) return t("notice.idInvalid");
+  if (!/^[!-~]{4}$/.test(id)) return t("notice.idInvalid");
   const taken = trees[each]?.find((entry) => entry.id === id);
   return taken ? t("notice.idTaken", { id, name: taken.name || id }) : null;
 }
