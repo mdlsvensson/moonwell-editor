@@ -3,7 +3,8 @@
  * mdx.ts), posed once in the first frame of their Stand animation, and cut down to what the view draws of them: the
  * solid, alpha-tested and blended geosets of the most detailed level, each with its diffuse texture. Glows, effect
  * sheets and particles are left out, so a model of nothing else is a marker (Review Focus 2). An HD model is drawn
- * with its diffuse texture, and its ORM texture for where the team colour goes (plan's call; no normal maps yet).
+ * with its diffuse texture, its ORM texture for where the team colour goes, its normal map and its emissive map
+ * (plan's call; no roughness or metal).
  */
 import { mat4 } from "gl-matrix";
 import { ModelRenderer, parseMDX } from "war3-model";
@@ -42,6 +43,12 @@ export type MapGeoset = {
    * shader); null for none.
    */
   orm: string | null;
+  /** An HD geoset's normal map (two channels), null for none. */
+  normalMap: string | null;
+  /** An HD geoset's emissive map, the light it gives off itself; null for none. */
+  emissive: string | null;
+  /** An HD geoset's tangents, four numbers a vertex (the fourth the bitangent's side), as its file has them. */
+  tangents: Float32Array | null;
 };
 
 /** A model as the view draws it; no geosets for one that draws as a marker. `variations` is 1 for most. */
@@ -84,7 +91,9 @@ type Texture = { Image?: string; ReplaceableId?: number };
 type Layer = {
   FilterMode?: number;
   TextureID?: unknown;
+  NormalTextureID?: unknown;
   ORMTextureID?: unknown;
+  EmissiveTextureID?: unknown;
   ShaderTypeId?: number;
 };
 
@@ -120,14 +129,19 @@ export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapM
     const filter = (teamUnder ? layers[0]?.FilterMode : diffuse?.FilterMode) ?? 0;
     if (!diffuse || !texture || !drawn.includes(filter)) return;
     // An HD material is one layer of the HD shader with its textures named in it (version 1100), or six layers of one
-    // texture each, the ORM third (version 1000).
+    // texture each: the normal map second, the ORM third, the emissive map fourth (version 1000).
     const shader = layers[0]?.ShaderTypeId === 1;
     const hd = shader || layers.length === 6;
-    const orm = shader
-      ? textureOf({ TextureID: layers[0]?.ORMTextureID })
-      : hd
-        ? textureOf(layers[2])
-        : undefined;
+    const hdTexture = (field: keyof Layer, layer: number) =>
+      shader
+        ? textureOf({ TextureID: layers[0]?.[field] })
+        : hd
+          ? textureOf(layers[layer])
+          : undefined;
+    const orm = hdTexture("ORMTextureID", 2);
+    const normalMap = hdTexture("NormalTextureID", 1);
+    const emissive = hdTexture("EmissiveTextureID", 3);
+    const tangents = (geoset as { Tangents?: Float32Array }).Tangents;
     geosets.push({
       positions: bakeGeoset(geoset, pose),
       normals: Float32Array.from(geoset.Normals),
@@ -141,6 +155,9 @@ export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapM
       variation: several ? (named[index] ?? null) : null,
       hd,
       orm: orm?.Image || null,
+      normalMap: normalMap?.Image || null,
+      emissive: emissive?.Image || null,
+      tangents: hd && tangents?.length === (geoset.Vertices.length / 3) * 4 ? tangents : null,
     });
   });
   return { geosets, variations: several ? variations : 1 };

@@ -6,7 +6,9 @@
  * to `failed`, and its things become markers. A Classic geoset's team colour is under its texture; an HD geoset's is
  * its texture times the colour where its ORM texture's alpha says (war3-model's HD shader). Each layer is lit by
  * the light it is given: the cliffs by the tileset's terrain light, the things by its unit light. A face seen from
- * behind is lit as its back.
+ * behind is lit as its back. An HD geoset is lit through its normal map, along its tangents (*claim*, HiveWE: the map's
+ * two channels the tangent and bitangent parts, the bitangent the normal across the tangent on the tangent's fourth
+ * number's side), and gives off the light of its emissive map.
  */
 import type { mat4 } from "gl-matrix";
 import { loadModel, type MapModel, ownGeosets, texturePaths } from "../models.ts";
@@ -30,6 +32,7 @@ layout(location = 6) in vec4 m3;
 layout(location = 7) in vec3 tint;
 layout(location = 8) in vec3 team;
 layout(location = 9) in float number;
+layout(location = 10) in vec4 tangent;
 uniform mat4 viewProjection;
 uniform bool cliff;
 uniform sampler2D relief;
@@ -39,6 +42,7 @@ out vec2 vUv;
 out vec3 vNormal;
 out vec3 vTint;
 out vec3 vTeam;
+out vec4 vTangent;
 flat out float vNumber;
 void main() {
   mat4 m = mat4(m0, m1, m2, m3);
@@ -49,6 +53,7 @@ void main() {
   }
   vUv = uv;
   vNormal = mat3(m) * normal;
+  vTangent = vec4(mat3(m) * tangent.xyz, tangent.w);
   vTint = tint;
   vTeam = team;
   vNumber = number;
@@ -61,9 +66,14 @@ in vec2 vUv;
 in vec3 vNormal;
 in vec3 vTint;
 in vec3 vTeam;
+in vec4 vTangent;
 flat in float vNumber;
 uniform sampler2D diffuse;
 uniform sampler2D orm;
+uniform sampler2D normalMap;
+uniform sampler2D emissive;
+uniform bool mapped;
+uniform bool glowing;
 uniform int filterMode;
 uniform bool teamUnder;
 uniform bool teamMasked;
@@ -82,7 +92,16 @@ void main() {
   vec3 rgb = texel.rgb;
   if (teamUnder) rgb = mix(vTeam, texel.rgb, texel.a);
   else if (teamMasked) rgb = mix(texel.rgb, texel.rgb * vTeam, texture(orm, vUv).a);
-  color = vec4(lit(rgb, gl_FrontFacing ? vNormal : -vNormal) * vTint, filterMode == 2 ? texel.a : 1.0);
+  vec3 n = normalize(gl_FrontFacing ? vNormal : -vNormal);
+  if (mapped) {
+    vec3 t = normalize(vTangent.xyz - dot(vTangent.xyz, n) * n);
+    vec3 b = cross(n, t) * vTangent.w;
+    vec2 xy = texture(normalMap, vUv).rg * 2.0 - 1.0;
+    n = normalize(t * xy.x + b * xy.y + n * sqrt(max(1.0 - dot(xy, xy), 0.0)));
+  }
+  vec3 shaded = lit(rgb, n) * vTint;
+  if (glowing) shaded += texture(emissive, vUv).rgb;
+  color = vec4(shaded, filterMode == 2 ? texel.a : 1.0);
 }`;
 
 /** A geoset on the card: its vertex array (the model's buffers and the batch's copies), and how it draws. */
@@ -92,6 +111,9 @@ type Drawn = {
   texture: WebGLTexture;
   /** An HD geoset's ORM texture, null for none. */
   orm: WebGLTexture | null;
+  /** An HD geoset's normal map and emissive map, null for none. */
+  normalMap: WebGLTexture | null;
+  emissive: WebGLTexture | null;
   filter: number;
   teamUnder: boolean;
 };
@@ -107,7 +129,7 @@ export class ModelLayer {
   private readonly loaded: Loaded[] = [];
   private readonly models = new Map<
     string,
-    Promise<{ model: MapModel; buffers: WebGLBuffer[][] } | null>
+    Promise<{ model: MapModel; buffers: (WebGLBuffer | null)[][] } | null>
   >();
   private readonly textures = new Map<string, Promise<WebGLTexture | null>>();
   private readonly owned: WebGLBuffer[] = [];
@@ -132,6 +154,10 @@ export class ModelLayer {
         "origin",
         "diffuse",
         "orm",
+        "normalMap",
+        "emissive",
+        "mapped",
+        "glowing",
         "filterMode",
         "teamUnder",
         "teamMasked",
@@ -181,6 +207,8 @@ export class ModelLayer {
     gl.uniform1i(this.uniforms.relief ?? null, 1);
     gl.uniform1i(this.uniforms.diffuse ?? null, 0);
     gl.uniform1i(this.uniforms.orm ?? null, 2);
+    gl.uniform1i(this.uniforms.normalMap ?? null, 4);
+    gl.uniform1i(this.uniforms.emissive ?? null, 5);
     gl.disable(gl.CULL_FACE);
     // Solid and alpha-tested first; blended after, over them, without writing depth (not when picking).
     for (const blended of [false, true]) {
@@ -202,6 +230,16 @@ export class ModelLayer {
           gl.uniform1i(this.uniforms.filterMode ?? null, geoset.filter);
           gl.uniform1i(this.uniforms.teamUnder ?? null, geoset.teamUnder ? 1 : 0);
           gl.uniform1i(this.uniforms.teamMasked ?? null, geoset.orm ? 1 : 0);
+          gl.uniform1i(this.uniforms.mapped ?? null, geoset.normalMap ? 1 : 0);
+          gl.uniform1i(this.uniforms.glowing ?? null, geoset.emissive ? 1 : 0);
+          if (geoset.normalMap) {
+            gl.activeTexture(gl.TEXTURE4);
+            gl.bindTexture(gl.TEXTURE_2D, geoset.normalMap);
+          }
+          if (geoset.emissive) {
+            gl.activeTexture(gl.TEXTURE5);
+            gl.bindTexture(gl.TEXTURE_2D, geoset.emissive);
+          }
           if (geoset.orm) {
             gl.activeTexture(gl.TEXTURE2);
             gl.bindTexture(gl.TEXTURE_2D, geoset.orm);
@@ -240,14 +278,20 @@ export class ModelLayer {
     }
     const geosets = await Promise.all(
       own.map(async (geoset) => {
-        const [texture, orm] = await Promise.all([
+        const own = (path: string | null) => this.file(path ? [path] : []);
+        const [texture, orm, normalMap, emissive] = await Promise.all([
           this.file(texturePaths(geoset.texture, batch.texture, geoset.hd)),
-          this.file(geoset.orm ? [geoset.orm] : []),
+          own(geoset.orm),
+          // The normal map counts only with the tangents to turn it by.
+          own(geoset.tangents ? geoset.normalMap : null),
+          own(geoset.emissive),
         ]);
         return {
           geoset,
           texture,
           orm,
+          normalMap,
+          emissive,
           buffers: model.buffers[model.model.geosets.indexOf(geoset)] ?? [],
         };
       }),
@@ -257,10 +301,17 @@ export class ModelLayer {
     const instances = this.instances.get(batch) ?? null;
     this.loaded.push({
       batch,
-      geosets: geosets.map(({ geoset, texture, orm, buffers }) => {
+      geosets: geosets.map(({ geoset, texture, orm, normalMap, emissive, buffers }) => {
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
-        const [positions, normals, uvs, indices] = buffers;
+        const [positions, normals, uvs, indices, tangents] = buffers;
+        if (tangents) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, tangents);
+          gl.enableVertexAttribArray(10);
+          gl.vertexAttribPointer(10, 4, gl.FLOAT, false, 0, 0);
+        } else {
+          gl.disableVertexAttribArray(10);
+        }
         for (const [location, buffer, size] of [
           [0, positions, 3],
           [1, normals, 3],
@@ -293,6 +344,8 @@ export class ModelLayer {
           count: geoset.indices.length,
           texture: texture ?? this.white,
           orm,
+          normalMap: tangents ? normalMap : null,
+          emissive,
           filter: geoset.filter,
           teamUnder: geoset.teamUnder,
         };
@@ -308,16 +361,21 @@ export class ModelLayer {
       known = loadModel(this.url(path)).then((model) => {
         if (!model || this.stopped) return null;
         const { gl } = this;
+        // Each geoset's positions, normals, uvs, indices and, for an HD geoset, tangents (null without).
         const buffers = model.geosets.map((geoset) =>
-          [
-            [gl.ARRAY_BUFFER, geoset.positions],
-            [gl.ARRAY_BUFFER, geoset.normals],
-            [gl.ARRAY_BUFFER, geoset.uvs],
-            [gl.ELEMENT_ARRAY_BUFFER, geoset.indices],
-          ].map(([target, data]) => {
+          (
+            [
+              [gl.ARRAY_BUFFER, geoset.positions],
+              [gl.ARRAY_BUFFER, geoset.normals],
+              [gl.ARRAY_BUFFER, geoset.uvs],
+              [gl.ELEMENT_ARRAY_BUFFER, geoset.indices],
+              [gl.ARRAY_BUFFER, geoset.tangents],
+            ] as const
+          ).map(([target, data]) => {
+            if (!data) return null;
             const buffer = gl.createBuffer();
-            gl.bindBuffer(target as number, buffer);
-            gl.bufferData(target as number, data as ArrayBufferView, gl.STATIC_DRAW);
+            gl.bindBuffer(target, buffer);
+            gl.bufferData(target, data, gl.STATIC_DRAW);
             this.owned.push(buffer);
             return buffer;
           }),

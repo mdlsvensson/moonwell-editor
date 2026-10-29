@@ -211,6 +211,53 @@ describe("mapModel", () => {
     expect(mapModel(parsed(0) as never, () => undefined).geosets[0]?.orm).toBeNull();
   });
 
+  it("gives an HD geoset its normal map, emissive map and tangents, and a Classic one none", () => {
+    const textures = [
+      { Image: "Troll_diffuse.dds" },
+      { Image: "Troll_normal.dds" },
+      { Image: "Troll_orm.dds" },
+      { Image: "Troll_emissive.dds" },
+      { ReplaceableId: 1 },
+    ];
+    const tangents = new Float32Array([1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, -1]);
+    const newer = {
+      ...parsed(0, [
+        {
+          FilterMode: 0,
+          TextureID: 0,
+          NormalTextureID: 1,
+          ORMTextureID: 2,
+          EmissiveTextureID: 3,
+          ShaderTypeId: 1,
+        },
+      ]),
+      Textures: textures,
+    };
+    (newer.Geosets[0] as { Tangents?: Float32Array }).Tangents = tangents;
+    const older = {
+      ...parsed(
+        0,
+        [0, 1, 2, 3, 4, 0].map((id) => ({ FilterMode: 0, TextureID: id })),
+      ),
+      Textures: textures,
+    };
+    expect(mapModel(newer as never, () => undefined).geosets[0]).toMatchObject({
+      normalMap: "Troll_normal.dds",
+      emissive: "Troll_emissive.dds",
+      tangents,
+    });
+    expect(mapModel(older as never, () => undefined).geosets[0]).toMatchObject({
+      normalMap: "Troll_normal.dds",
+      emissive: "Troll_emissive.dds",
+      tangents: null,
+    });
+    expect(mapModel(parsed(0) as never, () => undefined).geosets[0]).toMatchObject({
+      normalMap: null,
+      emissive: null,
+      tangents: null,
+    });
+  });
+
   it("leaves glows out, so a model of glows and particles only is a marker", () => {
     expect(mapModel(parsed(3) as never, () => undefined).geosets).toEqual([]);
     expect(mapModel({ ...parsed(0), Geosets: [] } as never, () => undefined).geosets).toEqual([]);
