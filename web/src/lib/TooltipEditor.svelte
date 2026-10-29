@@ -328,12 +328,14 @@ const forms: { form: NumberForm | "auto"; label: string; title: string }[] = [
   },
 ];
 
-// A buff's extended tooltip with a comma, which the game shows only up to it.
+// A buff's extended tooltip of the map's own with a comma, which the game shows only up to it. The standard text is
+// not the map's (the game's own Flame Strike buff has a comma, Sven, 2026-10-29).
 const buffComma = $derived(
   view.kind === "buff" &&
-    view.fields.some(
-      (field) => field.id === "fube" && (drafts[keyOf(field)] ?? field.value).includes(","),
-    ),
+    view.fields.some((field) => {
+      const text = drafts[keyOf(field)] ?? field.value;
+      return field.id === "fube" && text !== field.base && text.includes(",");
+    }),
 );
 
 function colorSelection(css: string | null): void {

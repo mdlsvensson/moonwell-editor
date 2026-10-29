@@ -598,7 +598,7 @@
   "tooltipEditor.addColour": "Add a colour of your own (up to {max}): it colours the selection and is kept here",
   "tooltipEditor.box.learn": "Learn",
   "tooltipEditor.box.off": "Turned off",
-  "tooltipEditor.buffComma": "The game shows a buff's extended tooltip only up to its first comma, so the text after it will not show. Values cannot go in a buff's tooltip, as each holds a comma.",
+  "tooltipEditor.buffComma": "The game shows a buff's extended tooltip set in the map only up to its first comma, so the text after it will not show. Values cannot go in a buff's tooltip, as each holds a comma.",
   "tooltipEditor.changed.one": "{count} text changed",
   "tooltipEditor.changed.other": "{count} texts changed",
   "tooltipEditor.chipTitle": "{name}, filled in by the game\n{token}",
