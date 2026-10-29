@@ -20,6 +20,8 @@ export type Batch = {
   cliff: boolean;
   /** The copies' variation, which picks the geosets of a model that holds several shapes. */
   variation: number;
+  /** What the copies are, for the view's layers; null for cliffs. */
+  kind: ThingKind | null;
   instances: Float32Array;
   count: number;
   /** The things' numbers, in the order of their copies. */
@@ -74,6 +76,7 @@ export function cliffBatches(scene: MapScene): Batch[] {
       texture: scene.cliffTextures[first?.cliffType ?? 0] ?? null,
       cliff: true,
       variation: 0,
+      kind: null,
       instances,
       count: pieces.length,
       numbers: pieces.map(() => 0),
@@ -101,6 +104,7 @@ export function thingBatches(things: readonly PlacedThing[]): Batch[] {
       texture: group[0]?.texture ?? null,
       cliff: false,
       variation: group[0]?.variation ?? 0,
+      kind: group[0]?.kind ?? null,
       instances,
       count: group.length,
       numbers: group.map((thing) => thing.number),

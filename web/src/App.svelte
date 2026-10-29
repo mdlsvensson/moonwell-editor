@@ -60,6 +60,7 @@ import { graphics, viewInMode } from "./lib/graphics.svelte.ts";
 import KindBar from "./lib/KindBar.svelte";
 import { actionOf, loadKeymap, shownKey } from "./lib/keymap.ts";
 import MapView from "./lib/MapView.svelte";
+import { picking } from "./lib/map/pick.ts";
 import OpenMapMenu from "./lib/OpenMapMenu.svelte";
 import { type OpenEntry, openEntries, openFrom } from "./lib/openMenu.ts";
 import { prefs } from "./lib/prefs.svelte.ts";
@@ -170,6 +171,17 @@ let choiceLists = $state.raw<Record<string, ChoiceList> | null>(null);
 // Which view the middle of the window shows: the selected object's details, the kind's table, or the map (the
 // Terrain Editor button; read only for now).
 let page = $state<"details" | "table" | "map">("details");
+// While something asks the map for a pick (the trigger editor), the map shows; then the page it came from again.
+let beforePick: "details" | "table" | null = null;
+$effect(() => {
+  if ($picking.kind !== null && page !== "map" && map) {
+    beforePick = page;
+    page = "map";
+  } else if ($picking.kind === null && beforePick) {
+    page = beforePick;
+    beforePick = null;
+  }
+});
 // The table view is an experimental feature (Sven, 2026-10-29): turning them off goes back to the details.
 $effect(() => {
   if (!prefs.experimental && page === "table") page = "details";

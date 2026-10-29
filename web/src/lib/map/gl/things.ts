@@ -152,7 +152,12 @@ export class ModelLayer {
     await Promise.all(Array.from({ length: 6 }, worker));
   }
 
-  draw(viewProjection: mat4, light: [number, number, number], picking = false): void {
+  draw(
+    viewProjection: mat4,
+    light: [number, number, number],
+    picking = false,
+    shown: (batch: Batch) => boolean = () => true,
+  ): void {
     const { gl, terrain } = this;
     gl.useProgram(this.program);
     gl.uniformMatrix4fv(this.uniforms.viewProjection ?? null, false, viewProjection);
@@ -176,6 +181,7 @@ export class ModelLayer {
         gl.disable(gl.BLEND);
       }
       for (const { batch, geosets } of this.loaded) {
+        if (!shown(batch)) continue;
         gl.uniform1i(this.uniforms.cliff ?? null, batch.cliff ? 1 : 0);
         for (const geoset of geosets) {
           if ((geoset.filter === 2) !== blended && !(picking && geoset.filter === 2)) continue;

@@ -189,14 +189,22 @@ export function byModel(things: readonly PlacedThing[]): Map<string, PlacedThing
  * the game fills in (11 a cliff's, 31 to 37 a tree's) the batch's texture, and before it, for an HD geoset, its
  * `_diffuse` version (an HD tree's diffuse map is LordaeronSnowTree_diffuse, 2048 by 1024, where the Classic texture
  * is 256 by 256 and laid out for the Classic model; seen in the install 2026-10-29). None for any other number.
+ *
+ * An HD cliff model names its texture as a file, ReplaceableTextures\Cliff\Cliff1_Diffuse.tif, which the install does
+ * not have; CliffTypes.slk's overrideTexture names that file for the cliff type, so the cliff type's texture takes its
+ * place (*claim*, seen as a white cliff on WarChasers 2026-10-29).
  */
 export function texturePaths(
   texture: string | number,
   batchTexture: string | null,
   hd: boolean,
 ): string[] {
-  if (typeof texture === "string") return texture ? [texture] : [];
-  const replaced = texture === 11 || (texture >= 31 && texture <= 37);
+  const cliffFile =
+    typeof texture === "string" &&
+    !!batchTexture &&
+    /^replaceabletextures[\\/]cliff[\\/]/i.test(texture);
+  if (typeof texture === "string" && !cliffFile) return texture ? [texture] : [];
+  const replaced = cliffFile || texture === 11 || (Number(texture) >= 31 && Number(texture) <= 37);
   if (!replaced || !batchTexture) return [];
   // A destructable's texture field names its texture without the extension.
   const extension = /\.[a-z0-9]+$/i.exec(batchTexture)?.[0] ?? "";

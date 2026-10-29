@@ -194,18 +194,32 @@ describe("loadModel", () => {
 
 describe("texturePaths", () => {
   it("gives an HD geoset the HD version of a tree's texture first", () => {
-    const tree = "ReplaceableTexturesLordaeronTreeLordaeronSnowTree";
+    const tree = String.raw`ReplaceableTextures\LordaeronTree\LordaeronSnowTree`;
     expect(texturePaths(31, tree, true)).toEqual([`${tree}_diffuse.blp`, `${tree}.blp`]);
     expect(texturePaths(31, tree, false)).toEqual([`${tree}.blp`]);
-    expect(texturePaths(11, "TerrainArtIcecrownIce_Cliff0.blp", true)).toEqual([
-      "TerrainArtIcecrownIce_Cliff0_diffuse.blp",
-      "TerrainArtIcecrownIce_Cliff0.blp",
+    expect(texturePaths(11, String.raw`TerrainArt\Icecrown\Ice_Cliff0.blp`, true)).toEqual([
+      String.raw`TerrainArt\Icecrown\Ice_Cliff0_diffuse.blp`,
+      String.raw`TerrainArt\Icecrown\Ice_Cliff0.blp`,
     ]);
   });
 
   it("takes a file the model names as it is, and nothing for the team colour", () => {
-    expect(texturePaths("TexturesFootman.blp", null, true)).toEqual(["TexturesFootman.blp"]);
+    expect(texturePaths(String.raw`Textures\Footman.blp`, null, true)).toEqual([
+      String.raw`Textures\Footman.blp`,
+    ]);
     expect(texturePaths(1, null, false)).toEqual([]);
     expect(texturePaths(31, null, false)).toEqual([]);
+  });
+
+  it("gives an HD cliff model's own cliff texture file the cliff type's texture (CliffTypes.slk overrideTexture)", () => {
+    const cliff = String.raw`TerrainArt\Dungeon\Dungeon_Cliff1.blp`;
+    expect(texturePaths("ReplaceableTextures/Cliff/Cliff1_Diffuse.tif", cliff, true)).toEqual([
+      String.raw`TerrainArt\Dungeon\Dungeon_Cliff1_diffuse.blp`,
+      cliff,
+    ]);
+    // Not for a model that is not a cliff (no cliff texture on its batch).
+    expect(texturePaths("ReplaceableTextures/Cliff/Cliff1_Diffuse.tif", null, true)).toEqual([
+      "ReplaceableTextures/Cliff/Cliff1_Diffuse.tif",
+    ]);
   });
 });

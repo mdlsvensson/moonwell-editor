@@ -93,11 +93,14 @@ export class MarkerLayer {
     this.buffers.push(points, indices, this.instances);
   }
 
-  /** Marks these things, in place of any marked before. */
-  mark(things: readonly PlacedThing[]): void {
+  /** Marks these things, in place of any marked before: each in its kind's colour, or all in `colour`. */
+  mark(things: readonly PlacedThing[], colour?: [number, number, number]): void {
     const floats = new Float32Array(things.length * 7);
     things.forEach((thing, index) => {
-      floats.set([thing.x, thing.y, thing.z, ...markerColour(thing.kind), thing.number], index * 7);
+      floats.set(
+        [thing.x, thing.y, thing.z, ...(colour ?? markerColour(thing.kind)), thing.number],
+        index * 7,
+      );
     });
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.instances);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, floats, this.gl.DYNAMIC_DRAW);
