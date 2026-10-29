@@ -4,13 +4,15 @@
  * markup. A colour keeps its alpha as written (`|cffffcc00`); text with no colour is the game's white.
  */
 
+import type { NumberForm } from "./tooltip.ts";
+
 /** A piece of tooltip text: text in a colour (`aarrggbb`, or null for none), a line break, or a placeholder. */
 export type Segment =
   | { type: "text"; text: string; color: string | null }
   | { type: "break" }
   | { type: "token"; token: string; color: string | null };
 
-const tokenPattern = /^<([^,<>]+),([^,<>]+)(,%)?>/;
+const tokenPattern = /^<([^,<>]+),([^,<>]+)(,[%.])?>/;
 
 /** The pieces of tooltip markup: `|cAARRGGBB` starts a colour, `|r` ends it, `|n` or a newline breaks the line. */
 export function segmentsOf(markup: string): Segment[] {
@@ -177,22 +179,30 @@ export function markupColor(css: string): string | null {
   return `ff${[rgb[1], rgb[2], rgb[3]].map((part) => Number(part).toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** What a placeholder names: the object's id, the game's key without its level (`Dur`), the level, and `,%`. */
-export type TokenParts = { id: string; key: string; level: number; percent: boolean };
+/**
+ * What a placeholder names: the object's id, the game's key without its level (`Dur`), the level (0 for none), and
+ * how it shows the number (`,.` or `,%`). A key that ends in a number of its own (`mindmg1`) reads as a key and a level.
+ */
+export type TokenParts = { id: string; key: string; level: number; form: NumberForm };
 
 /** The parts of a placeholder (`<AHhb,Dur2,%>`); null for text that is not one. */
 export function tokenParts(token: string): TokenParts | null {
-  const match = token.match(/^<([^,<>]+),([^,<>]+?)(\d*)(,%)?>$/);
+  const match = token.match(/^<([^,<>]+),([^,<>]+?)(\d*)(?:,([%.]))?>$/);
   if (!match) return null;
   return {
     id: match[1]?.trim() ?? "",
     key: match[2]?.trim() ?? "",
     level: match[3] ? Number(match[3]) : 0,
-    percent: match[4] !== undefined,
+    form: (match[4] ?? "") as NumberForm,
   };
 }
 
 /** A placeholder from its parts. */
 export function tokenOf(parts: TokenParts): string {
-  return `<${parts.id},${parts.key}${parts.level > 0 ? parts.level : ""}${parts.percent ? ",%" : ""}>`;
+  return `<${parts.id},${parts.key}${parts.level > 0 ? parts.level : ""}${parts.form ? `,${parts.form}` : ""}>`;
+}
+
+/** The key a placeholder names with its level, as values are keyed (`Dur2`, `realHP`). */
+export function keyAt(parts: Pick<TokenParts, "key" | "level">): string {
+  return `${parts.key}${parts.level > 0 ? parts.level : ""}`;
 }

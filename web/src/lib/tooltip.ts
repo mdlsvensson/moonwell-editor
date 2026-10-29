@@ -72,21 +72,52 @@ export function parseColors(text: string): Line[] {
   return lines;
 }
 
-/** A placeholder: `<AHhb,Dur1>` or `<AHhb,DataB1,%>`. */
-const placeholderPattern = /<([^,<>]+),([^,<>]+)(,%)?>/g;
+/**
+ * How a placeholder shows its number: `""` as a whole number, `"."` with one decimal, `"%"` times 100 (the text puts the
+ * % sign after it).
+ */
+export type NumberForm = "" | "." | "%";
 
-/** A number as the game writes it into a tooltip: an integer as is, a decimal without trailing zeros. */
-export function formatNumber(value: string, percent = false): string {
+/** A placeholder: `<AHhb,Dur1>`, `<AHhb,DataB1,%>` or `<AHhb,DataA1,.>`. */
+const placeholderPattern = /<([^,<>]+),([^,<>]+)(?:,([%.]))?>/g;
+
+/** A number as a field holds it, for a cost or a value listed: an integer as is, a decimal without trailing zeros. */
+export function formatNumber(value: string): string {
   const number = Number(value);
   if (value.trim() === "" || !Number.isFinite(number)) return value;
-  const scaled = percent ? number * 100 : number;
-  return String(Math.round(scaled * 1000) / 1000);
+  return String(Math.round(number * 1000) / 1000);
 }
 
 /**
- * Fills the `<id,Field>` and `<id,Field,%>` placeholders whose id is one of `own` (the object's id and base id) from
- * `values`, keyed by the game's text key with its level (`Dur1`, `Cool2`), ignoring case. `,%` gives the value times
- * 100 (the text has the % sign after it). A placeholder for another object, or a key `values` lacks, stays as written.
+ * A value as a placeholder shows it in the game (game facts, probes of 2026-10-29): rounded down to a whole number
+ * (0.33 shows 0, 1.5 shows 1); with `.` to one decimal, a whole number without one (0.125 shows 0.1, 13 shows 13);
+ * with `%` times 100 (0.11 shows 11). How `.` and `%` round past those values was not measured.
+ */
+export function placeholderNumber(value: string, form: NumberForm = ""): string {
+  const number = Number(value);
+  if (value.trim() === "" || !Number.isFinite(number)) return value;
+  // A hair over, so that a value a float holds just under (0.11 × 100) shows as the game shows it.
+  const down = (shown: number) => Math.floor(shown + 1e-6);
+  if (form === ".") return String(down(number * 10) / 10);
+  return String(down(form === "%" ? number * 100 : number));
+}
+
+/** Whether a value is a whole number, which a placeholder shows as it is; text that is no number counts as one. */
+export function isWhole(value: string | undefined): boolean {
+  const number = Number(value);
+  return (
+    value === undefined ||
+    value.trim() === "" ||
+    !Number.isFinite(number) ||
+    Number.isInteger(number)
+  );
+}
+
+/**
+ * Fills the `<id,Field>`, `<id,Field,.>` and `<id,Field,%>` placeholders whose id is one of `own` (the object's id and
+ * base id; the game matches the id's case, not the key's) from `values`, keyed by the game's text key with its level
+ * (`Dur1`, `Cool2`) or as a whole (`realHP`), as the game shows them. A placeholder for another object, or a key `values`
+ * lacks, stays as written.
  */
 export function fillData(
   text: string,
@@ -94,10 +125,10 @@ export function fillData(
   values: Record<string, string>,
 ): string {
   const byKey = new Map(Object.entries(values).map(([key, value]) => [key.toLowerCase(), value]));
-  return text.replace(placeholderPattern, (whole, id: string, key: string, percent?: string) => {
+  return text.replace(placeholderPattern, (whole, id: string, key: string, form?: string) => {
     if (!own.includes(id.trim())) return whole;
     const value = byKey.get(key.trim().toLowerCase());
-    return value === undefined ? whole : formatNumber(value, percent !== undefined);
+    return value === undefined ? whole : placeholderNumber(value, (form ?? "") as NumberForm);
   });
 }
 
@@ -151,6 +182,45 @@ export function abilityTextValues(view: ObjectView): Record<string, string> {
     if (key && field.level > 0) values[`${key}${field.level}`] = field.value;
   }
   return values;
+}
+
+/**
+ * The keys a unit's or an item's own text can name, which have no level, with how their values come from its fields
+ * (game facts, probes of 2026-10-29; the standard data's tooltips use them too). A unit's damage is its first attack's:
+ * the base plus the dice (lowest), or the base plus the dice times their sides (highest).
+ */
+export const wholeKeys: Partial<
+  Record<Kind, Record<string, (field: (id: string) => number) => number>>
+> = {
+  unit: {
+    realHP: (field) => field("uhpm"),
+    regenHP: (field) => field("uhpr"),
+    mindmg1: (field) => field("ua1b") + field("ua1d"),
+    maxdmg1: (field) => field("ua1b") + field("ua1d") * field("ua1s"),
+  },
+  item: { uses: (field) => field("iuse") },
+};
+
+/** The values a unit's or an item's own text can name, by their keys (`realHP`, `uses`); none for another kind. */
+export function wholeTextValues(view: ObjectView): Record<string, string> {
+  const keys = wholeKeys[view.kind];
+  if (!keys) return {};
+  const values: Record<string, string> = {};
+  for (const [key, make] of Object.entries(keys)) {
+    let missing = false;
+    const number = make((id) => {
+      const field = view.fields.find((each) => each.id === id);
+      if (!field) missing = true;
+      return Number(field?.value ?? 0);
+    });
+    if (!missing && Number.isFinite(number)) values[key] = String(number);
+  }
+  return values;
+}
+
+/** The values an object's own text can name: an ability's by key and level, a unit's or an item's by key. */
+export function textValues(view: ObjectView): Record<string, string> {
+  return view.kind === "ability" ? abilityTextValues(view) : wholeTextValues(view);
 }
 
 /** One cost of the tooltip's cost line, with the game's icon for it (none for a cooldown, which shows its label). */
@@ -253,7 +323,7 @@ export function tooltipOf(view: ObjectView, level = 1): Tooltip | null {
   const recipe = recipes[view.kind];
   if (!recipe) return null;
   const own = [view.id, ...(view.baseId ? [view.baseId] : [])];
-  const values = view.kind === "ability" ? abilityTextValues(view) : {};
+  const values = textValues(view);
   const fill = (text: string) => fillData(text, own, values);
 
   const hotkey = recipe.hotkey ? valueAt(view, recipe.hotkey, level).trim() : "";

@@ -6,6 +6,7 @@ describe("slashQuery", () => {
     expect(slashQuery("/")).toBe("");
     expect(slashQuery("Deals /dur")).toBe("dur");
     expect(slashQuery("Lasts\n/data%")).toBe("data%");
+    expect(slashQuery("Lasts /data.")).toBe("data.");
     expect(slashQuery("\uFFFC/co")).toBe("co");
   });
 
@@ -17,10 +18,11 @@ describe("slashQuery", () => {
 });
 
 describe("queryParts", () => {
-  it("reads a level and a % at the end", () => {
-    expect(queryParts("dur2")).toEqual({ words: "dur", level: 2, percent: false });
-    expect(queryParts("DataA%")).toEqual({ words: "dataa", level: null, percent: true });
-    expect(queryParts("")).toEqual({ words: "", level: null, percent: false });
+  it("reads a level and a . or % at the end", () => {
+    expect(queryParts("dur2")).toEqual({ words: "dur", level: 2, form: null });
+    expect(queryParts("DataA%")).toEqual({ words: "dataa", level: null, form: "%" });
+    expect(queryParts("dataa1.")).toEqual({ words: "dataa", level: 1, form: "." });
+    expect(queryParts("")).toEqual({ words: "", level: null, form: null });
   });
 });
 
@@ -33,7 +35,7 @@ describe("suggestions", () => {
       { key: "Dur", name: "Duration - Normal" },
       { key: "DataA", name: "Damage" },
     ],
-    values: { Dur1: "5", Dur2: "7", DataA2: "40" },
+    values: { Dur1: "5", Dur2: "7", DataA2: "40", DataA1: "0.25" },
   };
   const other: SlashSource = {
     id: "AIat",
@@ -51,9 +53,36 @@ describe("suggestions", () => {
     ]);
   });
 
-  it("narrows by key, name or object, and takes the level and % typed", () => {
+  it("lists a value that is not whole with one decimal and as a percentage", () => {
+    expect(suggestions([own], "dam", 1)).toEqual([
+      { token: "<A000,DataA1,.>", name: "Damage", owner: "", value: "0.2" },
+      { token: "<A000,DataA1,%>", name: "Damage", owner: "", value: "25" },
+    ]);
+  });
+
+  it("lists a unit's keys without a level", () => {
+    const unit: SlashSource = {
+      id: "h000",
+      name: "",
+      levels: 0,
+      keys: [
+        { key: "realHP", name: "Hit Points", whole: true },
+        { key: "mindmg1", name: "Damage - Lowest", whole: true },
+      ],
+      values: { realHP: "420", mindmg1: "12" },
+    };
+    expect(suggestions([unit], "", 3)).toEqual([
+      { token: "<h000,realHP>", name: "Hit Points", owner: "", value: "420" },
+      { token: "<h000,mindmg1>", name: "Damage - Lowest", owner: "", value: "12" },
+    ]);
+  });
+
+  it("narrows by key, name or object, and takes the level and form typed", () => {
     expect(suggestions([own, other], "dam%", 1).map((each) => each.token)).toEqual([
       "<A000,DataA1,%>",
+    ]);
+    expect(suggestions([own, other], "dam2.", 1).map((each) => each.token)).toEqual([
+      "<A000,DataA2,.>",
     ]);
     expect(suggestions([own, other], "dur3", 1).map((each) => each.token)).toEqual(["<A000,Dur3>"]);
     expect(suggestions([own, other], "aiat", 1).map((each) => each.token)).toEqual([

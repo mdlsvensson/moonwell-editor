@@ -3,12 +3,13 @@
  * The tooltip editor (Sven, 2026-10-27): the object's tooltip as the game shows it, its texts editable in place. Each
  * text names its field at the bottom when hovered or edited. The toolbar colours the selected text (the colours the
  * game's own tooltips use, no colour, and up to eight colours of the user's own, each picked with the picker and
- * removed from its context menu) and, for
- * an ability, puts in the placeholders that show its values (`<AHhb,Dur1>`),
- * which show as chips named for what they stand for. A `/` in a text lists the values it can show to put in: an
- * ability's own, and those of the abilities a unit's or an item's lists name (Sven, 2026-10-29). The icon, hotkey and costs show as the game shows them but are
- * edited in their fields. An object with levels is edited a level at a time; Save sends every changed text as one
- * edit.
+ * removed from its context menu) and puts in the placeholders that show the object's values (`<AHhb,Dur1>`,
+ * `<h000,realHP>`), which show as chips named for what they stand for. A `/` in a text lists the values it can show to
+ * put in: the object's own, and those of the abilities a unit's or an item's lists name (Sven, 2026-10-29). A value
+ * that is not whole goes in with one decimal (`,.`) unless the user picks ×100 (`,%`), since the game rounds a plain
+ * one down; a buff's tooltip gets no values and a warning for a comma, which the game cuts its extended tooltip at
+ * (game facts, probes of 2026-10-29). The icon, hotkey and costs show as the game shows them but are edited in their
+ * fields. An object with levels is edited a level at a time; Save sends every changed text as one edit.
  */
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
@@ -22,10 +23,10 @@ import { uiIcons } from "./gameIcons.ts";
 import { graphics } from "./graphics.svelte.ts";
 import Popover from "./Popover.svelte";
 import RichText from "./RichText.svelte";
-import { tokenOf, tokenParts } from "./richText.ts";
-import { listedAbilities, type SlashSource, sourceOf, suggestions } from "./slash.ts";
+import { keyAt, tokenOf, tokenParts } from "./richText.ts";
+import { formsFor, listedAbilities, type SlashSource, sourceOf, suggestions } from "./slash.ts";
 import { t, tCount } from "./text.ts";
-import { abilityTextValues, formatNumber, textKey, tooltipOf } from "./tooltip.ts";
+import { type NumberForm, placeholderNumber, textValues, tooltipOf } from "./tooltip.ts";
 
 type Props = {
   view: ObjectView;
@@ -111,7 +112,7 @@ const boxNames: Record<string, string> = {
 let level = $state(1);
 const shownLevel = $derived(Math.min(Math.max(1, level), Math.max(1, view.levels)));
 const tip = $derived(tooltipOf(view, shownLevel));
-const values = $derived(view.kind === "ability" ? abilityTextValues(view) : {});
+const values = $derived(textValues(view));
 
 /** A field at a level: the per-level field's level, else the field without levels. */
 function fieldAt(id: string): FieldView | undefined {
@@ -213,20 +214,6 @@ function setOwn(next: string[]): void {
   }
 }
 
-// The ability's fields a placeholder can name, by the game's key, with their names.
-const insertable = $derived.by(() => {
-  if (view.kind !== "ability") return [];
-  const seen = new Map<string, string>();
-  for (const field of view.fields) {
-    const key = textKey(field);
-    if (key && field.level > 0 && !seen.has(key)) seen.set(key, field.label);
-  }
-  return [...seen].map(([key, name]) => ({ key, name }));
-});
-let inserting = $state(false);
-let insertButton: HTMLButtonElement | undefined = $state();
-let percent = $state(false);
-
 const keyNames: Record<string, string> = {
   Dur: t("tooltipEditor.key.dur"),
   HeroDur: t("tooltipEditor.key.heroDur"),
@@ -234,7 +221,34 @@ const keyNames: Record<string, string> = {
   Cost: t("tooltipEditor.key.cost"),
   Rng: t("tooltipEditor.key.rng"),
   Area: t("tooltipEditor.key.area"),
+  realHP: t("tooltipEditor.key.realHP"),
+  regenHP: t("tooltipEditor.key.regenHP"),
+  mindmg1: t("tooltipEditor.key.mindmg"),
+  maxdmg1: t("tooltipEditor.key.maxdmg"),
+  uses: t("tooltipEditor.key.uses"),
 };
+
+// The object's own values a placeholder can name: an ability's, a unit's or an item's. A buff's tooltip gets none, as
+// the game cuts it at the comma every placeholder holds.
+const ownSource = $derived(
+  view.kind === "ability" || view.kind === "unit" || view.kind === "item"
+    ? sourceOf(view, "", keyNames)
+    : null,
+);
+const insertable = $derived(ownSource?.keys ?? []);
+let inserting = $state(false);
+let insertButton: HTMLButtonElement | undefined = $state();
+// How an inserted value shows: "auto" as it is when whole, else with one decimal.
+let form = $state<NumberForm | "auto">("auto");
+
+/** The value of a key at the level shown, and the form it goes in with. */
+function insertedAt(key: { key: string; whole?: boolean }): {
+  value: string | undefined;
+  form: NumberForm;
+} {
+  const value = values[key.whole ? key.key : `${key.key}${shownLevel}`];
+  return { value, form: form === "auto" ? (formsFor(value)[0] ?? "") : form };
+}
 
 // The abilities a unit's or an item's lists name, whose values its tooltip can show too; fetched when the editor
 // opens, and null until they are here.
@@ -253,11 +267,12 @@ $effect(() => {
   };
 });
 
-// What the `/` lists: the ability's own values, then the listed abilities'.
-const sources = $derived([
-  ...(view.kind === "ability" ? [sourceOf(view, "", keyNames)] : []),
-  ...(listed ?? []),
-]);
+// What the `/` lists: the object's own values, then the listed abilities'; nothing for a buff.
+const sources = $derived(
+  view.kind === "buff"
+    ? []
+    : [...(ownSource && ownSource.keys.length > 0 ? [ownSource] : []), ...(listed ?? [])],
+);
 
 function suggest(query: string) {
   return suggestions(sources, query, shownLevel);
@@ -272,29 +287,54 @@ function describe(token: string): { label: string; title: string } {
   if (!parts) return { label: token, title: token };
   const own = parts.id === view.id || parts.id === view.baseId;
   const source = own ? undefined : listed?.find((each) => each.id === parts.id);
-  const named =
-    (own ? insertable : (source?.keys ?? [])).find(
-      (each) => each.key.toLowerCase() === parts.key.toLowerCase(),
-    )?.name ??
-    keyNames[parts.key] ??
-    parts.key;
-  const value = own
-    ? values[`${parts.key}${parts.level}`]
-    : source?.values[`${parts.key}${parts.level}`];
+  // A key without a level (`mindmg1`) reads as a key and a level; it is found by the two together.
+  const whole = keyAt(parts).toLowerCase();
+  const found = (own ? insertable : (source?.keys ?? [])).find(
+    (each) => each.key.toLowerCase() === (each.whole ? whole : parts.key.toLowerCase()),
+  );
+  const named = found?.name ?? keyNames[parts.key] ?? keyNames[keyAt(parts)] ?? parts.key;
+  const value = own ? values[keyAt(parts)] : source?.values[keyAt(parts)];
   const label = [
     own ? "" : `${source?.name ?? parts.id}: `,
     named,
-    parts.level > 0 ? ` ${parts.level}` : "",
-    value !== undefined ? ` = ${formatNumber(value, parts.percent)}` : parts.percent ? " ×100" : "",
+    parts.level > 0 && !found?.whole ? ` ${parts.level}` : "",
+    value !== undefined
+      ? ` = ${placeholderNumber(value, parts.form)}`
+      : parts.form === "%"
+        ? " ×100"
+        : "",
   ].join("");
   return { label, title: t("tooltipEditor.chipTitle", { token, name: named }) };
 }
 
-function insert(key: string): void {
+function insert(key: { key: string; whole?: boolean }): void {
   inserting = false;
   const editor = active ? editors[active] : undefined;
-  editor?.insert(tokenOf({ id: view.id, key, level: shownLevel, percent }));
+  const level = key.whole ? 0 : shownLevel;
+  editor?.insert(tokenOf({ id: view.id, key: key.key, level, form: insertedAt(key).form }));
 }
+
+const forms: { form: NumberForm | "auto"; label: string; title: string }[] = [
+  { form: "auto", label: t("tooltipEditor.form.auto"), title: t("tooltipEditor.form.autoTitle") },
+  {
+    form: ".",
+    label: t("tooltipEditor.form.decimal"),
+    title: t("tooltipEditor.form.decimalTitle"),
+  },
+  {
+    form: "%",
+    label: t("tooltipEditor.form.percent"),
+    title: t("tooltipEditor.form.percentTitle"),
+  },
+];
+
+// A buff's extended tooltip with a comma, which the game shows only up to it.
+const buffComma = $derived(
+  view.kind === "buff" &&
+    view.fields.some(
+      (field) => field.id === "fube" && (drafts[keyOf(field)] ?? field.value).includes(","),
+    ),
+);
 
 function colorSelection(css: string | null): void {
   const editor = active ? editors[active] : undefined;
@@ -495,27 +535,50 @@ const changedCount = $derived(
     <Popover anchor={insertButton} onclose={() => (inserting = false)}>
       <div class="flex flex-col" role="menu" aria-label={t("tooltipEditor.insert")}>
         <p class="m-0 px-2 pt-1 pb-1.5 text-[12px] text-faint">
-          {t("tooltipEditor.insertNote", { level: shownLevel })}
+          {view.kind === "ability"
+            ? t("tooltipEditor.insertNote", { level: shownLevel })
+            : t("tooltipEditor.insertNoteWhole")}
         </p>
         {#each insertable as each (each.key)}
+          {@const at = insertedAt(each)}
           <button
             type="button"
             role="menuitem"
             class="flex items-center gap-3 rounded px-2 py-1 text-left hover:bg-hover hover:text-fg"
             onpointerdown={(event) => event.preventDefault()}
-            onclick={() => insert(each.key)}
+            onclick={() => insert(each)}
           >
             <span class="flex-1">{keyNames[each.key] ?? each.name}</span>
-            <span class="font-mono text-[11.5px] text-faint">{each.key}{shownLevel}</span>
-            {#if values[`${each.key}${shownLevel}`] !== undefined}
-              <span class="font-mono text-[11.5px] text-muted">{formatNumber(values[`${each.key}${shownLevel}`] ?? "")}</span>
+            <span class="font-mono text-[11.5px] text-faint"
+              >{each.key}{each.whole ? "" : shownLevel}{at.form ? `,${at.form}` : ""}</span
+            >
+            {#if at.value !== undefined}
+              <span class="font-mono text-[11.5px] text-muted">{placeholderNumber(at.value, at.form)}</span>
             {/if}
           </button>
         {/each}
-        <label class="mt-1 flex items-center gap-2 border-t border-line px-2 pt-1.5 pb-0.5 text-[12.5px]">
-          <input type="checkbox" bind:checked={percent} />
-          {t("tooltipEditor.percent")}
-        </label>
+        <div
+          class="mt-1 flex items-center gap-1 border-t border-line px-2 pt-1.5 pb-0.5 text-[12.5px]"
+          role="radiogroup"
+          aria-label={t("tooltipEditor.form.label")}
+        >
+          <span class="mr-1 text-muted">{t("tooltipEditor.form.label")}</span>
+          {#each forms as each (each.form)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={form === each.form}
+              title={each.title}
+              class="rounded border px-2 py-0.5 {form === each.form
+                ? 'border-accent text-fg'
+                : 'border-line text-muted hover:text-fg'}"
+              onpointerdown={(event) => event.preventDefault()}
+              onclick={() => (form = each.form)}
+            >
+              {each.label}
+            </button>
+          {/each}
+        </div>
       </div>
     </Popover>
   {/if}
@@ -574,6 +637,10 @@ const changedCount = $derived(
       {/if}
     </div>
   {/each}
+
+  {#if buffComma}
+    <p class="mt-3 mb-0 text-[12.5px] text-warn">{t("tooltipEditor.buffComma")}</p>
+  {/if}
 
   {#if error}
     <p class="mt-3 mb-0 text-[12.5px] text-warn" role="alert">{error}</p>

@@ -6,9 +6,11 @@ import {
   fillData,
   formatNumber,
   parseColors,
+  placeholderNumber,
   textKey,
   tooltipLines,
   tooltipOf,
+  wholeTextValues,
   withHotkey,
 } from "./tooltip.ts";
 
@@ -80,6 +82,58 @@ describe("parseColors", () => {
   });
 });
 
+describe("placeholderNumber", () => {
+  it("shows the numbers the probes saw", () => {
+    expect(placeholderNumber("0.11")).toBe("0");
+    expect(placeholderNumber("1.5")).toBe("1");
+    expect(placeholderNumber("0.11", "%")).toBe("11");
+    expect(placeholderNumber("0.55", "%")).toBe("55");
+    expect(placeholderNumber("0.125", ".")).toBe("0.1");
+    expect(placeholderNumber("0.33", ".")).toBe("0.3");
+    expect(placeholderNumber("1.5", ".")).toBe("1.5");
+    expect(placeholderNumber("13", ".")).toBe("13");
+  });
+
+  it("leaves text that is no number", () => {
+    expect(placeholderNumber("abc")).toBe("abc");
+    expect(formatNumber("0.125")).toBe("0.125");
+  });
+});
+
+describe("wholeTextValues", () => {
+  it("gives a unit's hit points, regeneration and first attack's damage", () => {
+    const footman = view({
+      kind: "unit",
+      fields: [
+        field({ id: "uhpm", value: "420" }),
+        field({ id: "uhpr", value: "0.25" }),
+        field({ id: "ua1b", value: "11" }),
+        field({ id: "ua1d", value: "1" }),
+        field({ id: "ua1s", value: "2" }),
+      ],
+    });
+    expect(wholeTextValues(footman)).toEqual({
+      realHP: "420",
+      regenHP: "0.25",
+      mindmg1: "12",
+      maxdmg1: "13",
+    });
+  });
+
+  it("gives an item's charges, and leaves out a value whose field is missing", () => {
+    expect(
+      wholeTextValues(view({ kind: "item", fields: [field({ id: "iuse", value: "3" })] })),
+    ).toEqual({
+      uses: "3",
+    });
+    expect(
+      wholeTextValues(view({ kind: "unit", fields: [field({ id: "uhpm", value: "420" })] })),
+    ).toEqual({
+      realHP: "420",
+    });
+  });
+});
+
 describe("fillData", () => {
   const values = { Dur1: "30.00", Cool2: "8.5", Area1: "250", DataB1: "0.25" };
 
@@ -87,7 +141,7 @@ describe("fillData", () => {
     expect(fillData("Lasts <h000,Dur1> seconds.", ["h000", "AHhb"], values)).toBe(
       "Lasts 30 seconds.",
     );
-    expect(fillData("<AHhb,Cool2>, <AHhb,area1>", ["h000", "AHhb"], values)).toBe("8.5, 250");
+    expect(fillData("<AHhb,Cool2>, <AHhb,area1>", ["h000", "AHhb"], values)).toBe("8, 250");
   });
 
   it("leaves another object's placeholder and an unknown key as written", () => {
@@ -96,9 +150,16 @@ describe("fillData", () => {
     );
   });
 
-  it("multiplies by 100 for ,%", () => {
+  it("shows a value as the game does: rounded down, with one decimal for ,. and times 100 for ,%", () => {
     expect(fillData("<AHhb,DataB1,%>%", ["AHhb"], values)).toBe("25%");
-    expect(formatNumber("0.1", true)).toBe("10");
+    expect(fillData("<AHhb,DataB1> <AHhb,DataB1,.> <AHhb,Cool2>", ["AHhb"], values)).toBe(
+      "0 0.2 8",
+    );
+    expect(fillData("<AHhb,Cool2,.>", ["AHhb"], values)).toBe("8.5");
+  });
+
+  it("leaves a placeholder whose id is in another case, as the game does not fill it", () => {
+    expect(fillData("<ahhb,Dur1>", ["AHhb"], values)).toBe("<ahhb,Dur1>");
   });
 
   it("marks the placeholders left in the text", () => {
@@ -170,7 +231,7 @@ describe("tooltipOf", () => {
       2,
     );
     expect(tip?.title).toBe("Holy Light - [|cffffcc00Level 2|r] (|cffffcc00T|r)");
-    expect(tip?.text).toBe("Cools 4.5, heals <AHhb,DataA2>.");
+    expect(tip?.text).toBe("Cools 4, heals <AHhb,DataA2>.");
     expect(tip?.costs).toEqual([
       { label: t("tooltip.mana"), value: "70", icon: "mana" },
       { label: t("tooltip.cooldown"), value: "4.5" },

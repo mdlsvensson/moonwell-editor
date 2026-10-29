@@ -3,6 +3,7 @@ import {
   cssColor,
   docOf,
   inlineOf,
+  keyAt,
   markupColor,
   markupOf,
   newlineOf,
@@ -94,26 +95,38 @@ describe("colours", () => {
 });
 
 describe("tokenParts", () => {
-  it("splits a placeholder into its id, key, level and percent", () => {
-    expect(tokenParts("<AHhb,Dur2>")).toEqual({ id: "AHhb", key: "Dur", level: 2, percent: false });
+  it("splits a placeholder into its id, key, level and form", () => {
+    expect(tokenParts("<AHhb,Dur2>")).toEqual({ id: "AHhb", key: "Dur", level: 2, form: "" });
     expect(tokenParts("<A000,DataA1,%>")).toEqual({
       id: "A000",
       key: "DataA",
       level: 1,
-      percent: true,
+      form: "%",
     });
-    expect(tokenParts("<AHhb,Area>")).toEqual({
-      id: "AHhb",
-      key: "Area",
+    expect(tokenParts("<A000,DataA1,.>")).toEqual({
+      id: "A000",
+      key: "DataA",
+      level: 1,
+      form: ".",
+    });
+    expect(tokenParts("<h000,realHP>")).toEqual({
+      id: "h000",
+      key: "realHP",
       level: 0,
-      percent: false,
+      form: "",
     });
     expect(tokenParts("not one")).toBeNull();
   });
 
   it("puts a placeholder back together", () => {
-    expect(tokenOf({ id: "AHhb", key: "DataB", level: 3, percent: true })).toBe("<AHhb,DataB3,%>");
-    expect(tokenOf({ id: "AHhb", key: "Dur", level: 0, percent: false })).toBe("<AHhb,Dur>");
+    expect(tokenOf({ id: "AHhb", key: "DataB", level: 3, form: "%" })).toBe("<AHhb,DataB3,%>");
+    expect(tokenOf({ id: "AHhb", key: "DataB", level: 3, form: "." })).toBe("<AHhb,DataB3,.>");
+    expect(tokenOf({ id: "AHhb", key: "Dur", level: 0, form: "" })).toBe("<AHhb,Dur>");
+  });
+
+  it("keys a placeholder's value by its key and level", () => {
+    expect(keyAt({ key: "Dur", level: 2 })).toBe("Dur2");
+    expect(keyAt({ key: "realHP", level: 0 })).toBe("realHP");
   });
 });
 

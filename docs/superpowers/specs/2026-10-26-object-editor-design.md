@@ -649,8 +649,20 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - A `/` that starts a word in a tooltip text lists the values the text can show, as slash commands do; the words
     after it narrow the list, the arrows move in it, Enter or Tab puts the placeholder in, Esc closes it. *(Agent's
     calls: what it lists, an ability's own values at the level shown and the values of the abilities a unit's or an
-    item's ability lists name; a number typed at the end picks the level (`/dur2`) and a `%` the value ×100. Whether
-    the game fills in an ability's values in a unit's or an item's tooltip is not measured.)*
+    item's ability lists name; a number typed at the end picks the level (`/dur2`) and a `%` the value ×100.)*
+  - After two probes of what the game fills in (game facts, 2026-10-29; Sven asked for the list to follow them):
+    - A unit's own values (`realHP`, `regenHP`, `mindmg1`, `maxdmg1`, its first attack's damage) and an item's charges
+      (`uses`) are listed and put in too, and the preview fills them.
+    - The game rounds a plain placeholder's value down to a whole number, `,.` shows one decimal and `,%` the value
+      ×100; the preview and the chips show values so. A value that is not whole is listed with `,.` and with `,%`, and
+      a typed `.` or `%` at the end picks one. The insert menu's "Shown as" picks As it is (whole numbers plain, others
+      with `,.`), One decimal or ×100. *(Agent's calls: those three choices, and `,.` as what a decimal value gets
+      unless the user picks; how `,.` and `,%` round past the values probed is not measured, and the preview rounds
+      them down.)*
+    - A map's own upgrade's `base` and `mod` show 0 in the game, so upgrades list nothing.
+    - A buff's tooltip lists nothing and has no insert menu, and a comma in its extended tooltip shows a warning: the
+      game shows it only up to the first comma, so placeholders cannot work in it. *(Agent's call: a warning, not a
+      refusal, since World Editor takes the comma; Moonwell's build fails on one in a declared buff.)*
   - The settings open with nothing in them focused (F10 had put the focus on the first checkbox).
   - The model picker's preview stays on the model last under the pointer; each opening starts with the field's.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World

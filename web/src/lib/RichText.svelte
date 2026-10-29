@@ -33,7 +33,6 @@ import {
   tokenNode,
 } from "./richText.ts";
 import { chipChar, type Suggestion, slashQuery } from "./slash.ts";
-import { formatNumber } from "./tooltip.ts";
 
 type Props = {
   /** The text as markup, as the field holds it when the editor opens. */
@@ -360,7 +359,7 @@ export function insert(token: string): void {
               </span>
               <span class="shrink-0 font-mono text-[11.5px] text-faint">{item.token}</span>
               {#if item.value !== undefined}
-                <span class="shrink-0 font-mono text-[11.5px] text-muted">{formatNumber(item.value)}</span>
+                <span class="shrink-0 font-mono text-[11.5px] text-muted">{item.value}</span>
               {/if}
             </div>
           {/each}
