@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
  * The picker of an icon or a model field (Sven, 2026-10-27): a button beside the box opens a search of the game's
- * icons (as a grid of them) or models (as a list, with the one under the pointer turning in a preview). A click puts
+ * icons (as a grid of them) or models (as a list, with the one last under the pointer turning in a preview). A click puts
  * the path into the field as World Editor writes it; any other path (an import) is typed in the box.
  */
 import Box from "@lucide/svelte/icons/box";
@@ -43,8 +43,12 @@ const order = $derived(
   kind === "icon" ? inList(suggested) : inFolders(modelFolders(objectKind, fieldId)),
 );
 const shown = $derived(list ? ranked(list.paths, query, kind === "icon" ? 240 : 300, order) : []);
-// The model the preview shows: the one under the pointer, else the field's.
+// The model the preview shows: the one last under the pointer, which stays when the pointer leaves the list (Sven,
+// 2026-10-29), else the field's. Each opening starts with the field's.
 const previewed = $derived(hovered ?? (value.trim() || null));
+$effect(() => {
+  if (open) hovered = null;
+});
 
 $effect(() => {
   if (!open) return;
@@ -134,7 +138,6 @@ function focusOnMount(element: HTMLInputElement): void {
                   : 'text-body'}"
                 title={path}
                 onmouseenter={() => (hovered = path)}
-                onmouseleave={() => (hovered = null)}
                 onclick={() => pick(path)}
               >
                 {path}

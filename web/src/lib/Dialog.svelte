@@ -23,6 +23,8 @@ type Props = {
   large?: boolean;
   /** An icon before the title (the alpha notice's warning). */
   icon?: Component<{ size?: number; class?: string }>;
+  /** False when nothing in it takes the focus as it opens, only the dialog itself (the settings, Sven, 2026-10-29). */
+  focus?: boolean;
 };
 
 let {
@@ -34,6 +36,7 @@ let {
   note,
   large = false,
   icon: Icon,
+  focus = true,
 }: Props = $props();
 
 let box: HTMLDivElement | null = $state(null);
@@ -45,9 +48,13 @@ function onOpenChange(next: boolean): void {
   oncancel();
 }
 
-// The first input (its text selected), else the button marked primary, else the first button.
+// The first input (its text selected), else the button marked primary, else the first button; or the dialog itself.
 function focusFirst(event: Event): void {
   event.preventDefault();
+  if (!focus) {
+    box?.focus();
+    return;
+  }
   const first =
     box?.querySelector<HTMLElement>("input, select, textarea") ??
     box?.querySelector<HTMLElement>("[data-primary]") ??
@@ -62,6 +69,7 @@ function focusFirst(event: Event): void {
     <Dialog.Overlay class="fixed inset-0 z-30 bg-black/55" />
     <Dialog.Content
       bind:ref={box}
+      tabindex={-1}
       onOpenAutoFocus={focusFirst}
       class="fixed left-1/2 z-30 -translate-x-1/2 {large
         ? 'top-[60px] max-h-[calc(100%-90px)] w-[760px] overflow-auto'

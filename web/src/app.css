@@ -31,9 +31,16 @@
   --kind-ability: #8ea4a2;
   --kind-buff: #a292a3;
   --kind-upgrade: #c4746e;
-  /* Inter for the interface and its headings, JetBrains Mono for ids and values (Sven, 2026-10-29). */
-  --font-ui: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-ui);
+  /* Apple's New York for the interface and SF Pro for its headings (Sven, 2026-10-29), where Windows has them
+     installed: Apple's licence keeps them out of the editor, so it ships Inter for where they are not. The game's
+     tooltips are in Inter everywhere, and ids and values in JetBrains Mono. */
+  --font-ui:
+    "New York", "New York Small", "New York Medium", "Inter Variable", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-heading:
+    "SF Pro Display", "SF Pro", "SF Pro Text", "Inter Variable", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-tooltip: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 
@@ -65,6 +72,7 @@
   --color-kind-upgrade: var(--kind-upgrade);
   --font-sans: var(--font-ui);
   --font-heading: var(--font-heading);
+  --font-tooltip: var(--font-tooltip);
   --font-mono: var(--font-mono);
 }
 

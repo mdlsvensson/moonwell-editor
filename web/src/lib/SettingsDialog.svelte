@@ -134,7 +134,12 @@ function resetAll(): void {
   <h3 class="m-0 mt-4 mb-2 text-[12px] tracking-[.06em] text-muted uppercase first:mt-1">{text}</h3>
 {/snippet}
 
-<Dialog title={t("settings.title")} oncancel={() => (listening ? (listening = null) : onclose())} wide>
+<Dialog
+  title={t("settings.title")}
+  oncancel={() => (listening ? (listening = null) : onclose())}
+  wide
+  focus={false}
+>
   <div class="mb-3 flex gap-1 border-b border-line" role="tablist">
     {#each tabs as each (each.tab)}
       <button

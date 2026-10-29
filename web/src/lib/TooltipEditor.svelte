@@ -3,7 +3,7 @@
  * The tooltip editor (Sven, 2026-10-27): the object's tooltip as the game shows it, its texts editable in place. Each
  * text names its field at the bottom when hovered or edited. The toolbar colours the selected text (the colours the
  * game's own tooltips use, no colour, and up to eight colours of the user's own, each picked with the picker and
- * removed with a right click) and, for
+ * removed from its context menu) and, for
  * an ability, puts in the placeholders that show its values (`<AHhb,Dur1>`),
  * which show as chips named for what they stand for. A `/` in a text lists the values it can show to put in: an
  * ability's own, and those of the abilities a unit's or an item's lists name (Sven, 2026-10-29). The icon, hotkey and costs show as the game shows them but are
@@ -16,6 +16,7 @@ import Eraser from "@lucide/svelte/icons/eraser";
 import Plus from "@lucide/svelte/icons/plus";
 import { type FieldView, iconUrl, type ObjectView, object } from "./api.ts";
 import ColorPicker from "./ColorPicker.svelte";
+import ContextMenu from "./ContextMenu.svelte";
 import Dialog from "./Dialog.svelte";
 import { uiIcons } from "./gameIcons.ts";
 import { graphics } from "./graphics.svelte.ts";
@@ -183,6 +184,8 @@ const presets = [
 const maxOwn = 8;
 const ownKey = "moonwell-editor.tooltip-colours";
 let own = $state<string[]>(savedOwn());
+// The context menu of one of the user's colours, which removes it (Sven, 2026-10-29).
+let colourMenu = $state<{ x: number; y: number; index: number } | null>(null);
 // The picker, open under + (index null, a new colour) or under one of the user's colours.
 let picking = $state<{ index: number | null; anchor: HTMLElement } | null>(null);
 
@@ -394,7 +397,7 @@ const changedCount = $derived(
         oncontextmenu={(event) => {
           event.preventDefault();
           picking = null;
-          setOwn(own.filter((_, at) => at !== index));
+          colourMenu = { x: event.clientX, y: event.clientY, index };
         }}
       ></button>
     {/each}
@@ -472,6 +475,22 @@ const changedCount = $derived(
     {/if}
   {/key}
 
+  {#if colourMenu}
+    {@const at = colourMenu.index}
+    <ContextMenu
+      x={colourMenu.x}
+      y={colourMenu.y}
+      items={[
+        {
+          label: t("tooltipEditor.removeColour"),
+          danger: true,
+          run: () => setOwn(own.filter((_, index) => index !== at)),
+        },
+      ]}
+      onclose={() => (colourMenu = null)}
+    />
+  {/if}
+
   {#if inserting && insertButton}
     <Popover anchor={insertButton} onclose={() => (inserting = false)}>
       <div class="flex flex-col" role="menu" aria-label={t("tooltipEditor.insert")}>
@@ -505,7 +524,7 @@ const changedCount = $derived(
     {#if box.key !== "main"}
       <div class="mt-3 mb-1 text-[12px] tracking-[.06em] text-faint uppercase">{boxNames[box.key]}</div>
     {/if}
-    <div class="rounded-md border border-line bg-black/85 px-3 py-2.5 text-[13px] leading-snug text-white shadow-lg">
+    <div class="rounded-md border border-line bg-black/85 px-3 py-2.5 font-tooltip text-[13px] leading-snug text-white shadow-lg">
       {#if box.key === "main" && tip}
         <div class="flex items-start gap-2">
           {#if tip.icon}

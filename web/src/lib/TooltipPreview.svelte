@@ -84,7 +84,7 @@ let broken = $state("");
   </div>
 {/if}
 
-<div class="rounded-md border border-line bg-black/85 px-2.5 py-2 text-[13px] leading-snug text-white shadow-lg">
+<div class="rounded-md border border-line bg-black/85 px-2.5 py-2 font-tooltip text-[13px] leading-snug text-white shadow-lg">
   {#if empty || !tip}
     <p class="m-0 text-[12.5px] text-white/40">{t("tooltip.none")}</p>
   {:else}

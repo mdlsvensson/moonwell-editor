@@ -380,8 +380,11 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
 - **Theme:** Kanagawa Dragon by default since 2026-10-29 (Sven, after a few hours of Kanagawa Wave): `#0d0c0c`
   background, `#c5c9c5` text, `#8ba4b0` blue-grey accent, `#c4b28a` yellow for changed values, `#c4746e` red for
   warnings. Vitesse Dark (the tokens wc3-dev used) was the default before and is still one of the themes.
-- **Fonts:** readable only, never pixel fonts. Interface text and headings in Inter since 2026-10-29 (Sven; Google Sans
-  with Nunito headings before, as in steam2fiddy and wc3-dev); ids, values and code in JetBrains Mono. Bundled through
+- **Fonts:** readable only, never pixel fonts. Since 2026-10-29 (Sven) interface text in Apple's New York and headings
+  in SF Pro where Windows has them installed; Apple's licence allows them only for designing for Apple's systems, so
+  the editor does not ship them and ships Inter for where they are not (the agent's call). The game's tooltips (the
+  side panel's and the tooltip editor's) are in Inter everywhere. Google Sans with Nunito headings before, as in
+  steam2fiddy and wc3-dev. Ids, values and code in JetBrains Mono. Inter and JetBrains Mono are bundled through
   fontsource, so no network is needed. *(Agent's call; "JetBrains Mono (Nerd Font)" is read as JetBrains Mono, since
   icons come from Lucide.)*
 - **Layout** (see the mockup): a top bar with the map name, the search box and the views (Details, Table, Compare);
@@ -641,13 +644,15 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - Copy name in the context menus of an object and of a field puts its name on the clipboard.
   - F10 opens the settings (a hotkey the settings can change).
   - The tooltip editor is titled "Tooltip Editor: name". The text hovered or edited is named at the bottom, over the
-    count of changed texts, so the colours sit right above the tooltip. A right click removes one of the user's own
-    colours.
+    count of changed texts, so the colours sit right above the tooltip. A right click on one of the user's own colours
+    opens a menu that removes it.
   - A `/` that starts a word in a tooltip text lists the values the text can show, as slash commands do; the words
     after it narrow the list, the arrows move in it, Enter or Tab puts the placeholder in, Esc closes it. *(Agent's
     calls: what it lists, an ability's own values at the level shown and the values of the abilities a unit's or an
     item's ability lists name; a number typed at the end picks the level (`/dur2`) and a `%` the value ×100. Whether
     the game fills in an ability's values in a unit's or an item's tooltip is not measured.)*
+  - The settings open with nothing in them focused (F10 had put the focus on the first checkbox).
+  - The model picker's preview stays on the model last under the pointer; each opening starts with the field's.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
@@ -721,4 +726,5 @@ Every call below is the agent's:
 - ~~"Unreal-style types plus components" read as the class chain plus abilities as components.~~ Corrected by Sven,
   2026-10-27: Uses and Used by instead.
 - A Moonwell map is edited in its `map/` source folder, never its build output.
-- Stack details: xUnit, Svelte 5, Tailwind 4, Biome, Vitest; Inter, JetBrains Mono; Lucide.
+- Stack details: xUnit, Svelte 5, Tailwind 4, Biome, Vitest; New York and SF Pro where installed, Inter, JetBrains
+  Mono; Lucide.

@@ -16,6 +16,14 @@ export function textWidth(text: string, font: string): number {
   return context.measureText(text).width;
 }
 
+/** The interface's fonts as the page has them (whichever of them Windows has installed is drawn). */
+function uiFonts(): string {
+  return typeof document === "undefined"
+    ? "sans-serif"
+    : getComputedStyle(document.documentElement).getPropertyValue("--font-ui").trim() ||
+        "sans-serif";
+}
+
 /** The narrowest and widest the name column may get, in pixels. */
 export const labelColumn = { min: 140, max: 420 };
 
@@ -29,7 +37,7 @@ export function labelColumnWidth(
 ): number {
   let widest = 0;
   for (const each of labels) {
-    let width = textWidth(each.label, '14px "Inter Variable"');
+    let width = textWidth(each.label, `14px ${uiFonts()}`);
     if (showIds) width += 6 + textWidth(each.id, '12.5px "JetBrains Mono Variable"');
     widest = Math.max(widest, width);
   }
