@@ -9,7 +9,7 @@ import { t } from "./text.ts";
 import { entryMatches, groupName, isCustom } from "./tree.ts";
 
 /** The group of the map's custom objects (their path is `["Custom"]`). */
-export const customGroup = "Custom";
+export const customGroup = t("app.folder.custom");
 
 /**
  * The row chips of one kind: the groups picked (a tree's top group such as `human`, or `Custom`), where none picked

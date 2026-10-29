@@ -170,7 +170,7 @@ internal sealed class SearchIndex
         if (custom)
         {
             var baseName = standard == null || standard.Name.Length == 0 ? found!.BaseId : standard.Name;
-            detail = "Custom · " + baseName;
+            detail = Texts.Get("app.search.custom", ("base", baseName));
         }
         else
         {

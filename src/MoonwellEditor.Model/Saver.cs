@@ -17,8 +17,8 @@ public sealed partial class Session
     /// <summary>How many backup folders of a map archive are kept (each holds the whole archive).</summary>
     private const int ArchiveBackupsKept = 5;
 
-    /// <summary>What a save or reload says first when the map on disk cannot be read.</summary>
-    private const string Unavailable = "The map file is gone or locked: ";
+    /// <summary>What a save or reload says when the map on disk cannot be read.</summary>
+    private static string Unavailable(Exception e) => Texts.Get("app.save.unavailable", ("error", e.Message));
 
     /// <summary>
     /// A backup folder's name: the save's local time, then <c>-2</c>, <c>-3</c> ... for more saves in that second.
@@ -98,7 +98,7 @@ public sealed partial class Session
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or MapArchiveException)
         {
-            throw new MapFileException(Unavailable + e.Message, e);
+            throw new MapFileException(Unavailable(e), e);
         }
 
         _kinds = loaded.Kinds;
@@ -140,8 +140,11 @@ public sealed partial class Session
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
-                    var before = written.Count == 0 ? "" : $" ({string.Join(", ", written)} saved before it)";
-                    throw new MapFileException($"{name} was not saved{before}: {e.Message}", e);
+                    var before = written.Count == 0
+                        ? ""
+                        : Texts.Get("app.save.savedBefore", ("names", string.Join(", ", written)));
+                    throw new MapFileException(
+                        Texts.Get("app.save.fileNotSaved", ("name", name), ("before", before), ("error", e.Message)), e);
                 }
 
                 _baseline[name] = bytes;
@@ -222,7 +225,7 @@ public sealed partial class Session
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or MapArchiveException)
         {
-            throw new MapFileException(Unavailable + e.Message, e);
+            throw new MapFileException(Unavailable(e), e);
         }
     }
 
@@ -251,7 +254,7 @@ public sealed partial class Session
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or MapArchiveException)
         {
-            throw new MapFileException(Unavailable + e.Message, e);
+            throw new MapFileException(Unavailable(e), e);
         }
     }
 
@@ -335,7 +338,8 @@ public sealed partial class Session
                 DeleteFolder(folder);
             }
 
-            throw new MapFileException($"Nothing was saved: the backup in {root} could not be made ({e.Message})", e);
+            throw new MapFileException(
+                Texts.Get("app.save.backupFailed", ("folder", root), ("error", e.Message)), e);
         }
     }
 
@@ -425,8 +429,7 @@ public sealed class ChangedOnDiskException : Exception
 {
     /// <summary>The map at <paramref name="folder"/> (a folder or an archive file) changed on disk.</summary>
     public ChangedOnDiskException(string folder)
-        : base($"The map's files in {folder} changed on disk since they were opened or last saved, so nothing was "
-            + "saved. Reload the map to see the changes; edits that were not saved are then lost.")
+        : base(Texts.Get("app.save.changedOnDisk", ("folder", folder)))
     {
         Folder = folder;
     }

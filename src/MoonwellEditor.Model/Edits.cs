@@ -79,7 +79,8 @@ public sealed partial class Session
         var data = _game.Kind(kind);
         if (data.Object(baseId) == null)
         {
-            throw new EditException("noObject", $"There is no standard {ObjectKinds.Key(kind)} {baseId}.");
+            throw new EditException(
+                "noObject", Texts.Get("app.error.noStandardObject", ("kind", ObjectKinds.Key(kind)), ("id", baseId)));
         }
 
         RefuseReadOnly(map, null);
@@ -107,7 +108,8 @@ public sealed partial class Session
         var data = _game.Kind(kind);
         if (data.Object(baseId) == null)
         {
-            throw new EditException("noObject", $"There is no standard {ObjectKinds.Key(kind)} {baseId}.");
+            throw new EditException(
+                "noObject", Texts.Get("app.error.noStandardObject", ("kind", ObjectKinds.Key(kind)), ("id", baseId)));
         }
 
         return NewId(kind, _kinds[kind], data, baseId, null);
@@ -158,8 +160,8 @@ public sealed partial class Session
             throw new EditException(
                 "noObject",
                 found == null && _game.Kind(kind).Object(id) == null
-                    ? $"There is no {ObjectKinds.Key(kind)} {id}."
-                    : $"{id} is a standard {ObjectKinds.Key(kind)}; only custom objects can be deleted.");
+                    ? Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id))
+                    : Texts.Get("app.error.notCustom", ("id", id), ("kind", ObjectKinds.Key(kind))));
         }
 
         RefuseReadOnly(map, found);
@@ -260,7 +262,8 @@ public sealed partial class Session
         var info = data.Field(field);
         if (info == null || standard == null || !data.Applies(info, standard))
         {
-            throw new EditException("noField", $"{ObjectKinds.Key(kind)} {id} has no field {field}.");
+            throw new EditException(
+                "noField", Texts.Get("app.error.noField", ("kind", ObjectKinds.Key(kind)), ("id", id), ("field", field)));
         }
 
         if (info.PerLevel)
@@ -270,12 +273,13 @@ public sealed partial class Session
             {
                 throw new EditException(
                     "noField",
-                    $"{field} of {id} has a value for each level, from 1 to {levels}; there is no level {level}.");
+                    Texts.Get("app.error.noLevel", ("field", field), ("id", id), ("levels", levels), ("level", level)));
             }
         }
         else if (level != 0)
         {
-            throw new EditException("noField", $"{field} of {id} has no levels; its level is 0, not {level}.");
+            throw new EditException(
+                "noField", Texts.Get("app.error.noLevels", ("field", field), ("id", id), ("level", level)));
         }
 
         RefuseReadOnly(map, found);
@@ -294,7 +298,8 @@ public sealed partial class Session
         var standard = found is { Custom: true } ? data.Object(found.BaseId) : data.Object(id);
         if (standard == null && found is not { Custom: true })
         {
-            throw new EditException("noObject", $"There is no {ObjectKinds.Key(kind)} {id}.");
+            throw new EditException(
+                "noObject", Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id)));
         }
 
         return (map, data, found, standard == null ? null : data.ByOwnId(standard, id));
@@ -336,7 +341,8 @@ public sealed partial class Session
                     return new FieldValue.Int(number);
                 }
 
-                throw new EditException("notNumber", $"{field.Label} takes a whole number, not \"{value}\".");
+                throw new EditException(
+                    "notNumber", Texts.Get("app.error.notWhole", ("field", field.Label), ("value", value)));
             case "real":
             case "unreal":
                 if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var real)
@@ -345,7 +351,8 @@ public sealed partial class Session
                     return field.Store == "real" ? new FieldValue.Real(real) : new FieldValue.Unreal(real);
                 }
 
-                throw new EditException("notNumber", $"{field.Label} takes a number (such as 1.5), not \"{value}\".");
+                throw new EditException(
+                    "notNumber", Texts.Get("app.error.notNumber", ("field", field.Label), ("value", value)));
             default:
                 CheckText(value);
                 return new FieldValue.Text(value);
@@ -361,7 +368,7 @@ public sealed partial class Session
             return new FieldValue.Int(number);
         }
 
-        throw new EditException("badValue", $"{field.Label} takes 1 (yes) or 0 (no), not \"{value}\".");
+        throw new EditException("badValue", Texts.Get("app.error.notYesNo", ("field", field.Label), ("value", value)));
     }
 
     /// <summary>
@@ -410,7 +417,7 @@ public sealed partial class Session
 
         if (!valid)
         {
-            throw new EditException("badText", "The text holds a NUL character or broken Unicode, which a map cannot.");
+            throw new EditException("badText", Texts.Get("app.error.badText"));
         }
     }
 
@@ -668,12 +675,13 @@ public sealed partial class Session
         {
             if (!NewIds.Valid(id))
             {
-                throw new EditException("idInvalid", $"An id is four ASCII letters or digits, not \"{id}\".");
+                throw new EditException("idInvalid", Texts.Get("app.error.idInvalid", ("id", id)));
             }
 
             if (taken.Contains(id))
             {
-                throw new EditException("idTaken", $"The id {id} is taken by another {ObjectKinds.Key(kind)}.");
+                throw new EditException(
+                    "idTaken", Texts.Get("app.error.idTaken", ("id", id), ("kind", ObjectKinds.Key(kind))));
             }
 
             return id;
@@ -681,7 +689,8 @@ public sealed partial class Session
 
         var letter = NewIds.Letter(kind, baseId);
         return NewIds.Next(letter, taken)
-            ?? throw new EditException("idTaken", $"Every id from {letter}000 to {letter}ZZZ is taken.");
+            ?? throw new EditException(
+                "idTaken", Texts.Get("app.error.idsUsedUp", ("first", $"{letter}000"), ("last", $"{letter}ZZZ")));
     }
 
     /// <summary>A copied value: a <c>TRIGSTR_n</c> text the strings file has becomes that text.</summary>

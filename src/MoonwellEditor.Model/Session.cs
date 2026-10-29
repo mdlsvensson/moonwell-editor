@@ -11,8 +11,7 @@ namespace MoonwellEditor.Model;
 public sealed partial class Session
 {
     /// <summary>The problem a Moonwell project's built map gets.</summary>
-    internal const string BuildOutputNote =
-        "This is Moonwell's build output, rewritten by every build: edit the project's map/ folder";
+    internal static string BuildOutputNote => Texts.Get("app.map.buildOutput");
 
     /// <summary>The strings file's name.</summary>
     private const string StringsName = "war3map.wts";
@@ -154,7 +153,7 @@ public sealed partial class Session
         var stringsProblem = map.WriteProblem(StringsName);
         if (stringsProblem != null)
         {
-            problems.Add(stringsProblem + " Edited text goes into the object files instead.");
+            problems.Add(Texts.Get("app.map.stringsReadOnly", ("problem", stringsProblem)));
         }
 
         return new Loaded(kinds, strings, problems, baseline, stamp, unreadable, stringsProblem != null);
@@ -193,7 +192,7 @@ public sealed partial class Session
                 custom.BaseId,
                 filed.Name,
                 filed.Suffix,
-                ["Custom", .. Folders.Of(kind, filed)],
+                [Folders.Custom, .. Folders.Of(kind, filed)],
                 custom.HasMods,
                 resolver.Icon(standard, custom),
                 resolver.IconModes(standard, custom)));
@@ -403,8 +402,7 @@ internal sealed class MapKind(string mainName, ObjectFile? main, string skinName
         {
             if (file is { Version: >= 3 } && entry != null && entry.SetCount != 1)
             {
-                return $"The record of {found.Id} in {name} has a set count of {entry.SetCount}; "
-                    + "only a set count of 1 can be edited.";
+                return Texts.Get("app.map.setCount", ("id", found.Id), ("file", name), ("count", entry.SetCount));
             }
         }
 

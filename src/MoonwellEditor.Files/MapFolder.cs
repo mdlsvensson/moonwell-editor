@@ -25,7 +25,7 @@ public sealed class MapFolder : IMapStore
         var full = System.IO.Path.GetFullPath(path);
         if (!Directory.Exists(full))
         {
-            throw new DirectoryNotFoundException($"There is no folder at {full}.");
+            throw new DirectoryNotFoundException(Texts.Get("app.map.noFolder", ("path", full)));
         }
 
         return new MapFolder(full);

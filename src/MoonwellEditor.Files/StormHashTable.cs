@@ -150,7 +150,7 @@ internal static class StormHashTable
         var size = BitConverter.ToUInt32(fields, 8);
         if (size == 0 || size > 1 << 20 || (size & (size - 1)) != 0)
         {
-            throw new InvalidDataException($"The hash table's size, {size}, is not a power of two.");
+            throw new InvalidDataException(Texts.Get("app.hashTable.size", ("size", size)));
         }
 
         return (header + offset, (int)size);

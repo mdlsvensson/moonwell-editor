@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Moonwell.GameData;
+using MoonwellEditor.Files;
 
 namespace MoonwellEditor.App;
 
@@ -41,7 +42,7 @@ public sealed class MainForm : Form
     /// </param>
     public MainForm(string? startupMap = null)
     {
-        Text = "Moonwell Editor";
+        Text = Texts.Get("app.name");
         // The exe's icon (wc3.dev's mark), for the taskbar and Alt Tab.
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         ClientSize = new Size(1400, 860);
@@ -192,7 +193,7 @@ public sealed class MainForm : Form
             using var dialog = new OpenFileDialog
             {
                 Title = title,
-                Filter = "Map archives (*.w3x, *.w3m)|*.w3x;*.w3m",
+                Filter = Texts.Get("app.choose.archiveFilter") + "|*.w3x;*.w3m",
                 CheckFileExists = true,
                 RestoreDirectory = true,
             };
@@ -250,8 +251,8 @@ public sealed class MainForm : Form
 
         var answer = MessageBox.Show(
             this,
-            "The map has unsaved changes, and the page did not answer. Close the window and lose them?",
-            "Moonwell Editor",
+            Texts.Get("app.window.closeUnsaved"),
+            Texts.Get("app.name"),
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning,
             MessageBoxDefaultButton.Button2);
@@ -446,8 +447,8 @@ public sealed class MainForm : Form
         {
             MessageBox.Show(
                 this,
-                $"The page stopped and could not be loaded again: {exception.Message}",
-                "Moonwell Editor",
+                Texts.Get("app.window.pageFailed", ("error", exception.Message)),
+                Texts.Get("app.name"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }

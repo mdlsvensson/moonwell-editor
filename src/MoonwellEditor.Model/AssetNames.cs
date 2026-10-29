@@ -40,18 +40,18 @@ public static class AssetNames
     {
         [ObjectKind.Unit] =
         [
-            ("uico", ""), ("ussi", "Score Screen"), ("ucua", "Caster"), ("umdl", ""), ("ua1m", ""), ("ua2m", ""),
-            ("uspa", "Special"), ("utaa", "Target"), ("upat", ""), ("ushb", ""), ("uubs", ""),
+            ("uico", ""), ("ussi", Texts.Get("app.assetTag.scoreScreen")), ("ucua", Texts.Get("app.assetTag.caster")), ("umdl", ""), ("ua1m", ""), ("ua2m", ""),
+            ("uspa", Texts.Get("app.assetTag.special")), ("utaa", Texts.Get("app.assetTag.target")), ("upat", ""), ("ushb", ""), ("uubs", ""),
         ],
         [ObjectKind.Item] = [("iico", ""), ("ifil", "")],
-        [ObjectKind.Destructable] = [("bfil", "Base"), ("btxf", "Base"), ("bptx", "Base"), ("bshd", "")],
-        [ObjectKind.Doodad] = [("dfil", "Base"), ("dptx", "Base")],
+        [ObjectKind.Destructable] = [("bfil", Texts.Get("app.assetTag.base")), ("btxf", Texts.Get("app.assetTag.base")), ("bptx", Texts.Get("app.assetTag.base")), ("bshd", "")],
+        [ObjectKind.Doodad] = [("dfil", Texts.Get("app.assetTag.base")), ("dptx", Texts.Get("app.assetTag.base"))],
         [ObjectKind.Ability] =
         [
-            ("aart", "Normal"), ("arar", "Research"), ("auar", "Turn Off"), ("acat", "Caster"), ("atat", "Target"),
-            ("asat", "Special"), ("aeat", "Effect"), ("aaea", "Area Effect"), ("amat", "Missile"),
+            ("aart", Texts.Get("app.assetTag.normal")), ("arar", Texts.Get("app.assetTag.research")), ("auar", Texts.Get("app.assetTag.turnOff")), ("acat", Texts.Get("app.assetTag.caster")), ("atat", Texts.Get("app.assetTag.target")),
+            ("asat", Texts.Get("app.assetTag.special")), ("aeat", Texts.Get("app.assetTag.effect")), ("aaea", Texts.Get("app.assetTag.areaEffect")), ("amat", Texts.Get("app.assetTag.missile")),
         ],
-        [ObjectKind.Buff] = [("ftat", "Target"), ("fsat", "Special"), ("feat", "Effect"), ("fmat", "Missile")],
+        [ObjectKind.Buff] = [("ftat", Texts.Get("app.assetTag.target")), ("fsat", Texts.Get("app.assetTag.special")), ("feat", Texts.Get("app.assetTag.effect")), ("fmat", Texts.Get("app.assetTag.missile"))],
     };
 
     /// <summary>

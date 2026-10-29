@@ -120,7 +120,9 @@ public sealed partial class Session
         foreach (var column in columns)
         {
             fields.Add(data.Field(column.Field)
-                ?? throw new EditException("noField", $"{ObjectKinds.Key(kind)} has no field {column.Field}."));
+                ?? throw new EditException(
+                    "noField",
+                    Texts.Get("app.error.noFieldOfKind", ("kind", ObjectKinds.Key(kind)), ("field", column.Field))));
         }
 
         var resolver = ResolverOf(kind, data);
@@ -173,6 +175,7 @@ public sealed partial class Session
         var name = label == null ? cell.Id
             : cell.Level > 0 ? $"{cell.Id} {label} · {cell.Level}"
             : $"{cell.Id} {label}";
-        return new EditException(refused.Code, $"{name} ({cell.Field}): {refused.Message}");
+        return new EditException(
+            refused.Code, Texts.Get("app.error.cell", ("cell", name), ("field", cell.Field), ("error", refused.Message)));
     }
 }

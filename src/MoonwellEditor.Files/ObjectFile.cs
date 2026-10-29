@@ -88,7 +88,7 @@ public sealed class ObjectFile
         catch (Exception e)
         {
             // War3Net's own exceptions: the end of the stream, a string with no end, an unknown value type.
-            throw new ObjectFileException($"War3Net cannot read {name}: {e.Message}", e);
+            throw new ObjectFileException(Texts.Get("app.objectFile.cannotRead", ("name", name), ("error", e.Message)), e);
         }
 
         foreach (var entry in file.original.Concat(file.custom))
@@ -96,8 +96,8 @@ public sealed class ObjectFile
             var odd = entry.Mods.FirstOrDefault(mod => !mod.HasKnownType);
             if (odd is not null)
             {
-                throw new ObjectFileException($"{name} has a modification of {odd.Field} with value type "
-                    + $"{(int)odd.Record.Type}, which the editor does not support.");
+                throw new ObjectFileException(Texts.Get(
+                    "app.objectFile.oddType", ("name", name), ("field", odd.Field), ("type", (int)odd.Record.Type)));
             }
         }
 
@@ -271,7 +271,8 @@ public sealed class ObjectFile
         }
         catch (Exception e)
         {
-            throw new ObjectFileException($"War3Net cannot write {name} back: {e.Message}", e, this);
+            throw new ObjectFileException(
+                Texts.Get("app.objectFile.cannotWrite", ("name", name), ("error", e.Message)), e, this);
         }
 
         if (written.AsSpan().SequenceEqual(bytes))
@@ -281,9 +282,10 @@ public sealed class ObjectFile
 
         var at = written.AsSpan().CommonPrefixLength(bytes);
         var detail = at == written.Length
-            ? $"it would drop the last {bytes.Length - written.Length} bytes, from offset {at}"
-            : $"the bytes differ from offset {at} ({written.Length} bytes written, {bytes.Length} read)";
-        throw new ObjectFileException($"War3Net cannot write {name} back exactly: {detail}.", null, this);
+            ? Texts.Get("app.objectFile.dropsBytes", ("count", bytes.Length - written.Length), ("at", at))
+            : Texts.Get("app.objectFile.differs", ("at", at), ("written", written.Length), ("read", bytes.Length));
+        throw new ObjectFileException(
+            Texts.Get("app.objectFile.notExact", ("name", name), ("detail", detail)), null, this);
     }
 }
 

@@ -131,8 +131,7 @@ public sealed class MapArchive : IMapStore
         {
             if (bytes is null)
             {
-                throw MapArchiveException.NotSaved(Path, $"the save would remove {name}, and a save never removes a "
-                    + "file from an archive");
+                throw MapArchiveException.NotSaved(Path, Texts.Get("app.archive.wouldRemove", ("name", name)));
             }
 
             written.Add((name, bytes));
@@ -151,8 +150,8 @@ public sealed class MapArchive : IMapStore
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                throw MapArchiveException.NotSaved(Path, $"an earlier save left {replacing}, which cannot be deleted "
-                    + $"({e.Message}); delete it, or move it away, and save again", e);
+                throw MapArchiveException.NotSaved(
+                    Path, Texts.Get("app.archive.staleBackup", ("file", replacing), ("error", e.Message)), e);
             }
         }
 
@@ -220,15 +219,17 @@ public sealed class MapArchive : IMapStore
                 }
                 else
                 {
-                    return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} is missing: replacing it "
-                        + $"failed ({e.Message}), and neither {replacing} nor {saving} is there.");
+                    return MapArchiveException.WithMessage(Path, e, Texts.Get(
+                        "app.archive.missing",
+                        ("path", Path), ("error", e.Message), ("replacing", replacing), ("saving", saving)));
                 }
             }
             catch (Exception moving) when (moving is IOException or UnauthorizedAccessException)
             {
-                return MapArchiveException.WithMessage(Path, e, $"The map archive {Path} is missing: replacing it "
-                    + $"failed ({e.Message}), and putting a map back in its place failed too ({moving.Message}). "
-                    + $"Nothing was deleted: the old map is {replacing} if that is there, the new one {saving}.");
+                return MapArchiveException.WithMessage(Path, e, Texts.Get(
+                    "app.archive.missingPutBack",
+                    ("path", Path), ("error", e.Message), ("moving", moving.Message), ("replacing", replacing),
+                    ("saving", saving)));
             }
         }
 
@@ -236,8 +237,8 @@ public sealed class MapArchive : IMapStore
         Delete(replacing);
         if (saved)
         {
-            return MapArchiveException.SavedWithError(Path, e, $"The map archive {Path} was saved (the new archive "
-                + $"passed the check and is in its place), but replacing the old one reported an error: {e.Message}");
+            return MapArchiveException.SavedWithError(
+                Path, e, Texts.Get("app.archive.savedWithError", ("path", Path), ("error", e.Message)));
         }
 
         return IsLocked(e) ? MapArchiveException.Locked(Path, e) : MapArchiveException.NotSaved(Path, e.Message, e);
@@ -412,7 +413,7 @@ public sealed class MapArchive : IMapStore
 
         if (!ReadPreArchive(stream).AsSpan().SequenceEqual(pre))
         {
-            throw CheckFailed("the bytes before the MPQ header are not the same");
+            throw CheckFailed(Texts.Get("app.archive.checkBefore"));
         }
 
         var oldTable = StormHashTable.Read(originalStream, pre.Length);
@@ -443,7 +444,7 @@ public sealed class MapArchive : IMapStore
             }
 
             var old = original[(int)entry.Block];
-            var label = old.FileName ?? $"a file with no known name (hash {entry.Name:X16})";
+            var label = old.FileName ?? Texts.Get("app.archive.unnamed", ("hash", entry.Name.ToString("X16")));
             int found;
             if (old.FileName is { } name)
             {
@@ -451,8 +452,8 @@ public sealed class MapArchive : IMapStore
             }
             else if (newTable.Length != oldTable.Length)
             {
-                throw CheckFailed($"its hash table has {newTable.Length} slots where the old one had "
-                    + $"{oldTable.Length}, so {label} cannot be found the way the game looks files up");
+                throw CheckFailed(Texts.Get(
+                    "app.archive.checkSlots", ("now", newTable.Length), ("old", oldTable.Length), ("file", label)));
             }
             else
             {
@@ -461,13 +462,13 @@ public sealed class MapArchive : IMapStore
 
             if (found < 0)
             {
-                throw CheckFailed($"{label} could not be found in it the way the game looks files up");
+                throw CheckFailed(Texts.Get("app.archive.checkNotFound", ("file", label)));
             }
 
             var now = saved[(int)newTable[found].Block];
             if ((old.Flags & ~MpqFileFlags.Garbage) != (now.Flags & ~MpqFileFlags.Garbage))
             {
-                throw CheckFailed($"{label} has other flags in it");
+                throw CheckFailed(Texts.Get("app.archive.checkFlags", ("file", label)));
             }
 
             bool same;
@@ -488,7 +489,7 @@ public sealed class MapArchive : IMapStore
 
             if (!same)
             {
-                throw CheckFailed($"{label} is not the same in it");
+                throw CheckFailed(Texts.Get("app.archive.checkNotSame", ("file", label)));
             }
         }
 
@@ -502,25 +503,25 @@ public sealed class MapArchive : IMapStore
             var found = StormHashTable.Find(newTable, name, 0, saved.Count);
             if (found < 0)
             {
-                throw CheckFailed($"{name} could not be found in it the way the game looks files up");
+                throw CheckFailed(Texts.Get("app.archive.checkNotFound", ("file", name)));
             }
 
             if (Decompressed(saved, saved[(int)newTable[found].Block]) is not { } after
                 || !after.AsSpan().SequenceEqual(bytes))
             {
-                throw CheckFailed($"{name} does not hold the bytes written");
+                throw CheckFailed(Texts.Get("app.archive.checkBytes", ("file", name)));
             }
         }
 
         var savedCount = newTable.Count(entry => entry.IsLive && !specials.Contains(entry.Name));
         if (savedCount != expectedCount)
         {
-            throw CheckFailed($"it has {savedCount} files where {expectedCount} were expected");
+            throw CheckFailed(Texts.Get("app.archive.checkCount", ("count", savedCount), ("expected", expectedCount)));
         }
     }
 
     private MapArchiveException CheckFailed(string reason) =>
-        MapArchiveException.NotSaved(Path, "the new archive did not pass the check after writing: " + reason);
+        MapArchiveException.NotSaved(Path, Texts.Get("app.archive.checkFailed", ("reason", reason)));
 
     // A file's bytes, decompressed; null when War3Net cannot read them.
     private static byte[]? Decompressed(MpqArchive archive, MpqEntry entry)
@@ -616,8 +617,7 @@ public sealed class MapArchive : IMapStore
             var shared = archive.EnumerateHashes().GroupBy(hash => hash.BlockIndex).Count(block => block.Count() > 1);
             if (shared > 0)
             {
-                throw new MapArchiveException(path, $"{shared} of its files are under more than one name (they share "
-                    + "one block of data, as protected maps do), and War3Net would keep only one name of each");
+                throw new MapArchiveException(path, Texts.Get("app.archive.shared", ("count", shared)));
             }
 
             var files = new Dictionary<string, byte[]?>(StringComparer.OrdinalIgnoreCase);
@@ -658,8 +658,9 @@ public sealed class MapArchive : IMapStore
                 .ToList();
             if (locales.Count > 0)
             {
-                problems[name] = $"{name} is in the archive under locale {string.Join(" and ", locales)}, and the game "
-                    + "may read that copy instead of the neutral one the app would save: it is read only.";
+                problems[name] = Texts.Get(
+                    "app.archive.locale",
+                    ("name", name), ("locales", string.Join(Texts.Get("app.archive.and"), locales)));
             }
         }
 
@@ -681,7 +682,7 @@ public sealed class MapArchive : IMapStore
             {
                 if (!stream.CanRead)
                 {
-                    throw new InvalidDataException("War3Net cannot decompress it");
+                    throw new InvalidDataException(Texts.Get("app.archive.cannotDecompress"));
                 }
 
                 var memory = new MemoryStream();
@@ -691,7 +692,7 @@ public sealed class MapArchive : IMapStore
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            throw new InvalidDataException($"its file {name} cannot be read ({e.Message})", e);
+            throw new InvalidDataException(Texts.Get("app.archive.cannotReadFile", ("name", name), ("error", e.Message)), e);
         }
     }
 
@@ -712,7 +713,7 @@ public sealed class MapArchive : IMapStore
             }
         }
 
-        throw new InvalidDataException("There is no MPQ header.");
+        throw new InvalidDataException(Texts.Get("app.archive.noHeader"));
     }
 
     /// <summary>What <see cref="Load"/> read from the archive.</summary>
@@ -740,7 +741,7 @@ public sealed class MapArchiveException : Exception
 {
     /// <summary>The archive at <paramref name="path"/> cannot be opened, for <paramref name="reason"/>.</summary>
     public MapArchiveException(string path, string reason, Exception? inner = null)
-        : this(path, inner, $"The map archive {path} cannot be opened: {reason}")
+        : this(path, inner, Texts.Get("app.archive.cannotOpen", ("path", path), ("reason", reason)))
     {
     }
 
@@ -770,12 +771,11 @@ public sealed class MapArchiveException : Exception
 
     /// <summary>A save of the archive at <paramref name="path"/> failed, for <paramref name="reason"/>.</summary>
     internal static MapArchiveException NotSaved(string path, string reason, Exception? inner = null) =>
-        new(path, inner, $"The map archive {path} was not saved, and is as it was: {reason}");
+        new(path, inner, Texts.Get("app.archive.notSaved", ("path", path), ("reason", reason)));
 
     /// <summary>A save refused because the map changed on disk (<see cref="ChangedOnDisk"/> is true).</summary>
     internal static MapArchiveException Changed(string path) =>
-        new(path, null, $"The map archive {path} was not saved: it changed on disk since it was opened or last "
-            + "saved.", changedOnDisk: true);
+        new(path, null, Texts.Get("app.archive.changed", ("path", path)), changedOnDisk: true);
 
     /// <summary>A save that ended otherwise, with a message that says how.</summary>
     internal static MapArchiveException WithMessage(string path, Exception inner, string message) =>
@@ -790,5 +790,5 @@ public sealed class MapArchiveException : Exception
 
     /// <summary>A save failed because another program holds the archive.</summary>
     internal static MapArchiveException Locked(string path, Exception inner) =>
-        new(path, inner, "The map is open in another program (World Editor?): close it there and save again.");
+        new(path, inner, Texts.Get("app.archive.locked"));
 }

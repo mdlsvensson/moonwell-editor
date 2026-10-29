@@ -23,7 +23,12 @@ type Group = {
 };
 
 // The data names races in lower case (`nightelf`); the tree shows them as World Editor does.
-const groupNames: Record<string, string> = { nightelf: t("tree.nightElf") };
+const groupNames: Record<string, string> = {
+  human: t("app.folder.human"),
+  orc: t("app.folder.orc"),
+  undead: t("app.folder.undead"),
+  nightelf: t("app.folder.nightElf"),
+};
 
 /** A group's name to show: `nightelf` as Night Elf, any other with a capital letter. */
 export function groupName(name: string): string {
@@ -32,7 +37,7 @@ export function groupName(name: string): string {
 
 /** True for one of the map's custom objects (its path starts with `Custom`, then its folders). */
 export function isCustom(entry: TreeEntry): boolean {
-  return entry.path[0] === "Custom";
+  return entry.path[0] === t("app.folder.custom");
 }
 
 /** The key of the Custom group of a kind. */

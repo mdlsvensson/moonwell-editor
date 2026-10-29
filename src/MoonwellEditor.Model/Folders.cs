@@ -9,53 +9,59 @@ namespace MoonwellEditor.Model;
 /// </summary>
 internal static class Folders
 {
+    /// <summary>The folder the map's custom objects are in, before their own folders.</summary>
+    public static string Custom => F("custom");
+
+    // A folder's name, from the strings file (Sven, 2026-10-29).
+    private static string F(string key) => Texts.Get("app.folder." + key);
+
     // The four playable races, as World Editor names them and in its order.
     private static readonly Dictionary<string, string> Races = new(StringComparer.Ordinal)
     {
-        ["human"] = "Human",
-        ["orc"] = "Orc",
-        ["undead"] = "Undead",
-        ["nightelf"] = "Night Elf",
+        ["human"] = F("human"),
+        ["orc"] = F("orc"),
+        ["undead"] = F("undead"),
+        ["nightelf"] = F("nightElf"),
     };
 
-    private static readonly string[] RaceOrder = ["Human", "Orc", "Undead", "Night Elf"];
+    private static readonly string[] RaceOrder = [F("human"), F("orc"), F("undead"), F("nightElf")];
 
     // A unit of no playable race: the naga's folder, then by hostilePal (World Editor's screens, 2026-10-27).
-    private const string NagaFolder = "Neutral - Naga";
-    private const string HostileFolder = "Neutral Hostile";
-    private const string PassiveFolder = "Neutral Passive";
+    private static readonly string NagaFolder = F("naga");
+    private static readonly string HostileFolder = F("hostile");
+    private static readonly string PassiveFolder = F("passive");
 
     // The abilities and units World Editor does not show get a folder of their own, after its folders (Sven,
     // 2026-10-27).
-    private const string HiddenFolder = "Hidden in World Editor";
+    private static readonly string HiddenFolder = F("hidden");
 
     private static readonly Dictionary<string, string> ItemClasses = new(StringComparer.Ordinal)
     {
-        ["Permanent"] = "Permanent",
-        ["Charged"] = "Charged",
-        ["PowerUp"] = "Power Up",
-        ["Artifact"] = "Artifact",
-        ["Purchasable"] = "Purchasable",
-        ["Campaign"] = "Campaign",
-        ["Miscellaneous"] = "Miscellaneous",
-        ["Equipment"] = "Equipment",
+        ["Permanent"] = F("permanent"),
+        ["Charged"] = F("charged"),
+        ["PowerUp"] = F("powerUp"),
+        ["Artifact"] = F("artifact"),
+        ["Purchasable"] = F("purchasable"),
+        ["Campaign"] = F("campaign"),
+        ["Miscellaneous"] = F("miscellaneous"),
+        ["Equipment"] = F("equipment"),
     };
 
     private static readonly Dictionary<string, string> DestructableCategories = new(StringComparer.Ordinal)
     {
-        ["D"] = "Trees/Destructibles",
-        ["P"] = "Pathing Blockers",
-        ["B"] = "Bridges/Ramps",
+        ["D"] = F("trees"),
+        ["P"] = F("pathingBlockers"),
+        ["B"] = F("bridges"),
     };
 
     private static readonly Dictionary<string, string> DoodadCategories = new(StringComparer.Ordinal)
     {
-        ["O"] = "Props",
-        ["S"] = "Structures",
-        ["W"] = "Water",
-        ["C"] = "Cliff/Terrain",
-        ["E"] = "Environment",
-        ["Z"] = "Cinematic",
+        ["O"] = F("props"),
+        ["S"] = F("structures"),
+        ["W"] = F("water"),
+        ["C"] = F("cliffs"),
+        ["E"] = F("environment"),
+        ["Z"] = F("cinematic"),
     };
 
     /// <summary>
@@ -67,33 +73,33 @@ internal static class Folders
         [ObjectKind.Unit] =
         [
             [.. RaceOrder, NagaFolder, HostileFolder, PassiveFolder, HiddenFolder],
-            ["Melee", "Campaign"],
-            ["Units", "Buildings", "Heroes", "Special"],
+            [F("melee"), F("campaign")],
+            [F("units"), F("buildings"), F("heroes"), F("special")],
         ],
         [ObjectKind.Item] = [[.. ItemClasses.Values]],
         [ObjectKind.Destructable] = [[.. DestructableCategories.Values]],
         [ObjectKind.Doodad] = [[.. DoodadCategories.Values]],
         [ObjectKind.Ability] =
         [
-            [.. RaceOrder, "Neutral Hostile", "Neutral Passive", "Special", HiddenFolder],
-            ["Units", "Heroes", "Items"],
+            [.. RaceOrder, F("hostile"), F("passive"), F("special"), HiddenFolder],
+            [F("units"), F("heroes"), F("items")],
         ],
-        [ObjectKind.Buff] = [[.. RaceOrder, "Special"], ["Buff", "Effect"]],
-        [ObjectKind.Upgrade] = [[.. RaceOrder, "Special"]],
+        [ObjectKind.Buff] = [[.. RaceOrder, F("special")], [F("buff"), F("effect")]],
+        [ObjectKind.Upgrade] = [[.. RaceOrder, F("special")]],
     };
 
     /// <summary>The folders a standard object sits in, broadest first; see <see cref="TreeEntry.Path"/>.</summary>
     public static IReadOnlyList<string> Of(ObjectKind kind, StandardObject standard) => kind switch
     {
         ObjectKind.Unit when standard.Hidden => [HiddenFolder],
-        ObjectKind.Unit => [UnitRace(standard), standard.Campaign ? "Campaign" : "Melee", UnitType(standard)],
+        ObjectKind.Unit => [UnitRace(standard), standard.Campaign ? F("campaign") : F("melee"), UnitType(standard)],
         ObjectKind.Item => [ItemClasses.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Destructable =>
             [DestructableCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Doodad => [DoodadCategories.GetValueOrDefault(standard.Category, Other(standard.Category))],
         ObjectKind.Ability when standard.Hidden => [HiddenFolder],
         ObjectKind.Ability => [AbilityRace(standard.Race), AbilityUse(standard.Category)],
-        ObjectKind.Buff => [RaceOrSpecial(standard.Race), standard.Category == "1" ? "Effect" : "Buff"],
+        ObjectKind.Buff => [RaceOrSpecial(standard.Race), standard.Category == "1" ? F("effect") : F("buff")],
         ObjectKind.Upgrade => [RaceOrSpecial(standard.Race)],
         _ => [Other(standard.Race)],
     };
@@ -263,10 +269,10 @@ internal static class Folders
         : PassiveFolder;
 
     private static string UnitType(StandardObject standard) =>
-        standard.Special ? "Special"
-        : standard.Hero ? "Heroes"
-        : standard.Building ? "Buildings"
-        : "Units";
+        standard.Special ? F("special")
+        : standard.Hero ? F("heroes")
+        : standard.Building ? F("buildings")
+        : F("units");
 
     // As World Editor files them (Sven, 2026-10-27): the creeps' abilities are Neutral Hostile, the naga's Neutral
     // Passive, and the rest (race "other", which World Editor names Special) Special.
@@ -274,21 +280,21 @@ internal static class Folders
         Races.TryGetValue(race, out var name) ? name
         : race switch
         {
-            "creeps" => "Neutral Hostile",
-            "naga" => "Neutral Passive",
-            _ => "Special",
+            "creeps" => F("hostile"),
+            "naga" => F("passive"),
+            _ => F("special"),
         };
 
     private static string AbilityUse(string sort) => sort switch
     {
-        "hero" => "Heroes",
-        "item" => "Items",
-        _ => "Units",
+        "hero" => F("heroes"),
+        "item" => F("items"),
+        _ => F("units"),
     };
 
-    private static string RaceOrSpecial(string race) => Races.GetValueOrDefault(race, "Special");
+    private static string RaceOrSpecial(string race) => Races.GetValueOrDefault(race, F("special"));
 
     // A value the lists do not know, shown with a capital letter; none as Other.
     private static string Other(string value) =>
-        value.Length == 0 ? "Other" : char.ToUpperInvariant(value[0]) + value[1..];
+        value.Length == 0 ? F("unlisted") : char.ToUpperInvariant(value[0]) + value[1..];
 }

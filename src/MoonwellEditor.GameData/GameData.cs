@@ -43,8 +43,7 @@ public sealed class GameData
         if (!GameInstall.IsInstall(folder))
         {
             throw new DirectoryNotFoundException(
-                $"{folder} is not a Warcraft III install: it has no .build.info. Choose the game's own folder, the one "
-                + "with Warcraft III Launcher.exe.");
+                Texts.Get("app.gameData.notInstall", ("folder", folder)));
         }
     }
 

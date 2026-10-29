@@ -228,12 +228,15 @@ describe("the code's calls", () => {
     }
   });
 
+  // The app's keys (app.) are the C# code's; its own test checks them.
   it("use every key of the file", () => {
     const code = files
       .filter((file) => !file.endsWith(".test.ts"))
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
-    for (const key of Object.keys(texts).slice(1)) {
+    for (const key of Object.keys(texts)
+      .slice(1)
+      .filter((each) => !each.startsWith("app."))) {
       const base = key.replace(/\.(one|other)$/, "");
       expect(code.includes(`"${key}"`) || code.includes(`"${base}"`), key).toBe(true);
     }

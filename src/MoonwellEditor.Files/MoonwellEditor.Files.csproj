@@ -11,6 +11,11 @@
     <InternalsVisibleTo Include="MoonwellEditor.Model.Tests" />
   </ItemGroup>
 
+  <!-- The page's strings file, which holds the app's own text too (Texts). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\web\src\text\strings.json" LogicalName="strings.json" Link="strings.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Sven's War3Net fork; 6.1.2-moonwell.4 writes object files back byte for byte. -->
     <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.4" />

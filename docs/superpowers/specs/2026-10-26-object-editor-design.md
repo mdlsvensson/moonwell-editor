@@ -607,8 +607,14 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     the tooltip editor's texts take no more markup (a text already longer can still be shortened) and show their
     length beside the field name.
   - The page's strings file holds every text the page shows; True, False and None, the 24 player colours and
-    Night Elf were the last left in the code. The app's own texts (error messages, World Editor limit warnings, the
-    tree's folder names, the close question) are still in the C# code.
+    Night Elf were the last left in the code.
+  - The strings file holds the app's own texts too (Sven's yes, 2026-10-29), under keys that start with `app.`: its
+    error messages, World Editor's limit warnings, the tree's folders, the map options' names, the tags after a file's
+    object names, the file dialogs' prompts and the window's questions. The file is built into the app
+    (`MoonwellEditor.Files.Texts` reads it), so one edit and a rebuild change both. A test checks that every key the
+    code asks for is in the file and every `app.` key is asked for. *(Agent's calls: the request checks between the
+    page and the app (a request that is not JSON, an argument of the wrong type) and errors only a bug in the code
+    could raise stay in the code, in English: they are for whoever fixes the code, not the user.)*
   - A bits field (Extra Versions, Pick Flags...) reads its values as the game's data spells them, each bit's own value
     (1, 2, 4): before, the editor read 6 as bits 1 and 2, so it ticked the wrong entries and wrote the wrong bits. A bit
     World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's

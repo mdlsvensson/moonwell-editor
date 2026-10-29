@@ -71,13 +71,13 @@ public static class MapStore
             if (!extension.Equals(".w3x", StringComparison.OrdinalIgnoreCase)
                 && !extension.Equals(".w3m", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException($"Not a map: {full} is a file, but not a .w3x or .w3m map archive.");
+                throw new InvalidDataException(Texts.Get("app.map.notArchive", ("path", full)));
             }
 
             return MapArchive.Open(full);
         }
 
-        throw new FileNotFoundException($"There is no map folder or archive at {full}.", full);
+        throw new FileNotFoundException(Texts.Get("app.map.nothingAt", ("path", full)), full);
     }
 
     private static List<string> MakeObjectAndStringFiles()

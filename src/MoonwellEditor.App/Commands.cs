@@ -260,12 +260,12 @@ public sealed class Commands
 
             if (_source == null)
             {
-                throw new CommandException("gameDataMissing", "No Warcraft III install is found or chosen yet.");
+                throw new CommandException("gameDataMissing", Texts.Get("app.error.gameDataMissing"));
             }
 
             throw _error == null
-                ? new CommandException("gameDataLoading", "The game data is still loading.")
-                : new CommandException("gameDataFailed", $"The game data did not load: {_error}");
+                ? new CommandException("gameDataLoading", Texts.Get("app.error.gameDataLoading"))
+                : new CommandException("gameDataFailed", Texts.Get("app.error.gameDataFailed", ("error", _error)));
         }
     }
 
@@ -362,10 +362,10 @@ public sealed class Commands
     private MapInfo? OpenMap(string? path, bool archive, bool discard)
     {
         var data = NeedGameData();
-        RefuseUnsaved(discard, "open another map");
+        RefuseUnsaved(discard, "app.error.unsavedOpen");
         path ??= archive
-            ? _askArchive("Choose a map archive (.w3x, .w3m)")
-            : _askFolder("Choose a map folder (a World Editor folder map, or a Moonwell project's map folder)");
+            ? _askArchive(Texts.Get("app.choose.archive"))
+            : _askFolder(Texts.Get("app.choose.folder"));
         if (string.IsNullOrEmpty(path))
         {
             return null;
@@ -391,7 +391,7 @@ public sealed class Commands
     private MapInfo Reload(bool discard)
     {
         var session = Map();
-        RefuseUnsaved(discard, "reload the map");
+        RefuseUnsaved(discard, "app.error.unsavedReload");
         session.Reload();
         Assets?.MapChanged();
         return Changed(Info(_store!, session));
@@ -399,12 +399,11 @@ public sealed class Commands
 
     // Unsaved edits are dropped only when the page says so: its dialog asked the user, who chose Discard (or saved). A
     // page that was loaded again, and so does not know about them, cannot drop them by mistake.
-    private void RefuseUnsaved(bool discard, string action)
+    private void RefuseUnsaved(bool discard, string text)
     {
         if (!discard && Dirty)
         {
-            throw new CommandException(
-                "unsaved", $"The map has unsaved changes; save or discard them before you {action}.");
+            throw new CommandException("unsaved", Texts.Get(text));
         }
     }
 
@@ -441,7 +440,8 @@ public sealed class Commands
     // An object of a read-only kind is shown too: its view says why it cannot be edited.
     private ObjectView ObjectOf(ObjectKind kind, string id) =>
         Map().Object(kind, id)
-        ?? throw new CommandException("noObject", $"There is no {ObjectKinds.Key(kind)} {id}.");
+        ?? throw new CommandException(
+            "noObject", Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id)));
 
     private ObjectView SetField(JsonElement args)
     {
@@ -616,7 +616,7 @@ public sealed class Commands
 
         var assets = Assets;
         return assets == null
-            ? new AssetList(false, "This window shows no game files.", "", [])
+            ? new AssetList(false, Texts.Get("app.assets.none"), "", [])
             : new AssetList(assets.Ready, assets.Error, assets.Folder, assets.List(kind, mode));
     }
 
@@ -651,7 +651,7 @@ public sealed class Commands
         return null;
     }
 
-    private Session Map() => _session ?? throw new CommandException("noMap", "No map is open.");
+    private Session Map() => _session ?? throw new CommandException("noMap", Texts.Get("app.error.noMap"));
 
     // Tells the page where the map stands now, and passes the command's result on.
     private T Changed<T>(T result)
@@ -753,7 +753,7 @@ public sealed class Commands
 
     private GameDataState ChooseGameData()
     {
-        var folder = _askFolder("Choose the Warcraft III folder (the one with Warcraft III Launcher.exe)");
+        var folder = _askFolder(Texts.Get("app.choose.game"));
         if (!string.IsNullOrEmpty(folder))
         {
             Begin(folder, true);

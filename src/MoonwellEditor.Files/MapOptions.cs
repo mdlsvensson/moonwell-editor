@@ -66,15 +66,15 @@ public sealed record MapOptions(string DataSet, string DataVersion, string Value
     {
         var (setOption, setName) = set switch
         {
-            GameDataSet.Custom => (DataSetOption.Custom, "Custom"),
-            GameDataSet.Melee => (DataSetOption.Melee, "Melee"),
-            _ => (DataSetOption.Default, "Default"),
+            GameDataSet.Custom => (DataSetOption.Custom, Texts.Get("app.options.custom")),
+            GameDataSet.Melee => (DataSetOption.Melee, Texts.Get("app.options.melee")),
+            _ => (DataSetOption.Default, Texts.Get("app.options.default")),
         };
         var (versionOption, versionName) = version switch
         {
-            GameDataVersion.RoC => (DataVersionOption.ReignOfChaos, "Reign of Chaos"),
-            GameDataVersion.TFT => (DataVersionOption.FrozenThrone, "Frozen Throne"),
-            _ => (DataVersionOption.ForsakenKingdom, "Forsaken Kingdom"),
+            GameDataVersion.RoC => (DataVersionOption.ReignOfChaos, Texts.Get("app.options.reignOfChaos")),
+            GameDataVersion.TFT => (DataVersionOption.FrozenThrone, Texts.Get("app.options.frozenThrone")),
+            _ => (DataVersionOption.ForsakenKingdom, Texts.Get("app.options.forsakenKingdom")),
         };
 
         var tables = DataOptions.TablesOf(setOption, versionOption);
