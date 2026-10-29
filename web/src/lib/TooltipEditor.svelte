@@ -341,6 +341,20 @@ const buffComma = $derived(
     }),
 );
 
+// How many times the commas were swapped: the boxes are made again with the swapped text.
+let swaps = $state(0);
+
+// Swaps the extended tooltip's commas for U+201A, which the game draws as a comma and does not cut the text at
+// (probe, 2026-10-29; Sven, 2026-10-29).
+function swapCommas(): void {
+  for (const field of view.fields) {
+    if (field.id !== "fube") continue;
+    const key = keyOf(field);
+    drafts[key] = (drafts[key] ?? field.value).replaceAll(",", "‚");
+  }
+  swaps++;
+}
+
 function colorSelection(css: string | null): void {
   const editor = active ? editors[active] : undefined;
   editor?.color(css);
@@ -383,7 +397,7 @@ const changedCount = $derived(
     onfocusout={() => (focused = null)}
   >
     <!-- Made again once the listed abilities are here, so the chips that name them say what they are. -->
-    {#key `${key}:${listed !== null}`}
+    {#key `${key}:${listed !== null}:${swaps}`}
       <RichText
         bind:this={editors[key]}
         markup={drafts[key] ?? part.field.value}
@@ -644,7 +658,17 @@ const changedCount = $derived(
   {/each}
 
   {#if buffComma}
-    <p class="mt-3 mb-0 text-[12.5px] text-warn">{t("tooltipEditor.buffComma")}</p>
+    <p class="mt-3 mb-0 text-[12.5px] text-warn">
+      {t("tooltipEditor.buffComma")}
+      <button
+        type="button"
+        class="ml-1 rounded-[5px] border border-line px-2 py-0.5 text-body hover:border-muted"
+        title={t("tooltipEditor.swapCommasTitle")}
+        onclick={swapCommas}
+      >
+        {t("tooltipEditor.swapCommas")}
+      </button>
+    </p>
   {/if}
 
   {#if error}

@@ -641,6 +641,8 @@
   "tooltipEditor.presetTitle": "{name} ({colour}): colours the selection",
   "tooltipEditor.removeColour": "Remove colour",
   "tooltipEditor.save": "Save",
+  "tooltipEditor.swapCommas": "Use ‚ instead",
+  "tooltipEditor.swapCommasTitle": "Swap each comma for ‚ (U+201A), which the game shows as a comma and does not cut the text at",
   "tooltipEditor.title": "Tooltip Editor: {name}",
   "tooltipEditor.toolbar": "Text colour and values",
   "tooltipEditor.unchanged": "No changes",
