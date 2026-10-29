@@ -5,6 +5,11 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!-- The tests read a corner's whole variation byte (Cliffs.Raw). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MoonwellEditor.Map.Tests" />
+  </ItemGroup>
+
   <!-- The map-file types come from Moonwell.MapFiles; ObjectKind is Moonwell's Kind under the name the editor's code uses. -->
   <ItemGroup>
     <Using Include="Moonwell.MapFiles" />
