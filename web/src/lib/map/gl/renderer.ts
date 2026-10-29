@@ -11,7 +11,7 @@ import { type Batch, cliffBatches, thingBatches } from "./batches.ts";
 import { GroundLayer } from "./ground.ts";
 import { MarkerLayer } from "./markers.ts";
 import { MarksLayer } from "./marks.ts";
-import { ddsInfo, makeTexture } from "./textures.ts";
+import { makeGroundTexture, makeTexture } from "./textures.ts";
 import { ModelLayer } from "./things.ts";
 import { WaterLayer } from "./water.ts";
 
@@ -49,8 +49,6 @@ export class MapRenderer {
   private readonly marked: PlacedThing[];
   private layers: Layers = allLayers;
   private pickTarget: PickTarget | null = null;
-  /** Each ground texture's piece size in texels, once its sheet is loaded. */
-  private readonly texels: number[] = [];
   private stopped = false;
 
   constructor(
@@ -95,7 +93,7 @@ export class MapRenderer {
     gl.clearColor(0.05, 0.05, 0.07, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const viewProjection = this.viewProjection(view, width, height);
-    this.ground.draw(viewProjection, (index) => this.texels[index] ?? 64, light);
+    this.ground.draw(viewProjection, light);
     this.cliffs.draw(viewProjection, light);
     this.things.draw(viewProjection, light, false, this.shown);
     this.markers.draw(viewProjection);
@@ -120,7 +118,7 @@ export class MapRenderer {
     const viewProjection = this.viewProjection(view, width, height);
     // The ground and cliffs only hide what is behind them.
     gl.colorMask(false, false, false, false);
-    this.ground.draw(viewProjection, (index) => this.texels[index] ?? 64, light);
+    this.ground.draw(viewProjection, light);
     this.cliffs.draw(viewProjection, light);
     gl.colorMask(true, true, true, true);
     gl.disable(gl.BLEND);
@@ -219,9 +217,8 @@ export class MapRenderer {
       ...this.ground.wanted.map(async (texture, index) => {
         const data = await this.bytes(texture.path);
         if (!data || this.stopped) return;
-        const sheet = makeTexture(this.gl, data);
+        const sheet = makeGroundTexture(this.gl, data);
         if (!sheet) return;
-        this.texels[index] = (ddsInfo(new Uint8Array(data))?.height ?? 256) / 4;
         this.ground.setSheet(index, sheet);
         this.changed();
       }),

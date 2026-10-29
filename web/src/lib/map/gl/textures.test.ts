@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ddsInfo, pieceRect } from "./textures.ts";
+import { cutPieces, ddsInfo, pieceRect } from "./textures.ts";
 
 /** A DDS file's header with room for its largest image, as Lords_Dirt.dds has it: 512 by 256 DXT5. */
 function dds(width: number, height: number, fourCC: string, mipmaps = 1): Uint8Array {
@@ -53,5 +53,32 @@ describe("pieceRect", () => {
     expect(pieceRect(15, true)).toEqual([0.375, 0.75, 0.5, 1]);
     expect(pieceRect(16, true)).toEqual([0.5, 0, 0.625, 0.25]);
     expect(pieceRect(31, true)).toEqual([0.875, 0.75, 1, 1]);
+  });
+});
+
+describe("cutPieces", () => {
+  // Blocks numbered row by row, one byte each, so a piece's blocks show where they came from.
+  const numbered = (count: number) => Uint8Array.from({ length: count }, (_, i) => i);
+
+  it("gives each piece of a 4 by 4 sheet its own blocks, pieces in order", () => {
+    // 16 by 16 texels: 4 by 4 blocks, a piece one block.
+    const cut = cutPieces(numbered(16), 16, 16, 1, false);
+    expect(Array.from(cut)).toEqual(Array.from(numbered(16)));
+  });
+
+  it("takes a piece's blocks row by row, and an 8 by 4 sheet's right half after its left", () => {
+    // 64 by 32 texels: 16 by 8 blocks, a piece 2 by 2 blocks, 32 pieces.
+    const cut = cutPieces(numbered(128), 64, 32, 1, true);
+    expect(cut.length).toBe(128);
+    expect(Array.from(cut.subarray(0, 4))).toEqual([0, 1, 16, 17]); // piece 0, top left
+    expect(Array.from(cut.subarray(5 * 4, 6 * 4))).toEqual([34, 35, 50, 51]); // piece 5: column 1, row 1
+    expect(Array.from(cut.subarray(16 * 4, 17 * 4))).toEqual([8, 9, 24, 25]); // piece 16: the right half's first
+  });
+
+  it("keeps each block's bytes together (DXT5 blocks are 16)", () => {
+    // 16 by 16 texels of DXT5: 4 by 4 blocks of 16 bytes, block n's bytes all n.
+    const blocks = new Uint8Array(16 * 16).map((_, i) => Math.floor(i / 16));
+    const cut = cutPieces(blocks, 16, 16, 16, false);
+    expect(Array.from(cut.subarray(5 * 16, 6 * 16))).toEqual(new Array(16).fill(5));
   });
 });

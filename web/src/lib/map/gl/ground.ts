@@ -3,11 +3,13 @@
  * lowest first, each pass only the tiles whose layers use that texture (an instanced draw). A tile's first layer is
  * drawn whole, the layers after it in their pieces' alpha over it. A tile under a cliff model is not drawn; one outside
  * the playable area is dimmed. WebGL2 cannot pick one of several samplers by a tile's texture, so each sheet keeps its
- * own texture, compressed as the game's file has it.
+ * own texture: an array of its pieces (see cutPieces), compressed as the game's file has it, so a tile never samples
+ * its neighbouring pieces (the seams between tiles, Sven 2026-10-29).
  */
 import type { mat4 } from "gl-matrix";
 import type { Terrain, TerrainTexture } from "../scene.ts";
-import { byteTexture, floatTexture, plainTexture, program } from "./program.ts";
+import { byteTexture, floatTexture, program } from "./program.ts";
+import { plainArray } from "./textures.ts";
 
 const vertex = `#version 300 es
 precision highp float;
@@ -22,10 +24,9 @@ uniform sampler2D heights;
 uniform usampler2D flags;
 uniform ivec2 size;
 uniform vec2 origin;
-uniform float columns;
-uniform float inset;
 out vec2 uv;
 out vec3 normal;
+flat out float layer;
 flat out float whole;
 flat out float dim;
 void main() {
@@ -38,12 +39,9 @@ void main() {
   float d = texelFetch(heights, ivec2(c.x, max(c.y - 1, 0)), 0).r;
   float u = texelFetch(heights, ivec2(c.x, min(c.y + 1, size.y - 1)), 0).r;
   normal = normalize(vec3(l - r, d - u, 256.0));
-  int p = int(piece & 255u);
-  int column = (p >= 16 ? 4 : 0) + (p % 16) % 4;
-  int row = (p % 16) / 4;
-  // The piece's top row is the tile's north edge; a half texel in from its edges, so the next piece does not bleed in.
-  vec2 local = mix(vec2(inset), vec2(1.0 - inset), vec2(corner.x, 1.0 - corner.y));
-  uv = (vec2(float(column), float(row)) + local) / vec2(columns, 4.0);
+  // The piece is its own layer; its top row is the tile's north edge.
+  layer = float(piece & 255u);
+  uv = vec2(corner.x, 1.0 - corner.y);
   whole = (piece >> 8) != 0u ? 1.0 : 0.0;
   dim = (texelFetch(flags, at, 0).r & 2u) != 0u ? 0.55 : 1.0;
   gl_Position = viewProjection * vec4(origin + vec2(c) * 128.0, z, 1.0);
@@ -51,15 +49,17 @@ void main() {
 
 const fragment = `#version 300 es
 precision highp float;
+precision highp sampler2DArray;
 in vec2 uv;
 in vec3 normal;
+flat in float layer;
 flat in float whole;
 flat in float dim;
-uniform sampler2D sheet;
+uniform sampler2DArray sheet;
 uniform vec3 light;
 out vec4 color;
 void main() {
-  vec4 texel = texture(sheet, uv);
+  vec4 texel = texture(sheet, vec3(uv, layer));
   float shade = clamp(dot(normalize(normal), light) * 0.45 + 0.65, 0.0, 1.15);
   color = vec4(texel.rgb * shade * dim, whole > 0.5 ? 1.0 : texel.a);
 }`;
@@ -83,17 +83,10 @@ export class GroundLayer {
   ) {
     this.program = program(gl, vertex, fragment);
     this.uniforms = Object.fromEntries(
-      [
-        "viewProjection",
-        "heights",
-        "flags",
-        "size",
-        "origin",
-        "columns",
-        "inset",
-        "sheet",
-        "light",
-      ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
+      ["viewProjection", "heights", "flags", "size", "origin", "sheet", "light"].map((name) => [
+        name,
+        gl.getUniformLocation(this.program, name),
+      ]),
     );
     const across = Math.max(terrain.columns - 1, 0);
     const down = Math.max(terrain.rows - 1, 0);
@@ -119,7 +112,7 @@ export class GroundLayer {
         lists[texture]?.push(tile, piece | (k === 0 ? 256 : 0));
       }
     }
-    const grey = plainTexture(gl, [128, 128, 128, 255]);
+    const grey = plainArray(gl, [128, 128, 128, 255]);
     this.passes = textures.map((texture, index) => {
       const instances = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, instances);
@@ -139,11 +132,7 @@ export class GroundLayer {
     return this.passes.map((pass) => pass.texture);
   }
 
-  draw(
-    viewProjection: mat4,
-    sheetTexels: (index: number) => number,
-    light: [number, number, number],
-  ): void {
+  draw(viewProjection: mat4, light: [number, number, number]): void {
     const { gl, terrain } = this;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
@@ -161,12 +150,10 @@ export class GroundLayer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthFunc(gl.LEQUAL);
-    this.passes.forEach((pass, index) => {
-      if (pass.count === 0) return;
+    for (const pass of this.passes) {
+      if (pass.count === 0) continue;
       gl.activeTexture(gl.TEXTURE2);
-      gl.bindTexture(gl.TEXTURE_2D, pass.sheet);
-      gl.uniform1f(this.uniforms.columns ?? null, pass.texture.extended ? 8 : 4);
-      gl.uniform1f(this.uniforms.inset ?? null, 0.5 / Math.max(sheetTexels(index), 1));
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, pass.sheet);
       gl.bindBuffer(gl.ARRAY_BUFFER, pass.instances);
       gl.enableVertexAttribArray(1);
       gl.vertexAttribIPointer(1, 1, gl.UNSIGNED_INT, 8, 0);
@@ -175,7 +162,7 @@ export class GroundLayer {
       gl.vertexAttribIPointer(2, 1, gl.UNSIGNED_INT, 8, 4);
       gl.vertexAttribDivisor(2, 1);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, pass.count);
-    });
+    }
     gl.bindVertexArray(null);
   }
 
