@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using MoonwellEditor.Files;
 using MoonwellEditor.Model;
 using War3Net.Build.Environment;
@@ -8,7 +9,8 @@ using War3Net.Common.Extensions;
 
 namespace MoonwellEditor.Map;
 
-/// <summary>What kind of thing is placed.</summary>
+/// <summary>What kind of thing is placed; it goes to the page by its name (<c>StartLocation</c>).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ThingKind>))]
 public enum ThingKind
 {
     /// <summary>A unit, from <c>war3mapUnits.doo</c>.</summary>

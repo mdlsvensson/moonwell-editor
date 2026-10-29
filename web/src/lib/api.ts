@@ -3,6 +3,7 @@
  * the C# records (camelCase): `Session`'s views in MoonwellEditor.Model and the records in MoonwellEditor.App's Commands.
  */
 import { call, on } from "./bridge.ts";
+import type { MapScene } from "./map/scene.ts";
 
 /** The seven kinds of object, by the key the app uses, in the Object Editor's tab order. */
 export const kinds = [
@@ -483,4 +484,17 @@ export type AssetList = { ready: boolean; error: string | null; folder: string; 
 /** Lists the game's icons or models in a graphics mode, as object data writes their paths. */
 export function assetList(kind: "icon" | "model", mode: string): Promise<AssetList> {
   return call<AssetList>("assetList", { kind, mode });
+}
+
+/**
+ * The map view's scene of the open map in a graphics mode (the app reads the map, and writes nothing). The terrain's
+ * bytes of the same scene come from `terrainUrl` afterwards.
+ */
+export function mapScene(mode: string): Promise<MapScene> {
+  return call<MapScene>("mapScene", { mode });
+}
+
+/** The URL of the terrain bytes of the last `mapScene` in a graphics mode (404 before one). */
+export function terrainUrl(mode: string): string {
+  return `${assetHost}/terrain?mode=${mode}`;
 }
