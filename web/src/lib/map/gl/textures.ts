@@ -28,11 +28,12 @@ export function ddsInfo(bytes: Uint8Array): DdsInfo | null {
       width: info.shape.width,
       height: info.shape.height,
       format,
+      // dds-parser halves a side down to 0 on a sheet that is not square; WebGL wants every side at least 1.
       images: info.images.map((image) => ({
         offset: image.offset,
         length: image.length,
-        width: image.shape.width,
-        height: image.shape.height,
+        width: Math.max(image.shape.width, 1),
+        height: Math.max(image.shape.height, 1),
       })),
     };
   } catch {
