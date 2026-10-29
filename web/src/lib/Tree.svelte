@@ -36,6 +36,10 @@ type Props = {
    * shows which object is open, faintly (Sven, 2026-10-27).
    */
   active?: boolean;
+  /** The object being renamed in its row (the context menu's Rename, Sven, 2026-10-29); null for none. */
+  renaming?: string | null;
+  /** The new name typed, or null when the rename was given up (Esc). */
+  onrename?: (id: string, name: string | null) => void;
 };
 
 let {
@@ -47,6 +51,8 @@ let {
   oncontext,
   filter = $bindable(""),
   active = true,
+  renaming = null,
+  onrename,
 }: Props = $props();
 
 const rowHeight = 26;
@@ -117,6 +123,24 @@ function onkeydown(event: KeyboardEvent): void {
   const next = nextObject(lines, selected, event.key === "ArrowDown" ? 1 : -1);
   if (next) onselect(next);
 }
+
+// The rename box takes the cursor with its name selected; Enter or leaving it renames, Esc gives up.
+function startRename(input: HTMLInputElement): void {
+  input.focus();
+  input.select();
+}
+
+let renameDone = false;
+function finishRename(id: string, name: string | null): void {
+  if (renameDone) return;
+  renameDone = true;
+  onrename?.(id, name);
+  focusTree();
+}
+
+$effect(() => {
+  if (renaming) renameDone = false;
+});
 
 function clearOnEscape(event: KeyboardEvent): void {
   if (event.key === "Escape" && filter) {
@@ -195,6 +219,29 @@ function clearOnEscape(event: KeyboardEvent): void {
               {groupName(line.name)}
               <span class="ml-auto font-mono text-[11px] text-faint">{line.count}</span>
             </button>
+          {:else if line.type === "entry" && line.entry.id === renaming}
+            {@const entry = line.entry}
+            <div
+              class="flex w-full items-center gap-1.5 bg-accent/25 pr-2.5 shadow-[inset_2px_0_0_var(--accent)]"
+              style:height="{rowHeight}px"
+              style:padding-left="{10 + line.depth * 16}px"
+            >
+              <span class="w-3 shrink-0"></span>
+              <input
+                class="min-w-0 flex-1 rounded-[3px] border border-accent bg-bg px-1 py-0 text-fg outline-none"
+                value={entry.name}
+                aria-label={t("tree.renameLabel", { id: entry.id })}
+                spellcheck="false"
+                {@attach startRename}
+                onkeydown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Enter") finishRename(entry.id, event.currentTarget.value);
+                  else if (event.key === "Escape") finishRename(entry.id, null);
+                }}
+                onblur={(event) => finishRename(entry.id, event.currentTarget.value)}
+              />
+              <span class="pl-2 font-mono text-[12.5px] text-faint">{entry.id}</span>
+            </div>
           {:else if line.type === "entry"}
             {@const entry = line.entry}
             <button

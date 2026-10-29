@@ -190,6 +190,8 @@ let clipboard = $state.raw<Clip | null>(null);
 let menu = $state.raw<{ x: number; y: number; items: MenuItem[] } | null>(null);
 // The tooltip editor is open on the object shown (Sven, 2026-10-27).
 let editingTooltip = $state(false);
+// The object renamed in its tree row, by id (the context menu's Rename and F2 in the tree, Sven, 2026-10-29).
+let renaming = $state<string | null>(null);
 let deleting = $state.raw<Deleting | null>(null);
 let closing = false;
 // The app's commands that change the map run one after another, in the order asked (a save after the edit typed).
@@ -518,6 +520,7 @@ function openMainMenu(button: HTMLElement): void {
   const box = button.getBoundingClientRect();
   const ready = view === "ready" && !opening;
   const saveKey = keymap.save[0];
+  const settingsKey = keymap.settings[0];
   menu = {
     x: box.right,
     y: box.bottom + 4,
@@ -536,7 +539,11 @@ function openMainMenu(button: HTMLElement): void {
         run: saveMap,
       },
       { separator: true },
-      { label: t("header.settings"), run: () => (settingsOpen = true) },
+      {
+        label: t("header.settings"),
+        shortcut: settingsKey ? shownKey(settingsKey) : undefined,
+        run: () => (settingsOpen = true),
+      },
     ],
   };
 }
@@ -708,6 +715,7 @@ async function objectMenu(each: Kind, id: string, x: number, y: number): Promise
     y,
     items: [
       { label: t("menu.copy"), shortcut: "Ctrl C", run: () => clip(each, id) },
+      { label: t("menu.copyName"), run: () => copyName(entry.name) },
       {
         label: clipboard ? t("menu.pasteObject", { name: clipboard.name }) : t("menu.paste"),
         shortcut: "Ctrl V",
@@ -715,7 +723,7 @@ async function objectMenu(each: Kind, id: string, x: number, y: number): Promise
         run: paste,
       },
       { separator: true },
-      { label: t("menu.rename"), shortcut: "F2", run: focusName },
+      { label: t("menu.rename"), shortcut: "F2", run: () => renameInTree(each, id) },
       {
         label: t("menu.reset"),
         disabled: !entry.changed && !custom,
@@ -802,6 +810,35 @@ async function focusName(): Promise<void> {
   }
   const field = nameField(shown);
   if (field) await details?.focusField(field);
+}
+
+/** Renames the object shown in its tree row, when it is the one asked for and can be edited. */
+function renameInTree(each: Kind, id: string): void {
+  const shown = current;
+  if (!shown || shown.kind !== each || shown.id !== id) return;
+  if (shown.readOnly) {
+    say(t("notice.readOnly", { reason: shown.readOnly }), { warn: true });
+    return;
+  }
+  if (nameField(shown)) renaming = id;
+}
+
+/** Sets the name typed in the tree row (null when the rename was given up). */
+async function renamed(id: string, name: string | null): Promise<void> {
+  renaming = null;
+  const shown = current;
+  const field = shown && shown.id === id ? nameField(shown) : undefined;
+  if (name === null || !field || name === field.value) return;
+  const error = await edit(field, name);
+  if (error) say(error, { warn: true });
+}
+
+/** Puts a name on the clipboard (Sven, 2026-10-29). */
+function copyName(name: string): void {
+  navigator.clipboard?.writeText(name).then(
+    () => say(t("notice.copiedName", { name })),
+    () => say(t("notice.notCopied"), { warn: true }),
+  );
 }
 
 /** True when a key goes to a box the user types in, which has its own undo. */
@@ -973,7 +1010,10 @@ function onkeydown(event: KeyboardEvent): void {
     }
     case "rename":
       event.preventDefault();
-      focusName();
+      // In the tree, the object's row takes the new name; elsewhere its name field does.
+      if (zone === "tree" && current && !typingIn(event.target))
+        renameInTree(current.kind, current.id);
+      else focusName();
       break;
     case "filterFields":
       event.preventDefault();
@@ -996,6 +1036,10 @@ function onkeydown(event: KeyboardEvent): void {
     case "forward":
       event.preventDefault();
       walk(action === "back" ? -1 : 1);
+      break;
+    case "settings":
+      event.preventDefault();
+      settingsOpen = true;
       break;
   }
 }
@@ -1234,6 +1278,8 @@ onMount(() => {
           oncontext={(id, x, y) => objectMenu(kind, id, x, y)}
           bind:filter={treeFilter}
           active={zone === "tree"}
+          renaming={current?.kind === kind ? renaming : null}
+          onrename={renamed}
         />
       </aside>
       <!-- The details panel scrolls its own fields, under a header and a bar that stay put. -->

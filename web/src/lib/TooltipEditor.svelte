@@ -1,10 +1,12 @@
 <script lang="ts">
 /**
  * The tooltip editor (Sven, 2026-10-27): the object's tooltip as the game shows it, its texts editable in place. Each
- * text names its field above its box when hovered or edited. The toolbar colours the selected text (the colours the
- * game's own tooltips use, no colour, and up to eight colours of the user's own, each picked with the picker) and, for
+ * text names its field at the bottom when hovered or edited. The toolbar colours the selected text (the colours the
+ * game's own tooltips use, no colour, and up to eight colours of the user's own, each picked with the picker and
+ * removed with a right click) and, for
  * an ability, puts in the placeholders that show its values (`<AHhb,Dur1>`),
- * which show as chips named for what they stand for. The icon, hotkey and costs show as the game shows them but are
+ * which show as chips named for what they stand for. A `/` in a text lists the values it can show to put in: an
+ * ability's own, and those of the abilities a unit's or an item's lists name (Sven, 2026-10-29). The icon, hotkey and costs show as the game shows them but are
  * edited in their fields. An object with levels is edited a level at a time; Save sends every changed text as one
  * edit.
  */
@@ -12,7 +14,7 @@ import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Eraser from "@lucide/svelte/icons/eraser";
 import Plus from "@lucide/svelte/icons/plus";
-import { type FieldView, iconUrl, type ObjectView } from "./api.ts";
+import { type FieldView, iconUrl, type ObjectView, object } from "./api.ts";
 import ColorPicker from "./ColorPicker.svelte";
 import Dialog from "./Dialog.svelte";
 import { uiIcons } from "./gameIcons.ts";
@@ -20,6 +22,7 @@ import { graphics } from "./graphics.svelte.ts";
 import Popover from "./Popover.svelte";
 import RichText from "./RichText.svelte";
 import { tokenOf, tokenParts } from "./richText.ts";
+import { listedAbilities, type SlashSource, sourceOf, suggestions } from "./slash.ts";
 import { t, tCount } from "./text.ts";
 import { abilityTextValues, formatNumber, textKey, tooltipOf } from "./tooltip.ts";
 
@@ -144,14 +147,14 @@ const shownBoxes = $derived(
 let drafts = $state<Record<string, string>>({});
 let editors = $state<Record<string, RichText | undefined>>({});
 let active = $state<string | null>(null);
-// The text the mouse is over, and the one with the cursor: the first is named above its box, else the second.
+// The text the mouse is over, and the one with the cursor: the first is named at the bottom, else the second.
 let hovered = $state<string | null>(null);
 let focused = $state<string | null>(null);
 const named = $derived.by(() => {
   const key = hovered ?? focused;
   for (const box of shownBoxes) {
     const part = box.parts.find((each) => keyOf(each.field) === key);
-    if (part) return { box: box.key, field: part.field };
+    if (part) return { field: part.field };
   }
   return null;
 });
@@ -230,18 +233,53 @@ const keyNames: Record<string, string> = {
   Area: t("tooltipEditor.key.area"),
 };
 
-/** What a placeholder chip says: the value it stands for, named, with its level and value when it is this object's. */
+// The abilities a unit's or an item's lists name, whose values its tooltip can show too; fetched when the editor
+// opens, and null until they are here.
+let listed = $state.raw<SlashSource[] | null>(null);
+$effect(() => {
+  const ids = listedAbilities(view).slice(0, 24);
+  let stale = false;
+  Promise.all(ids.map((id) => object("ability", id).catch(() => null))).then((found) => {
+    if (stale) return;
+    listed = found.flatMap((each) =>
+      each ? [sourceOf(each, each.name || each.id, keyNames)] : [],
+    );
+  });
+  return () => {
+    stale = true;
+  };
+});
+
+// What the `/` lists: the ability's own values, then the listed abilities'.
+const sources = $derived([
+  ...(view.kind === "ability" ? [sourceOf(view, "", keyNames)] : []),
+  ...(listed ?? []),
+]);
+
+function suggest(query: string) {
+  return suggestions(sources, query, shownLevel);
+}
+
+/**
+ * What a placeholder chip says: the value it stands for, named, with its level and value when it is this object's or
+ * a listed ability's.
+ */
 function describe(token: string): { label: string; title: string } {
   const parts = tokenParts(token);
   if (!parts) return { label: token, title: token };
   const own = parts.id === view.id || parts.id === view.baseId;
+  const source = own ? undefined : listed?.find((each) => each.id === parts.id);
   const named =
-    insertable.find((each) => each.key.toLowerCase() === parts.key.toLowerCase())?.name ??
+    (own ? insertable : (source?.keys ?? [])).find(
+      (each) => each.key.toLowerCase() === parts.key.toLowerCase(),
+    )?.name ??
     keyNames[parts.key] ??
     parts.key;
-  const value = own ? values[`${parts.key}${parts.level}`] : undefined;
+  const value = own
+    ? values[`${parts.key}${parts.level}`]
+    : source?.values[`${parts.key}${parts.level}`];
   const label = [
-    own ? "" : `${parts.id}: `,
+    own ? "" : `${source?.name ?? parts.id}: `,
     named,
     parts.level > 0 ? ` ${parts.level}` : "",
     value !== undefined ? ` = ${formatNumber(value, parts.percent)}` : parts.percent ? " ×100" : "",
@@ -287,7 +325,7 @@ const changedCount = $derived(
 
 {#snippet text(part: Part & { field: FieldView }, look: string)}
   {@const key = keyOf(part.field)}
-  <!-- Hovered or edited, a text names its field above its box, where it covers nothing (Sven, 2026-10-29). -->
+  <!-- Hovered or edited, a text names its field at the bottom, where it covers nothing (Sven, 2026-10-29). -->
   <div
     class="-mx-1 rounded px-1 outline-1 outline-transparent outline-dashed hover:outline-white/30 focus-within:outline-accent"
     role="group"
@@ -296,7 +334,8 @@ const changedCount = $derived(
     onfocusin={() => (focused = key)}
     onfocusout={() => (focused = null)}
   >
-    {#key key}
+    <!-- Made again once the listed abilities are here, so the chips that name them say what they are. -->
+    {#key `${key}:${listed !== null}`}
       <RichText
         bind:this={editors[key]}
         markup={drafts[key] ?? part.field.value}
@@ -304,6 +343,7 @@ const changedCount = $derived(
         {describe}
         label={part.field.label}
         limit={part.field.maxLength}
+        suggest={sources.length > 0 ? suggest : undefined}
         class={look}
         onfocus={() => (active = key)}
         onchange={(markup) => (drafts[key] = markup)}
@@ -350,6 +390,11 @@ const changedCount = $derived(
         onclick={(event) => {
           colorSelection(colour);
           picking = { index, anchor: event.currentTarget };
+        }}
+        oncontextmenu={(event) => {
+          event.preventDefault();
+          picking = null;
+          setOwn(own.filter((_, at) => at !== index));
         }}
       ></button>
     {/each}
@@ -457,23 +502,9 @@ const changedCount = $derived(
   {/if}
 
   {#each shownBoxes as box (box.key)}
-    <div class="mb-1 flex h-4 items-baseline gap-2 text-[12px] {box.key === 'main' ? '' : 'mt-3'}">
-      {#if box.key !== "main"}
-        <span class="tracking-[.06em] text-faint uppercase">{boxNames[box.key]}</span>
-      {/if}
-      {#if named?.box === box.key}
-        <span class="ml-auto truncate text-muted">
-          {named.field.label} · <span class="font-mono">{named.field.id}</span>{#if named.field.level > 0}
-            · {t("tooltipEditor.levelTag", { level: named.field.level })}{/if}
-          {#if named.field.maxLength}
-            {@const length = (drafts[keyOf(named.field)] ?? named.field.value).length}
-            · <span class="font-mono {length >= named.field.maxLength ? 'text-warn' : ''}"
-              >{t("tooltipEditor.length", { length, max: named.field.maxLength })}</span
-            >
-          {/if}
-        </span>
-      {/if}
-    </div>
+    {#if box.key !== "main"}
+      <div class="mt-3 mb-1 text-[12px] tracking-[.06em] text-faint uppercase">{boxNames[box.key]}</div>
+    {/if}
     <div class="rounded-md border border-line bg-black/85 px-3 py-2.5 text-[13px] leading-snug text-white shadow-lg">
       {#if box.key === "main" && tip}
         <div class="flex items-start gap-2">
@@ -530,9 +561,25 @@ const changedCount = $derived(
   {/if}
 
   {#snippet actions()}
-    <span class="mr-auto self-center text-[12.5px] text-muted">
-      {changedCount === 0 ? t("tooltipEditor.unchanged") : tCount("tooltipEditor.changed", changedCount)}
-    </span>
+    <!-- The text hovered or edited is named here, over the count of changed texts, so the colours sit right above the
+         tooltip (Sven, 2026-10-29). -->
+    <div class="mr-auto flex min-w-0 flex-col self-center text-[12.5px] text-muted">
+      <span class="h-[1.45em] truncate">
+        {#if named}
+          {named.field.label} · <span class="font-mono">{named.field.id}</span>{#if named.field.level > 0}
+            · {t("tooltipEditor.levelTag", { level: named.field.level })}{/if}
+          {#if named.field.maxLength}
+            {@const length = (drafts[keyOf(named.field)] ?? named.field.value).length}
+            · <span class="font-mono {length >= named.field.maxLength ? 'text-warn' : ''}"
+              >{t("tooltipEditor.length", { length, max: named.field.maxLength })}</span
+            >
+          {/if}
+        {/if}
+      </span>
+      <span class="text-faint">
+        {changedCount === 0 ? t("tooltipEditor.unchanged") : tCount("tooltipEditor.changed", changedCount)}
+      </span>
+    </div>
     <button
       type="button"
       class="rounded-[5px] border border-line bg-raised px-3 py-1 text-fg hover:border-accent"

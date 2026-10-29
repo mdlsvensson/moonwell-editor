@@ -1,9 +1,12 @@
 /**
  * The editor's own switches (Sven, 2026-10-27), remembered in the window's storage: whether a reload from disk asks
  * first, the UI scale (the window scales the page; Ctrl and the wheel do not), whether the alpha notice opens at start
- * (Sven, 2026-10-28: only Settings turns it off), and whether the experimental features are on (Sven, 2026-10-29: the
- * table view; off at first).
+ * (Sven, 2026-10-28: only Settings turns it off), whether the experimental features are on (Sven, 2026-10-29: the
+ * table view; off at first), and the team colour models are shown in at first (Sven, 2026-10-29: the side panel's and
+ * the model picker's; player 1, Red, at first).
  */
+
+import { playerIndex } from "./teamColors.ts";
 
 const storageKey = "moonwell-editor.prefs";
 
@@ -12,6 +15,7 @@ type Prefs = {
   uiScale: number;
   alphaNotice: boolean;
   experimental: boolean;
+  teamColor: number;
 };
 
 /** The UI scales the settings offer, in percent, as the app takes them. */
@@ -28,9 +32,16 @@ function saved(): Prefs {
       uiScale: uiScales.includes(stored.uiScale ?? 100) ? (stored.uiScale ?? 100) : 100,
       alphaNotice: stored.alphaNotice ?? localStorage.getItem(oldAlphaKey) !== "yes",
       experimental: stored.experimental === true,
+      teamColor: playerIndex(stored.teamColor ?? 0),
     };
   } catch {
-    return { confirmReload: true, uiScale: 100, alphaNotice: true, experimental: false };
+    return {
+      confirmReload: true,
+      uiScale: 100,
+      alphaNotice: true,
+      experimental: false,
+      teamColor: 0,
+    };
   }
 }
 

@@ -1,11 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource/google-sans/latin-400.css";
-@import "@fontsource/google-sans/latin-ext-400.css";
-@import "@fontsource/google-sans/latin-500.css";
-@import "@fontsource/google-sans/latin-ext-500.css";
-@import "@fontsource/google-sans/latin-700.css";
-@import "@fontsource/google-sans/latin-ext-700.css";
-@import "@fontsource-variable/nunito";
+@import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 
 /* Kanagawa Dragon (github.com/rebelot/kanagawa.nvim), the default theme (Sven, 2026-10-29). */
@@ -37,8 +31,9 @@
   --kind-ability: #8ea4a2;
   --kind-buff: #a292a3;
   --kind-upgrade: #c4746e;
-  --font-ui: "Google Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Nunito Variable", "Google Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Inter for the interface and its headings, JetBrains Mono for ids and values (Sven, 2026-10-29). */
+  --font-ui: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-ui);
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 

@@ -12,6 +12,7 @@ import { fileUrl, type ObjectView, type Reference, usedBy } from "./api.ts";
 import { type Lookup, uses } from "./fields.ts";
 import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
+import { prefs } from "./prefs.svelte.ts";
 import TooltipPreview from "./TooltipPreview.svelte";
 import { t } from "./text.ts";
 import { kindNames, kindText } from "./tree.ts";
@@ -53,8 +54,12 @@ const model = $derived.by(() => {
   return named[0] ? first(named[0].value) : "";
 });
 
-// The team colour the model is shown in, kept from object to object.
-let teamColor = $state(0);
+// The team colour the model is shown in, kept from object to object; it starts as the settings' default and follows it
+// when that changes (Sven, 2026-10-29).
+let teamColor = $state(prefs.teamColor);
+$effect(() => {
+  teamColor = prefs.teamColor;
+});
 let width = $state(270);
 let level = $state(1);
 

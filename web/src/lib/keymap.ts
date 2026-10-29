@@ -19,7 +19,8 @@ export type Action =
   | "filterFields"
   | "fieldIds"
   | "back"
-  | "forward";
+  | "forward"
+  | "settings";
 
 /** Every action, in the order the settings list them, with its name and its keys out of the box. */
 export const actionList: { action: Action; name: string; keys: string[] }[] = [
@@ -36,6 +37,7 @@ export const actionList: { action: Action; name: string; keys: string[] }[] = [
   { action: "fieldIds", name: t("hotkey.fieldIds"), keys: ["Ctrl+D"] },
   { action: "back", name: t("hotkey.back"), keys: ["Alt+ArrowLeft"] },
   { action: "forward", name: t("hotkey.forward"), keys: ["Alt+ArrowRight"] },
+  { action: "settings", name: t("hotkey.settings"), keys: ["F10"] },
 ];
 
 export type Keymap = Record<Action, string[]>;

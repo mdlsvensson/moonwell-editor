@@ -192,6 +192,14 @@ function copy(field: FieldView): void {
   );
 }
 
+/** Puts the field's name on the clipboard (Sven, 2026-10-29). */
+function copyName(field: FieldView): void {
+  navigator.clipboard?.writeText(field.label).then(
+    () => onnotice(t("details.copiedName", { field: field.label }), false),
+    () => onnotice(t("details.notCopied"), true),
+  );
+}
+
 async function paste(field: FieldView): Promise<void> {
   const clip = copiedField();
   if (!clip) {
@@ -242,6 +250,7 @@ function fieldMenu(field: FieldView, x: number, y: number): void {
   const clip = copiedField();
   onmenu(x, y, [
     { label: t("details.menu.copy"), shortcut: "Ctrl C", run: () => copy(field) },
+    { label: t("details.menu.copyName"), run: () => copyName(field) },
     {
       label: clip ? t("details.menu.pasteField", { field: clip.label }) : t("details.menu.paste"),
       shortcut: "Ctrl V",

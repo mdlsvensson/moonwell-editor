@@ -1,8 +1,9 @@
 <script lang="ts">
 /**
- * The editor's settings (Sven, 2026-10-27), in tabs: General (the graphics mode, the UI scale and the theme, which show
- * at once and are remembered, then the switches under Other), Hotkeys (each action's keys, which a click and a key press change), Map (what the editor knows
- * about the open map: its name, its game data option and the tables the game reads under it) and Game data.
+ * The editor's settings (Sven, 2026-10-27), in tabs: General (the graphics mode, the UI scale, the theme and the
+ * default team colour, which show at once and are remembered, then the switches under Other), Hotkeys (each action's
+ * keys, which a click and a key press change), Map (what the editor knows about the open map: its name, its game data
+ * option and the tables the game reads under it) and Game data.
  */
 import Check from "@lucide/svelte/icons/check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -23,6 +24,7 @@ import {
 } from "./keymap.ts";
 import Popover from "./Popover.svelte";
 import { prefs, setPref, uiScales } from "./prefs.svelte.ts";
+import TeamColourGrid from "./TeamColourGrid.svelte";
 import { t } from "./text.ts";
 import { type Theme, themes } from "./themes.ts";
 import { kindNames } from "./tree.ts";
@@ -224,6 +226,11 @@ function resetAll(): void {
           </div>
         </Popover>
       {/if}
+
+      <!-- The team colour models are shown in at first (Sven, 2026-10-29). -->
+      {@render heading(t("settings.teamColour"))}
+      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.teamColourNote")}</p>
+      <TeamColourGrid value={prefs.teamColor} onpick={(index) => setPref("teamColor", index)} />
 
       <!-- The switches, together at the bottom (Sven, 2026-10-29). -->
       {@render heading(t("settings.switches"))}

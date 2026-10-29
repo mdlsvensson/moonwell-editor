@@ -30,6 +30,7 @@ import {
 } from "./mdx.ts";
 import Popover from "./Popover.svelte";
 import Select from "./Select.svelte";
+import TeamColourGrid from "./TeamColourGrid.svelte";
 import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
 import { t, tCount } from "./text.ts";
 
@@ -608,8 +609,9 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-// The team colours' list, open under its square.
+// The team colours' list, open under its square, which is as wide as the animations' list is tall.
 let coloursOpen = $state(false);
+let rowHeight = $state(26);
 let coloursButton: HTMLButtonElement | undefined = $state();
 </script>
 
@@ -651,7 +653,7 @@ let coloursButton: HTMLButtonElement | undefined = $state();
        square beside the animations that opens the 24 colours (Sven, 2026-10-29). -->
   <div class="flex items-stretch gap-1.5">
   {#if animations}
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 flex-1" bind:clientHeight={rowHeight}>
     <Select
       options={sequences.map((name, index) => ({ value: String(index), label: name || t("model.unnamed", { index }) }))}
       value={String(playing)}
@@ -668,7 +670,8 @@ let coloursButton: HTMLButtonElement | undefined = $state();
     {@const shown = teamColors[playerIndex(teamColor)]}
     <button
       type="button"
-      class="aspect-square w-[30px] shrink-0 rounded border border-line hover:border-muted"
+      class="shrink-0 self-stretch rounded border border-line hover:border-muted"
+      style:width="{rowHeight}px"
       style:background-color={shown?.hex}
       title={t("model.teamColourTitle", { colour: shown?.name ?? "" })}
       aria-label={t("model.teamColour")}
@@ -681,26 +684,13 @@ let coloursButton: HTMLButtonElement | undefined = $state();
   </div>
   {#if picker && coloursOpen && coloursButton}
     <Popover anchor={coloursButton} onclose={() => (coloursOpen = false)}>
-    <div class="grid w-[264px] grid-cols-12 gap-0.5" role="radiogroup" aria-label={t("model.teamColour")}>
-      {#each teamColors as colour, index (colour.name)}
-        {@const chosen = playerIndex(teamColor) === index}
-        <button
-          type="button"
-          class="aspect-square rounded-sm border {chosen
-            ? 'relative z-10 border-bg outline-2 outline-fg'
-            : 'border-line hover:border-muted'}"
-          style="background-color: {colour.hex}"
-          title={t("model.playerTitle", { player: index + 1, colour: colour.name })}
-          aria-label={t("model.playerLabel", { player: index + 1, colour: colour.name })}
-          role="radio"
-          aria-checked={chosen}
-          onclick={() => {
-            teamColor = index;
-            coloursOpen = false;
-          }}
-        ></button>
-      {/each}
-    </div>
+      <TeamColourGrid
+        value={teamColor}
+        onpick={(index) => {
+          teamColor = index;
+          coloursOpen = false;
+        }}
+      />
     </Popover>
   {/if}
 </div>

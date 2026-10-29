@@ -11,6 +11,7 @@ import { inFolders, inList, listOf, modelFolders, ranked } from "./assets.ts";
 import { graphics } from "./graphics.svelte.ts";
 import ModelPreview from "./ModelPreview.svelte";
 import Popover from "./Popover.svelte";
+import { prefs } from "./prefs.svelte.ts";
 import { t } from "./text.ts";
 
 type Props = {
@@ -142,7 +143,12 @@ function focusOnMount(element: HTMLInputElement): void {
           </div>
           <div class="shrink-0">
             {#if previewed}
-              <ModelPreview path={previewed} fileUrl={(path) => fileUrl(path, graphics.mode)} size={240} />
+              <ModelPreview
+                path={previewed}
+                fileUrl={(path) => fileUrl(path, graphics.mode)}
+                size={240}
+                teamColor={prefs.teamColor}
+              />
               <p class="m-0 mt-1 w-[240px] truncate font-mono text-[11px] text-faint" title={previewed}>
                 {previewed}
               </p>
