@@ -12,8 +12,8 @@ public static class Lossy
     /// <summary>Opens <paramref name="folder"/> with <paramref name="lossyName"/> read as a lossy file.</summary>
     public static Session Open(string folder, GameData.GameData game, string lossyName = "war3map.w3a") =>
         Session.Open(MapFolder.Open(folder), game, (kind, bytes, name) => name == lossyName
-            ? ObjectFile.Read(kind, bytes, name, read => read.ToBytes()[..^4])
-            : ObjectFile.Read(kind, bytes, name));
+            ? ObjectFile.ReadExact(kind, bytes, name, read => read.ToBytes()[..^4])
+            : ObjectFile.ReadExact(kind, bytes, name));
 }
 
 /// <summary>

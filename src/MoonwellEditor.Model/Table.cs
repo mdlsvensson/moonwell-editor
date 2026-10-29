@@ -122,7 +122,7 @@ public sealed partial class Session
             fields.Add(data.Field(column.Field)
                 ?? throw new EditException(
                     "noField",
-                    Texts.Get("app.error.noFieldOfKind", ("kind", ObjectKinds.Key(kind)), ("field", column.Field))));
+                    Texts.Get("app.error.noFieldOfKind", ("kind", Kinds.Key(kind)), ("field", column.Field))));
         }
 
         var resolver = ResolverOf(kind, data);

@@ -457,7 +457,7 @@ public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output
     private static void Name(TempMap map, params (string Id, string BaseId, string Name)[] names)
     {
         var path = Path.Combine(map.Folder, "war3mapSkin.w3u");
-        var skin = ObjectFile.Read(ObjectKind.Unit, File.ReadAllBytes(path));
+        var skin = ObjectFile.ReadExact(ObjectKind.Unit, File.ReadAllBytes(path));
         foreach (var (id, baseId, name) in names)
         {
             var entry = skin.Custom.FirstOrDefault(candidate => candidate.Id == id) ?? skin.AddCustom(baseId, id);
@@ -508,7 +508,7 @@ public sealed class TableTests(GameDataFixture fixture, ITestOutputHelper output
         {
             foreach (var skin in new[] { false, true })
             {
-                var path = Path.Combine(map.Folder, (skin ? "war3mapSkin." : "war3map.") + ObjectKinds.Extension(kind));
+                var path = Path.Combine(map.Folder, (skin ? "war3mapSkin." : "war3map.") + Kinds.Extension(kind));
                 var bytes = File.Exists(path) ? Convert.ToHexString(File.ReadAllBytes(path)) : "none";
                 lines.Add($"{kind} {skin}: {bytes}");
             }

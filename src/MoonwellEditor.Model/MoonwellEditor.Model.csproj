@@ -10,6 +10,12 @@
     <InternalsVisibleTo Include="MoonwellEditor.Model.Tests" />
   </ItemGroup>
 
+  <!-- The map-file types come from Moonwell.MapFiles; ObjectKind is Moonwell's Kind under the name the editor's code uses. -->
+  <ItemGroup>
+    <Using Include="Moonwell.MapFiles" />
+    <Using Alias="ObjectKind" Include="Moonwell.GameData.Kind" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MoonwellEditor.Files\MoonwellEditor.Files.csproj" />
     <ProjectReference Include="..\MoonwellEditor.GameData\MoonwellEditor.GameData.csproj" />

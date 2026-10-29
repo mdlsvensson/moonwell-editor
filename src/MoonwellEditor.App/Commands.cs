@@ -421,7 +421,7 @@ public sealed class Commands
         var counts = new Dictionary<string, int>();
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
-            counts[ObjectKinds.Key(kind)] = session.Tree(kind).Count(entry => entry.BaseId != null);
+            counts[Kinds.Key(kind)] = session.Tree(kind).Count(entry => entry.BaseId != null);
         }
 
         var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(store.Path));
@@ -441,7 +441,7 @@ public sealed class Commands
     private ObjectView ObjectOf(ObjectKind kind, string id) =>
         Map().Object(kind, id)
         ?? throw new CommandException(
-            "noObject", Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id)));
+            "noObject", Texts.Get("app.error.noObject", ("kind", Kinds.Key(kind)), ("id", id)));
 
     private ObjectView SetField(JsonElement args)
     {
@@ -664,7 +664,7 @@ public sealed class Commands
     private static ObjectKind Kind(JsonElement args)
     {
         var key = Text(args, "kind");
-        return ObjectKinds.FromKey(key) ?? throw BadRequest($"There is no kind \"{key}\".");
+        return Kinds.FromKey(key) ?? throw BadRequest($"There is no kind \"{key}\".");
     }
 
     private static string Text(JsonElement args, string name) =>

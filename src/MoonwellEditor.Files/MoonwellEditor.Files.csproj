@@ -5,7 +5,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <!-- The tests stand in a War3Net that cannot write a file back exactly (see ObjectFile.Read). -->
+  <!-- The tests reach into MapArchive (its names, its file replace and the hooks that stand in for failures). -->
   <ItemGroup>
     <InternalsVisibleTo Include="MoonwellEditor.Files.Tests" />
     <InternalsVisibleTo Include="MoonwellEditor.Model.Tests" />
@@ -20,7 +20,15 @@
     <!-- Sven's War3Net fork; 6.1.2-moonwell.4 writes object files back byte for byte. -->
     <PackageReference Include="Moonwell.War3Net.Build.Core" Version="6.1.2-moonwell.4" />
     <!-- Moonwell's game-data reader, for the tables the game reads under a map's data option (DataOptions). -->
-    <PackageReference Include="Moonwell.GameData" Version="$(MoonwellGameDataVersion)" />
+    <PackageReference Include="Moonwell.GameData" Version="$(MoonwellVersion)" />
+    <!-- A map's object files, the seven kinds and the id rules, shared with Moonwell's build. -->
+    <PackageReference Include="Moonwell.MapFiles" Version="$(MoonwellVersion)" />
+  </ItemGroup>
+
+  <!-- The map-file types come from Moonwell.MapFiles; ObjectKind is Moonwell's Kind under the name the editor's code uses. -->
+  <ItemGroup>
+    <Using Include="Moonwell.MapFiles" />
+    <Using Alias="ObjectKind" Include="Moonwell.GameData.Kind" />
   </ItemGroup>
 
 </Project>

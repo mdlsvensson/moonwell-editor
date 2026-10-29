@@ -196,7 +196,7 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
         // Another kind's modification refers to the same entry as h000's name (TRIGSTR_012), spelled differently.
         using var map = TempMap.Of("we-3.0");
         var abilityPath = Path.Combine(map.Folder, "war3map.w3a");
-        var abilities = ObjectFile.Read(ObjectKind.Ability, File.ReadAllBytes(abilityPath));
+        var abilities = ObjectFile.ReadExact(ObjectKind.Ability, File.ReadAllBytes(abilityPath));
         abilities.AddOriginal("AHhb").Set("atp1", 1, 0, new FieldValue.Text("TRIGSTR_12"));
         File.WriteAllBytes(abilityPath, abilities.ToBytes());
         var wts = File.ReadAllBytes(Path.Combine(map.Folder, "war3map.wts"));
@@ -456,7 +456,7 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
         {
             foreach (var skin in new[] { false, true })
             {
-                var path = Path.Combine(map.Folder, (skin ? "war3mapSkin." : "war3map.") + ObjectKinds.Extension(kind));
+                var path = Path.Combine(map.Folder, (skin ? "war3mapSkin." : "war3map.") + Kinds.Extension(kind));
                 Assert.Equal(File.ReadAllBytes(path), session.FileOf(kind, skin)!.ToBytes());
             }
         }
@@ -752,7 +752,7 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
         var session = Session.Open(MapFolder.Open(map.Folder), game);
         foreach (var (kind, id, field, level, spelling) in found)
         {
-            output.WriteLine($"{ObjectKinds.Key(kind)} {id} {field}:{level} = \"{spelling}\"");
+            output.WriteLine($"{Kinds.Key(kind)} {id} {field}:{level} = \"{spelling}\"");
             session.Set(kind, id, field, level, spelling);
             Assert.False(session.Dirty);
             Assert.Equal(0, session.SetCells(kind, [new CellEdit(id, field, level, spelling)]));

@@ -4,7 +4,7 @@ using MoonwellEditor.GameData;
 namespace MoonwellEditor.Model;
 
 /// <summary>An object whose fields name another object (the details panel's Used by).</summary>
-/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="ObjectKinds.Key"/> names it.</param>
+/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="Kinds.Key"/> names it.</param>
 /// <param name="Id">The object's id.</param>
 /// <param name="Name">The object's name, as the tree shows it.</param>
 /// <param name="Fields">The labels of the fields that name the other object, once each, in field order.</param>
@@ -38,7 +38,7 @@ public sealed partial class Session
                 if (!originals.ContainsKey(sourceId))
                 {
                     var standard = data.Object(sourceId)!;
-                    result.Add(new Reference(ObjectKinds.Key(each), sourceId, standard.Name, fields));
+                    result.Add(new Reference(Kinds.Key(each), sourceId, standard.Name, fields));
                 }
             }
 
@@ -54,7 +54,7 @@ public sealed partial class Session
                     .ToList();
                 if (fields.Count > 0)
                 {
-                    result.Add(new Reference(ObjectKinds.Key(each), found.Id, view.Name, fields));
+                    result.Add(new Reference(Kinds.Key(each), found.Id, view.Name, fields));
                 }
             }
         }

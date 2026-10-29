@@ -180,7 +180,7 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
             Assert.NotEmpty(kindData.Objects);
             Assert.NotEmpty(kindData.Fields);
             var counts = $"{kindData.Objects.Count} objects, {kindData.Fields.Count} fields";
-            _output.WriteLine($"{ObjectKinds.Key(kind)}: {counts}");
+            _output.WriteLine($"{Kinds.Key(kind)}: {counts}");
         }
 
         Assert.True(data.Kind(ObjectKind.Unit).Objects.Count > 400);
@@ -396,7 +396,7 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     {
         var kinds = Enum.GetValues<ObjectKind>().Select(kind => new
         {
-            Kind = ObjectKinds.Key(kind),
+            Kind = Kinds.Key(kind),
             data.Kind(kind).LevelField,
             data.Kind(kind).Fields,
             data.Kind(kind).Objects,

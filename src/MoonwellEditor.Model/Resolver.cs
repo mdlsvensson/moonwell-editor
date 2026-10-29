@@ -120,7 +120,7 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
         }
 
         return new ObjectView(
-            ObjectKinds.Key(kind),
+            Kinds.Key(kind),
             id,
             custom ? map!.BaseId : null,
             name,

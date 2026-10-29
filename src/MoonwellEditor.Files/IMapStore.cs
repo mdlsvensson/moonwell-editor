@@ -85,8 +85,8 @@ public static class MapStore
         var names = new List<string>();
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
-            names.Add("war3map." + ObjectKinds.Extension(kind));
-            names.Add("war3mapSkin." + ObjectKinds.Extension(kind));
+            names.Add(Kinds.MainName(kind));
+            names.Add(Kinds.SkinName(kind));
         }
 
         names.Add("war3map.wts");

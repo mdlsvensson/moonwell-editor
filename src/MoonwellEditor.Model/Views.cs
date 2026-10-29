@@ -32,7 +32,7 @@ public sealed record TreeEntry(
     IReadOnlyDictionary<string, string>? IconModes = null);
 
 /// <summary>One object with every field that applies to it, resolved against the map and the standard data.</summary>
-/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="Files.ObjectKinds.Key"/> names it.</param>
+/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="Kinds.Key"/> names it.</param>
 /// <param name="Id">The object's id.</param>
 /// <param name="BaseId">For a custom object, the standard object it is based on; null for a standard object.</param>
 /// <param name="Name">The name: the map's when it changes the name, else the standard one.</param>

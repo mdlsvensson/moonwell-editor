@@ -4,7 +4,7 @@ using MoonwellEditor.GameData;
 namespace MoonwellEditor.Model;
 
 /// <summary>One search result: an object, or a field of a kind.</summary>
-/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="ObjectKinds.Key"/> names it.</param>
+/// <param name="Kind">The kind's key (<c>unit</c>), as <see cref="Kinds.Key"/> names it.</param>
 /// <param name="Id">The object's id, or for a field match the field's id.</param>
 /// <param name="Name">The object's name, or for a field match the field's label.</param>
 /// <param name="Detail">
@@ -61,7 +61,7 @@ internal sealed class SearchIndex
             {
                 _fields.Add(new FieldEntryText(
                     kind,
-                    new Hit(ObjectKinds.Key(kind), field.Id, field.Label, $"{field.Label} · {field.Id}", field.Id),
+                    new Hit(Kinds.Key(kind), field.Id, field.Label, $"{field.Label} · {field.Id}", field.Id),
                     field.Id.ToLowerInvariant(),
                     field.Label.ToLowerInvariant()));
             }
@@ -186,7 +186,7 @@ internal sealed class SearchIndex
 
         return new ObjectEntryText(
             custom,
-            new Hit(ObjectKinds.Key(kind), id, name, detail, null),
+            new Hit(Kinds.Key(kind), id, name, detail, null),
             id.ToLowerInvariant(),
             name.ToLowerInvariant(),
             suffix.ToLowerInvariant(),

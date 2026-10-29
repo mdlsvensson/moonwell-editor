@@ -33,7 +33,7 @@ public sealed partial class Session
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
             var map = _kinds[kind];
-            var key = ObjectKinds.Key(kind);
+            var key = Kinds.Key(kind);
             foreach (var (file, side) in new[] { (map.Main, "main"), (map.Skin, "skin") })
             {
                 foreach (var entry in file?.Custom ?? [])

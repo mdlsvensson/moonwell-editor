@@ -70,7 +70,7 @@ internal static class Cache
         var kinds = new Dictionary<ObjectKind, KindData>();
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
-            if (!file.Kinds.TryGetValue(ObjectKinds.Key(kind), out var cached))
+            if (!file.Kinds.TryGetValue(Kinds.Key(kind), out var cached))
             {
                 return null;
             }
@@ -88,7 +88,7 @@ internal static class Cache
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
             var kindData = data.Kind(kind);
-            kinds[ObjectKinds.Key(kind)] = new CachedKind(
+            kinds[Kinds.Key(kind)] = new CachedKind(
                 kindData.LevelField, kindData.Fields, kindData.Objects, kindData.Effects);
         }
 
@@ -116,7 +116,7 @@ internal static class Cache
         IReadOnlyDictionary<string, ChoiceList> Choices,
         IReadOnlyDictionary<string, CachedKind> Kinds);
 
-    /// <summary>One kind of the cache file, by its <see cref="ObjectKinds.Key"/>.</summary>
+    /// <summary>One kind of the cache file, by its <see cref="Kinds.Key"/>.</summary>
     internal sealed record CachedKind(
         string? LevelField,
         IReadOnlyList<FieldInfo> Fields,

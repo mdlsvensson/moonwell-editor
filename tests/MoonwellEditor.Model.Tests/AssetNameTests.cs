@@ -62,5 +62,5 @@ public sealed class AssetNameTests(GameDataFixture fixture, ITestOutputHelper ou
     }
 
     private string Value(string kind, string id, string key) =>
-        fixture.Data!.Kind(Files.ObjectKinds.FromKey(kind)!.Value).Object(id)!.Values[key];
+        fixture.Data!.Kind(Kinds.FromKey(kind)!.Value).Object(id)!.Values[key];
 }

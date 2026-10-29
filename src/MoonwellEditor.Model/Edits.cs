@@ -80,7 +80,7 @@ public sealed partial class Session
         if (data.Object(baseId) == null)
         {
             throw new EditException(
-                "noObject", Texts.Get("app.error.noStandardObject", ("kind", ObjectKinds.Key(kind)), ("id", baseId)));
+                "noObject", Texts.Get("app.error.noStandardObject", ("kind", Kinds.Key(kind)), ("id", baseId)));
         }
 
         RefuseReadOnly(map, null);
@@ -109,7 +109,7 @@ public sealed partial class Session
         if (data.Object(baseId) == null)
         {
             throw new EditException(
-                "noObject", Texts.Get("app.error.noStandardObject", ("kind", ObjectKinds.Key(kind)), ("id", baseId)));
+                "noObject", Texts.Get("app.error.noStandardObject", ("kind", Kinds.Key(kind)), ("id", baseId)));
         }
 
         return NewId(kind, _kinds[kind], data, baseId, null);
@@ -160,8 +160,8 @@ public sealed partial class Session
             throw new EditException(
                 "noObject",
                 found == null && _game.Kind(kind).Object(id) == null
-                    ? Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id))
-                    : Texts.Get("app.error.notCustom", ("id", id), ("kind", ObjectKinds.Key(kind))));
+                    ? Texts.Get("app.error.noObject", ("kind", Kinds.Key(kind)), ("id", id))
+                    : Texts.Get("app.error.notCustom", ("id", id), ("kind", Kinds.Key(kind))));
         }
 
         RefuseReadOnly(map, found);
@@ -263,7 +263,7 @@ public sealed partial class Session
         if (info == null || standard == null || !data.Applies(info, standard))
         {
             throw new EditException(
-                "noField", Texts.Get("app.error.noField", ("kind", ObjectKinds.Key(kind)), ("id", id), ("field", field)));
+                "noField", Texts.Get("app.error.noField", ("kind", Kinds.Key(kind)), ("id", id), ("field", field)));
         }
 
         if (info.PerLevel)
@@ -299,7 +299,7 @@ public sealed partial class Session
         if (standard == null && found is not { Custom: true })
         {
             throw new EditException(
-                "noObject", Texts.Get("app.error.noObject", ("kind", ObjectKinds.Key(kind)), ("id", id)));
+                "noObject", Texts.Get("app.error.noObject", ("kind", Kinds.Key(kind)), ("id", id)));
         }
 
         return (map, data, found, standard == null ? null : data.ByOwnId(standard, id));
@@ -563,7 +563,7 @@ public sealed partial class Session
 
         var file = FileFor(edit, target.Map, target.Kind, skin);
         var entry = EntryFor(edit, file, target);
-        var pointer = ObjectKinds.HasLevels(target.Kind) ? target.Field.Pointer : 0;
+        var pointer = Kinds.HasLevels(target.Kind) ? target.Field.Pointer : 0;
         var mod = entry.Set(target.Field.Id, target.Level, pointer, value);
         var index = IndexOf(entry.Mods, mod);
         edit.Done(new Step(() => entry.Insert(index, mod), () => entry.Remove(mod)));
@@ -681,7 +681,7 @@ public sealed partial class Session
             if (taken.Contains(id))
             {
                 throw new EditException(
-                    "idTaken", Texts.Get("app.error.idTaken", ("id", id), ("kind", ObjectKinds.Key(kind))));
+                    "idTaken", Texts.Get("app.error.idTaken", ("id", id), ("kind", Kinds.Key(kind))));
             }
 
             return id;

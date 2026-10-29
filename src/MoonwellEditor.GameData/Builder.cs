@@ -91,13 +91,13 @@ internal static class Builder
         lists["destructableCategory"] = OwnList(tables, false, DestructableCategories);
         lists["doodadCategory"] = OwnList(tables, false, DoodadCategories);
 
-        var kinds = new Dictionary<ObjectKind, KindData>();
+        var kinds = new Dictionary<Kind, KindData>();
         foreach (var kind in Enum.GetValues<Kind>())
         {
             var fields = Fields.WithStandardNegatives(fieldsOf[kind], objectsOf[kind])
                 .Select(field => field.Choice == null ? field : field with { Choice = choices[field.Choice.Type] })
                 .ToList();
-            kinds[KindOf(kind)] = KindDataOf(
+            kinds[kind] = KindDataOf(
                 tables,
                 kind,
                 fields,
@@ -108,19 +108,6 @@ internal static class Builder
 
         return new GameData(source, tables.Build?.Version, kinds, lists);
     }
-
-    /// <summary>The kind as the Object Editor names it.</summary>
-    public static ObjectKind KindOf(Kind kind) => kind switch
-    {
-        Kind.Unit => ObjectKind.Unit,
-        Kind.Item => ObjectKind.Item,
-        Kind.Destructable => ObjectKind.Destructable,
-        Kind.Doodad => ObjectKind.Doodad,
-        Kind.Ability => ObjectKind.Ability,
-        Kind.Buff => ObjectKind.Buff,
-        Kind.Upgrade => ObjectKind.Upgrade,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
-    };
 
     private static KindData KindDataOf(
         GameTables tables,
@@ -138,7 +125,6 @@ internal static class Builder
 
         var infos = fields.Select(field => Info(field, meta[field.Id])).ToList();
         var levelField = fields.FirstOrDefault(field => field.Name == LevelCountName)?.Id;
-        var objectKind = KindOf(kind);
         var infoOf = infos.ToDictionary(info => info.Id, StringComparer.Ordinal);
         var baseTable = tables.Objects(kind, null);
         var baseRows = Index(baseTable);
@@ -154,11 +140,11 @@ internal static class Builder
         {
             var obj = objects[index];
             var rows = PrimaryRows(tables, kind, obj, baseRows, setRows);
-            var standard = Object(tables, objectKind, obj, rows, infoOf, unitUi.GetValueOrDefault(obj.Id));
+            var standard = Object(tables, kind, obj, rows, infoOf, unitUi.GetValueOrDefault(obj.Id));
             result.Add(standard with { Row = places.TryGetValue(obj.Id, out var place) ? place : baseTable.Count + index });
         }
 
-        return new KindData(objectKind, levelField, infos, result, effects);
+        return new KindData(kind, levelField, infos, result, effects);
     }
 
     private static FieldInfo Info(Field field, MetaRow meta)
@@ -231,7 +217,7 @@ internal static class Builder
 
     private static StandardObject Object(
         GameTables tables,
-        ObjectKind kind,
+        Kind kind,
         MoonwellObject obj,
         ObjectRows rows,
         Dictionary<string, FieldInfo> infos,
@@ -244,13 +230,13 @@ internal static class Builder
         var special = (ui?.GetValueOrDefault("special") ?? Clean(Read(rows, "special"))) == "1";
         var categoryColumn = kind switch
         {
-            ObjectKind.Item => "class",
-            ObjectKind.Destructable or ObjectKind.Doodad => "category",
-            ObjectKind.Ability => "sort",
-            ObjectKind.Buff => "isEffect",
+            Kind.Item => "class",
+            Kind.Destructable or Kind.Doodad => "category",
+            Kind.Ability => "sort",
+            Kind.Buff => "isEffect",
             _ => null,
         };
-        var category = kind == ObjectKind.Unit ? ui?.GetValueOrDefault("unitClass") ?? ""
+        var category = kind == Kind.Unit ? ui?.GetValueOrDefault("unitClass") ?? ""
             : categoryColumn == null ? ""
             : Clean(Read(rows, categoryColumn)) ?? "";
         // World Editor leaves out the abilities whose useInEditor is 0 and the units whose hiddenInEditor is 1 (the
@@ -259,15 +245,15 @@ internal static class Builder
         // the names (World Editor's screens, 2026-10-27).
         var hidden = kind switch
         {
-            ObjectKind.Ability => Clean(Read(rows, "useInEditor")) == "0",
-            ObjectKind.Unit => ui?.GetValueOrDefault("hiddenInEditor") == "1",
+            Kind.Ability => Clean(Read(rows, "useInEditor")) == "0",
+            Kind.Unit => ui?.GetValueOrDefault("hiddenInEditor") == "1",
             _ => false,
         };
-        var hostile = kind == ObjectKind.Unit && ui?.GetValueOrDefault("hostilePal") == "1";
+        var hostile = kind == Kind.Unit && ui?.GetValueOrDefault("hostilePal") == "1";
         var sortColumn = kind switch
         {
-            ObjectKind.Buff => "sort",
-            ObjectKind.Destructable or ObjectKind.Doodad => "doodClass",
+            Kind.Buff => "sort",
+            Kind.Destructable or Kind.Doodad => "doodClass",
             _ => null,
         };
         // Kept as written: a doodClass of _ (most of them) comes after A and B.
@@ -304,12 +290,12 @@ internal static class Builder
 
     /// <summary>
     /// Moonwell's values per graphics mode (<see cref="MoonwellObject.Modes"/>), of the fields that apply to the object
-    /// by <see cref="KindData.Applies(ObjectKind, FieldInfo, StandardObject)"/>.
+    /// by <see cref="KindData.Applies(Kind, FieldInfo, StandardObject)"/>.
     /// </summary>
     private static Dictionary<string, IReadOnlyDictionary<string, string>> Modes(
         MoonwellObject obj,
         StandardObject standard,
-        ObjectKind kind,
+        Kind kind,
         Dictionary<string, FieldInfo> infos)
     {
         var modes = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);

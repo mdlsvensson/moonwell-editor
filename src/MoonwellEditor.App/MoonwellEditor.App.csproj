@@ -14,6 +14,12 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>
 
+  <!-- The map-file types come from Moonwell.MapFiles; ObjectKind is Moonwell's Kind under the name the editor's code uses. -->
+  <ItemGroup>
+    <Using Include="Moonwell.MapFiles" />
+    <Using Alias="ObjectKind" Include="Moonwell.GameData.Kind" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MoonwellEditor.Assets\MoonwellEditor.Assets.csproj" />
     <ProjectReference Include="..\MoonwellEditor.GameData\MoonwellEditor.GameData.csproj" />

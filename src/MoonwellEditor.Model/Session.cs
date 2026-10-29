@@ -97,7 +97,7 @@ public sealed partial class Session
     /// values as they are.
     /// </summary>
     public static Session Open(IMapStore map, GameData.GameData game) =>
-        Open(map, game, (kind, bytes, name) => ObjectFile.Read(kind, bytes, name));
+        Open(map, game, (kind, bytes, name) => ObjectFile.ReadExact(kind, bytes, name));
 
     /// <summary>
     /// <see cref="Open(IMapStore, GameData.GameData)"/> with the object files read by <paramref name="read"/>, which
@@ -126,8 +126,8 @@ public sealed partial class Session
         var unreadable = false;
         foreach (var kind in Enum.GetValues<ObjectKind>())
         {
-            var mainName = "war3map." + ObjectKinds.Extension(kind);
-            var skinName = "war3mapSkin." + ObjectKinds.Extension(kind);
+            var mainName = Kinds.MainName(kind);
+            var skinName = Kinds.SkinName(kind);
             baseline[mainName] = map.Read(mainName);
             baseline[skinName] = map.Read(skinName);
             var kindProblems = new List<string>();
