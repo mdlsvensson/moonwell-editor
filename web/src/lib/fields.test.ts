@@ -6,6 +6,7 @@ import {
   buttonPair,
   type Category,
   groupFields,
+  isTypedId,
   type Lookup,
   listIds,
   listKinds,
@@ -319,6 +320,15 @@ describe("the value shown", () => {
 
   it("is the value for any other field", () => {
     expect(show({ type: "int", value: "420" })).toBe("420");
+  });
+});
+
+describe("a typed object id", () => {
+  it("is four characters from ! to ~ except the comma, which the game splits a list at", () => {
+    for (const id of ["A000", "A00!", "A~#%", "A+-.", "A+0~", "a!!!"])
+      expect(isTypedId(id)).toBe(true);
+    for (const id of ["A0,0", ",000", "A00,", "A00 ", "A00å", "A00!!", "A00", ""])
+      expect(isTypedId(id)).toBe(false);
   });
 });
 

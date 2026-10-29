@@ -277,9 +277,12 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
         using var map = TempMap.Of("we-3.0");
         var session = Session.Open(MapFolder.Open(map.Folder), game);
 
-        // An id is four characters from ! to ~ (Moonwell.MapFiles' ObjectIds); a space or a letter past ASCII is not one.
+        // An id is four characters from ! to ~ (Moonwell.MapFiles' ObjectIds); a space, a letter past ASCII and the comma
+        // (the game splits a unit's ability list at it) are not.
         Assert.Equal("A00!", session.Create(ObjectKind.Ability, "AHhb", "A00!"));
         Assert.Equal("A~#%", session.Create(ObjectKind.Ability, "AHhb", "A~#%"));
+        Assert.Equal("A+-.", session.Create(ObjectKind.Ability, "AHhb", "A+-."));
+        Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A0,0")));
         Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00 ")));
         Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00å")));
         Assert.Equal("idInvalid", Refused(() => session.Create(ObjectKind.Ability, "AHhb", "A00!!")));

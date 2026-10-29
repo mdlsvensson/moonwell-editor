@@ -368,6 +368,14 @@ function choiceText(list: ChoiceList, value: string): string {
   return listIds(value).map(label).join(", ");
 }
 
+/**
+ * Whether a typed id can be used: four characters from ! to ~, none of them a comma. The game splits a list field at
+ * the comma, so an id with one is lost in a unit's ability list (Sven, 2026-10-29).
+ */
+export function isTypedId(id: string): boolean {
+  return /^[\x21-\x2B\x2D-\x7E]{4}$/.test(id);
+}
+
 /** The ids of an object list (a comma list), trimmed, with empty ones left out. */
 export function listIds(value: string): string[] {
   return value

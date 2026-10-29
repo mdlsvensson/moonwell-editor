@@ -45,7 +45,7 @@ import { BridgeError, call, on } from "./lib/bridge.ts";
 import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
 import Details from "./lib/Details.svelte";
 import Dialog from "./lib/Dialog.svelte";
-import { type Lookup, listKinds } from "./lib/fields.ts";
+import { isTypedId, type Lookup, listKinds } from "./lib/fields.ts";
 import { chooseGameData, type GameDataState, gameData, newer, viewOf } from "./lib/gameData.ts";
 import { graphics, viewInMode } from "./lib/graphics.svelte.ts";
 import KindBar from "./lib/KindBar.svelte";
@@ -602,13 +602,13 @@ async function startNew(): Promise<void> {
 }
 
 /**
- * Why an id typed for a new object cannot be used, as it is typed: not four characters from ! to ~, or another object of
- * the kind has it; null when it can (or is empty, which takes the next free id).
+ * Why an id typed for a new object cannot be used, as it is typed: not four characters from ! to ~ without a comma, or
+ * another object of the kind has it; null when it can (or is empty, which takes the next free id).
  */
 function idProblem(each: Kind, typed: string): string | null {
   const id = typed.trim();
   if (id === "") return null;
-  if (!/^[!-~]{4}$/.test(id)) return t("notice.idInvalid");
+  if (!isTypedId(id)) return t("notice.idInvalid");
   const taken = trees[each]?.find((entry) => entry.id === id);
   return taken ? t("notice.idTaken", { id, name: taken.name || id }) : null;
 }
