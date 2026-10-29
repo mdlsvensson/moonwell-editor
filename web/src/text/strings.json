@@ -124,6 +124,7 @@
   "app.map.nothingAt": "There is no map folder or archive at {path}.",
   "app.map.setCount": "The record of {id} in {file} has a set count of {count}; only a set count of 1 can be edited.",
   "app.map.stringsReadOnly": "{problem} Edited text goes into the object files instead.",
+  "app.mapView.startLocation": "Player {player}'s start location",
   "app.mapView.unreadable": "{name} could not be read: {reason}",
   "app.name": "Moonwell Editor",
   "app.options.custom": "Custom",
