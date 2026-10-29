@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutPieces, ddsInfo, pieceRect } from "./textures.ts";
+import { cutPieces, ddsInfo, pieceRect, twoChannels } from "./textures.ts";
 
 /** A DDS file's header with room for its largest image, as Lords_Dirt.dds has it: 512 by 256 DXT5. */
 function dds(width: number, height: number, fourCC: string, mipmaps = 1): Uint8Array {
@@ -80,5 +80,13 @@ describe("cutPieces", () => {
     const blocks = new Uint8Array(16 * 16).map((_, i) => Math.floor(i / 16));
     const cut = cutPieces(blocks, 16, 16, 16, false);
     expect(Array.from(cut.subarray(5 * 16, 6 * 16))).toEqual(new Array(16).fill(5));
+  });
+});
+
+describe("twoChannels", () => {
+  it("spreads a two-channel image (an ATI2 normal map, decoded) to red, green, a full blue and alpha", () => {
+    // dds-parser leaves the pixels' red and green bytes packed at the front of a four-byte-a-pixel buffer.
+    const packed = new Uint8Array([10, 20, 30, 40, 0, 0, 0, 0]);
+    expect(Array.from(twoChannels(packed, 2))).toEqual([10, 20, 255, 255, 30, 40, 255, 255]);
   });
 });

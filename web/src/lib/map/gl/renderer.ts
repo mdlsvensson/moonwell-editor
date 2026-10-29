@@ -4,7 +4,7 @@
  * first; each that arrives asks for the scene to be drawn again.
  */
 import { mat4 } from "gl-matrix";
-import { matrices, type View } from "../camera.ts";
+import { eye, matrices, type View } from "../camera.ts";
 import { colourToNumber } from "../picking.ts";
 import type { MapScene, PlacedThing, Terrain, ThingKind } from "../scene.ts";
 import { type Batch, cliffBatches, thingBatches } from "./batches.ts";
@@ -14,7 +14,7 @@ import { MarkerLayer } from "./markers.ts";
 import { MarksLayer } from "./marks.ts";
 import { makeGroundTexture, makeTexture } from "./textures.ts";
 import { ModelLayer } from "./things.ts";
-import { WaterLayer } from "./water.ts";
+import { ripplesPath, WaterLayer } from "./water.ts";
 
 /** Which layers show: the kinds of placed thing, the regions and the cameras. */
 export type Layers = { kinds: ReadonlySet<ThingKind>; regions: boolean; cameras: boolean };
@@ -101,7 +101,7 @@ export class MapRenderer {
     this.things.draw(viewProjection, this.unitLight, false, this.shown);
     this.markers.draw(viewProjection);
     this.marks.draw(viewProjection, this.layers.regions, this.layers.cameras);
-    this.water.draw(viewProjection);
+    this.water.draw(viewProjection, this.terrainLight, eye(view));
     gl.disable(gl.DEPTH_TEST);
     this.highlight.draw(viewProjection);
     gl.enable(gl.DEPTH_TEST);
@@ -227,9 +227,18 @@ export class MapRenderer {
       }),
       (async () => {
         const data = await this.bytes(this.water.framePath);
-        const frame = data && !this.stopped ? makeTexture(this.gl, data) : null;
+        const frame = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
         if (frame) {
           this.water.setFrame(frame);
+          this.changed();
+        }
+      })(),
+      (async () => {
+        if (!this.terrainLight.pbr) return;
+        const data = await this.bytes(ripplesPath);
+        const ripples = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
+        if (ripples) {
+          this.water.setRipples(ripples);
           this.changed();
         }
       })(),

@@ -49,21 +49,26 @@ export function lighting(light: SceneLight, sky: readonly number[], lit: Lit): L
 /** The uniforms `litGlsl` reads. */
 export const lightingUniforms = ["lightToward", "lightColour", "lightAmbient", "sky", "pbr"];
 
-/** `vec3 lit(vec3 rgb, vec3 normal)`: an sRGB colour lit on a surface facing `normal`. */
+/**
+ * `vec3 lit(vec3 rgb, vec3 normal)`: an sRGB colour lit on a surface facing `normal`; and `vec3 skyAt(vec3 d)`: the
+ * sky seen along a unit vector, linear (each face's colour by how much `d` points at it).
+ */
 export const litGlsl = `
 uniform vec3 lightToward;
 uniform vec3 lightColour;
 uniform vec3 lightAmbient;
 uniform vec3 sky[6];
 uniform bool pbr;
+vec3 skyAt(vec3 d) {
+  vec3 d2 = d * d;
+  return d2.x * (d.x >= 0.0 ? sky[0] : sky[1]) + d2.y * (d.y >= 0.0 ? sky[2] : sky[3])
+    + d2.z * (d.z >= 0.0 ? sky[4] : sky[5]);
+}
 vec3 lit(vec3 rgb, vec3 normal) {
   vec3 n = normalize(normal);
   float facing = max(dot(n, lightToward), 0.0);
   if (!pbr) return rgb * clamp(lightAmbient + lightColour * facing, 0.0, 1.0);
-  vec3 n2 = n * n;
-  vec3 ambient = n2.x * (n.x >= 0.0 ? sky[0] : sky[1]) + n2.y * (n.y >= 0.0 ? sky[2] : sky[3])
-    + n2.z * (n.z >= 0.0 ? sky[4] : sky[5]);
-  vec3 light = lightColour * facing + ambient + lightAmbient;
+  vec3 light = lightColour * facing + skyAt(n) + lightAmbient;
   return pow(pow(rgb, vec3(2.2)) * light, vec3(1.0 / 2.2));
 }`;
 

@@ -1,12 +1,18 @@
 /**
  * The water: a sheet over every tile with water at any of its corners, at the water's surface (a corner without water
  * takes the highest surface of the tile's others), coloured by its depth over the ground between the tileset's shallow
- * and deep colours (*claim*, HiveWE: shallow from 10 to 64 deep, deep from 64 to 72), and drawn in the first frame of
- * the water texture.
+ * and deep colours (*claim*, HiveWE: shallow from 10 to 64 deep, deep from 64 to 72). Classic draws the first frame of
+ * the water texture, a tile a frame. HD and Definitive Edition have no such picture of their water (the view's own
+ * look, by eye to World Editor's): the deep colour lit by the sky, the sky reflected the more the slanter it is seen,
+ * the sun's glint, rippled by the game's water normal map, and more opaque.
  */
-import type { mat4 } from "gl-matrix";
+import type { mat4, vec3 } from "gl-matrix";
 import type { Terrain, WaterLook } from "../scene.ts";
+import { type Lighting, lightingUniforms, litGlsl, setLighting } from "./lighting.ts";
 import { argb, floatTexture, plainTexture, program } from "./program.ts";
+
+/** The game's water normal map (HD and Definitive Edition), two channels. */
+export const ripplesPath = "ReplaceableTextures\\Water\\Water_Normal.blp";
 
 /** What the shader reads for a corner without water. */
 const none = -1e9;
@@ -28,6 +34,7 @@ uniform vec4 deepMin;
 uniform vec4 deepMax;
 out vec2 uv;
 out vec4 tint;
+out vec3 world;
 void main() {
   int across = size.x - 1;
   ivec2 at = ivec2(int(tile) % across, int(tile) / across);
@@ -43,18 +50,36 @@ void main() {
   } else {
     tint = mix(deepMin, deepMax, clamp(depth - 64.0, 0.0, 8.0) / 8.0);
   }
-  uv = vec2(corner.x, 1.0 - corner.y);
-  gl_Position = viewProjection * vec4(origin + vec2(c) * 128.0, z, 1.0);
+  world = vec3(origin + vec2(c) * 128.0, z);
+  uv = vec2(world.x, -world.y) / 128.0;
+  gl_Position = viewProjection * vec4(world, 1.0);
 }`;
 
 const fragment = `#version 300 es
 precision highp float;
 in vec2 uv;
 in vec4 tint;
+in vec3 world;
 uniform sampler2D frame;
+uniform sampler2D ripples;
+uniform vec3 eye;
 out vec4 color;
+${litGlsl}
 void main() {
-  color = texture(frame, uv) * tint;
+  if (!pbr) {
+    color = texture(frame, uv) * tint;
+    return;
+  }
+  vec2 slope = texture(ripples, world.xy / 384.0).rg * 2.0 - 1.0;
+  vec3 n = normalize(vec3(slope * 1.2, 1.0));
+  vec3 v = normalize(eye - world);
+  vec3 r = reflect(-v, n);
+  float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+  float facing = max(dot(n, lightToward), 0.0);
+  vec3 body = pow(tint.rgb, vec3(2.2)) * (skyAt(vec3(0.0, 0.0, 1.0)) * 0.6 + lightColour * facing * 1.4) * 0.1;
+  vec3 glint = lightColour * pow(max(dot(r, lightToward), 0.0), 200.0) * 0.25;
+  vec3 rgb = mix(body, skyAt(r) * 0.6, fresnel) + glint;
+  color = vec4(pow(rgb, vec3(1.0 / 2.2)), clamp(0.3 + tint.a, 0.0, 0.93));
 }`;
 
 export class WaterLayer {
@@ -66,6 +91,7 @@ export class WaterLayer {
   private readonly count: number;
   private readonly uniforms: Record<string, WebGLUniformLocation | null>;
   private frame: WebGLTexture;
+  private ripples: WebGLTexture;
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -85,6 +111,9 @@ export class WaterLayer {
         "deepMin",
         "deepMax",
         "frame",
+        "ripples",
+        "eye",
+        ...lightingUniforms,
       ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
     );
     const { columns, rows } = terrain;
@@ -92,6 +121,7 @@ export class WaterLayer {
     this.surface = floatTexture(gl, columns, rows, surface);
     this.heights = floatTexture(gl, columns, rows, terrain.ground);
     this.frame = plainTexture(gl, [255, 255, 255, 255]);
+    this.ripples = plainTexture(gl, [128, 128, 255, 255]);
 
     const tiles: number[] = [];
     for (let row = 0; row < rows - 1; row++) {
@@ -132,7 +162,14 @@ export class WaterLayer {
     this.frame = frame;
   }
 
-  draw(viewProjection: mat4): void {
+  /** The water normal map, once it has loaded (HD and Definitive Edition). */
+  setRipples(ripples: WebGLTexture): void {
+    this.gl.deleteTexture(this.ripples);
+    this.ripples = ripples;
+  }
+
+  /** Draws the water lit by the terrain's light, seen from `eye` (the camera's place). */
+  draw(viewProjection: mat4, light: Lighting, eye: vec3): void {
     if (this.count === 0) return;
     const { gl, terrain, look } = this;
     gl.useProgram(this.program);
@@ -144,6 +181,8 @@ export class WaterLayer {
     gl.uniform4fv(this.uniforms.shallowMax ?? null, argb(look.shallowMax));
     gl.uniform4fv(this.uniforms.deepMin ?? null, argb(look.deepMin));
     gl.uniform4fv(this.uniforms.deepMax ?? null, argb(look.deepMax));
+    gl.uniform3fv(this.uniforms.eye ?? null, eye);
+    setLighting(gl, this.uniforms, light);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.surface);
     gl.uniform1i(this.uniforms.surface ?? null, 0);
@@ -153,6 +192,9 @@ export class WaterLayer {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.frame);
     gl.uniform1i(this.uniforms.frame ?? null, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.ripples);
+    gl.uniform1i(this.uniforms.ripples ?? null, 3);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
@@ -167,6 +209,7 @@ export class WaterLayer {
     gl.deleteTexture(this.surface);
     gl.deleteTexture(this.heights);
     gl.deleteTexture(this.frame);
+    gl.deleteTexture(this.ripples);
     gl.deleteVertexArray(this.vao);
     gl.deleteProgram(this.program);
   }

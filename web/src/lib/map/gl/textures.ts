@@ -1,7 +1,8 @@
 /**
  * The map view's textures: the game's DDS files go to the graphics card still compressed where WebGL takes their
- * compression (DXT1, DXT3, DXT5 through WEBGL_compressed_texture_s3tc), with the mipmaps the file holds; any other DDS
- * is decoded here, and so is a BLP (war3-model's decoder).
+ * compression (DXT1, DXT3, DXT5 through WEBGL_compressed_texture_s3tc; ATI2, an HD normal map's two channels, through
+ * EXT_texture_compression_rgtc), with the mipmaps the file holds; any other DDS is decoded here, and so is a BLP
+ * (war3-model's decoder).
  */
 import { decodeDds, parseHeaders } from "dds-parser";
 import { decodeBLP, getBLPImageData } from "war3-model";
@@ -227,15 +228,35 @@ function arrayFilter(gl: WebGL2RenderingContext): void {
   }
 }
 
-/** A texture made from a file's bytes, with mipmaps; null when they cannot be read. */
-export function makeTexture(gl: WebGL2RenderingContext, data: ArrayBuffer): WebGLTexture | null {
+/**
+ * A two-channel image as dds-parser decodes it (each pixel's red and green bytes packed at the front of a buffer of
+ * four bytes a pixel) spread to red, green, a full blue and a full alpha.
+ */
+export function twoChannels(packed: Uint8Array, pixels: number): Uint8Array {
+  const out = new Uint8Array(pixels * 4).fill(255);
+  for (let pixel = 0; pixel < pixels; pixel++) {
+    out[pixel * 4] = packed[pixel * 2] ?? 0;
+    out[pixel * 4 + 1] = packed[pixel * 2 + 1] ?? 0;
+  }
+  return out;
+}
+
+/**
+ * A texture made from a file's bytes, with mipmaps; null when they cannot be read. It repeats past its edges when
+ * `repeat` (a texture tiled across the world, the water's), else stops at them.
+ */
+export function makeTexture(
+  gl: WebGL2RenderingContext,
+  data: ArrayBuffer,
+  repeat = false,
+): WebGLTexture | null {
   const bytes = new Uint8Array(data);
   const head = String.fromCharCode(...bytes.subarray(0, 4));
-  if (head === "DDS ") return ddsTexture(gl, bytes);
+  if (head === "DDS ") return ddsTexture(gl, bytes, repeat);
   if (head.startsWith("BLP")) {
     try {
       const top = getBLPImageData(decodeBLP(data), 0);
-      return rgbaTexture(gl, top.width, top.height, new Uint8Array(top.data.buffer));
+      return rgbaTexture(gl, top.width, top.height, new Uint8Array(top.data.buffer), repeat);
     } catch {
       return null;
     }
@@ -243,20 +264,23 @@ export function makeTexture(gl: WebGL2RenderingContext, data: ArrayBuffer): WebG
   return null;
 }
 
-function ddsTexture(gl: WebGL2RenderingContext, bytes: Uint8Array): WebGLTexture | null {
+function ddsTexture(
+  gl: WebGL2RenderingContext,
+  bytes: Uint8Array,
+  repeat: boolean,
+): WebGLTexture | null {
   const info = ddsInfo(bytes);
   const top = info?.images[0];
   if (!info || !top) return null;
   const s3tc = gl.getExtension("WEBGL_compressed_texture_s3tc");
-  const format =
-    s3tc &&
-    {
-      dxt1: s3tc.COMPRESSED_RGBA_S3TC_DXT1_EXT,
-      dxt3: s3tc.COMPRESSED_RGBA_S3TC_DXT3_EXT,
-      dxt5: s3tc.COMPRESSED_RGBA_S3TC_DXT5_EXT,
-      ati2: undefined,
-      other: undefined,
-    }[info.format];
+  const rgtc = gl.getExtension("EXT_texture_compression_rgtc");
+  const format = {
+    dxt1: s3tc?.COMPRESSED_RGBA_S3TC_DXT1_EXT,
+    dxt3: s3tc?.COMPRESSED_RGBA_S3TC_DXT3_EXT,
+    dxt5: s3tc?.COMPRESSED_RGBA_S3TC_DXT5_EXT,
+    ati2: rgtc?.COMPRESSED_RED_GREEN_RGTC2_EXT,
+    other: undefined,
+  }[info.format];
   if (format) {
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -274,18 +298,21 @@ function ddsTexture(gl: WebGL2RenderingContext, bytes: Uint8Array): WebGLTexture
       );
     }
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, levels - 1);
-    filter(gl);
+    filter(gl, repeat);
     return texture;
   }
   if (info.format === "other") return null;
   try {
-    const pixels = decodeDds(
-      bytes.subarray(top.offset, top.offset + top.length),
-      info.format,
-      top.width,
-      top.height,
+    const pixels = new Uint8Array(
+      decodeDds(
+        bytes.subarray(top.offset, top.offset + top.length),
+        info.format,
+        top.width,
+        top.height,
+      ).buffer,
     );
-    return rgbaTexture(gl, top.width, top.height, new Uint8Array(pixels.buffer));
+    const rgba = info.format === "ati2" ? twoChannels(pixels, top.width * top.height) : pixels;
+    return rgbaTexture(gl, top.width, top.height, rgba, repeat);
   } catch {
     return null;
   }
@@ -296,31 +323,37 @@ function rgbaTexture(
   width: number,
   height: number,
   pixels: Uint8Array,
+  repeat: boolean,
 ): WebGLTexture {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
   gl.generateMipmap(gl.TEXTURE_2D);
-  filter(gl);
+  filter(gl, repeat);
   return texture;
 }
 
-function filter(gl: WebGL2RenderingContext): void {
+function filter(gl: WebGL2RenderingContext, repeat: boolean): void {
+  const wrap = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
 }
 
-/** The texture of a game file, fetched from the asset host; null when there is none or it cannot be read. */
+/**
+ * The texture of a game file, fetched from the asset host (repeating past its edges when `repeat`); null when there is
+ * none or it cannot be read.
+ */
 export async function loadTexture(
   gl: WebGL2RenderingContext,
   url: string,
+  repeat = false,
 ): Promise<WebGLTexture | null> {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
-    return makeTexture(gl, await response.arrayBuffer());
+    return makeTexture(gl, await response.arrayBuffer(), repeat);
   } catch {
     return null;
   }
