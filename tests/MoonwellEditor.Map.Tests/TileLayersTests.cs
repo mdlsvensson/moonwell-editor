@@ -1,4 +1,3 @@
-using Moonwell.GameData;
 using War3Net.Build.Environment;
 
 namespace MoonwellEditor.Map.Tests;
@@ -80,7 +79,7 @@ public sealed class TileLayersTests(ITestOutputHelper output)
         terrain.CliffTypes.Add(CliffType.L_Dirt);
         terrain.At(1, 1).CliffLevel = 3;
 
-        var layers = TileLayers.From(terrain, Textures(extended: false), Cliffs.Of(terrain, new NoFiles(), "sd").Tiles)
+        var layers = TileLayers.From(terrain, Textures(extended: false), Cliffs.Of(terrain, new NoGameFiles(), "sd").Tiles)
             .At(0, 0);
 
         Assert.Equal([new TileLayer(3, 0)], layers); // the cliff type's ground tile is texture 3
@@ -131,15 +130,5 @@ public sealed class TileLayersTests(ITestOutputHelper output)
         4,
         [3]);
 
-    private static CliffTiles Flat(MapEnvironment terrain) => Cliffs.Of(terrain, new NoFiles(), "sd").Tiles;
-
-    // An install with no files at all.
-    private sealed class NoFiles : IMapGameFiles
-    {
-        public byte[]? File(string path, string mode) => null;
-
-        public IReadOnlyList<string> List(string folder, string mode, string extension) => [];
-
-        public IReadOnlyList<MetaRow>? Table(string relative) => null;
-    }
+    private static CliffTiles Flat(MapEnvironment terrain) => Cliffs.Of(terrain, new NoGameFiles(), "sd").Tiles;
 }

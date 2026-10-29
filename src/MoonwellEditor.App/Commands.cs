@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MoonwellEditor.Files;
+using MoonwellEditor.Map;
 using MoonwellEditor.Model;
 using ChoiceList = MoonwellEditor.GameData.ChoiceList;
 using Data = MoonwellEditor.GameData.GameData;
@@ -132,6 +133,9 @@ public sealed class Commands
     // The open map; null until one is opened.
     private IMapStore? _store;
     private Session? _session;
+
+    // The terrain bytes of the last map scene, for the page's /terrain request; null before one.
+    private TerrainCopy? _terrain;
 
     /// <summary>Makes the commands.</summary>
     /// <param name="settings">Where the Warcraft III folder chosen is remembered.</param>
@@ -352,6 +356,7 @@ public sealed class Commands
             "frameColors" => FrameColors(Text(args, "surface"), Text(args, "border")),
             "uiScale" => UiScale(Number(args, "percent")),
             "assetList" => AssetsOf(Text(args, "kind"), OptionalText(args, "mode") ?? "de"),
+            "mapScene" => MapSceneOf(OptionalText(args, "mode") ?? "de"),
             _ => throw new UnknownCommandException(command),
         };
 
@@ -404,6 +409,7 @@ public sealed class Commands
         var store = MapStore.Open(path);
         var session = Session.Open(store, data);
         _store = store;
+        _terrain = null;
         Assets?.MapChanged();
         _session = session;
         try
@@ -423,6 +429,7 @@ public sealed class Commands
         var session = Map();
         RefuseUnsaved(discard, "app.error.unsavedReload");
         session.Reload();
+        _terrain = null;
         Assets?.MapChanged();
         return Changed(Info(_store!, session));
     }
@@ -650,6 +657,28 @@ public sealed class Commands
             : new AssetList(assets.Ready, assets.Error, assets.Folder, assets.List(kind, mode));
     }
 
+    /// <summary>
+    /// The terrain bytes of the last <c>mapScene</c> in <paramref name="mode"/> (see <c>TerrainBytes</c>); null before
+    /// one, or after a map was opened since.
+    /// </summary>
+    public byte[]? Terrain(string mode) => Volatile.Read(ref _terrain) is { } copy && copy.Mode == mode ? copy.Bytes : null;
+
+    // The map view's scene of the open map in a graphics mode, its terrain kept for the page's /terrain request. It
+    // reads the map and writes nothing.
+    private MapSceneView MapSceneOf(string mode)
+    {
+        var session = Map();
+        if (mode is not ("sd" or "hd" or "de"))
+        {
+            throw BadRequest($"The graphics mode {mode} is not sd, hd or de.");
+        }
+
+        var assets = Assets ?? throw new CommandException("noAssets", Texts.Get("app.assets.none"));
+        var (view, terrain) = MapScene.Build(_store!, session, assets, mode);
+        Volatile.Write(ref _terrain, new TerrainCopy(mode, terrain));
+        return view;
+    }
+
     private object? UiScale(int percent)
     {
         if (Array.IndexOf(UiScales, percent) < 0)
@@ -846,3 +875,8 @@ public sealed class Commands
         });
     }
 }
+
+/// <summary>A map scene's terrain bytes and the graphics mode they were built in.</summary>
+/// <param name="Mode">The graphics mode.</param>
+/// <param name="Bytes">The bytes.</param>
+internal sealed record TerrainCopy(string Mode, byte[] Bytes);

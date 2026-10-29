@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Moonwell.GameData;
 using MoonwellEditor.Assets;
 using MoonwellEditor.Files;
+using MoonwellEditor.Map;
 
 namespace MoonwellEditor.App;
 
@@ -9,9 +10,9 @@ namespace MoonwellEditor.App;
 /// The icons and models the page shows (Sven, 2026-10-27): the open map's own files first (its imports), then the
 /// game's, from the Warcraft III install's storage. Icons go to the page as PNG; models and their textures as the bytes
 /// the files hold. The install is the one the game data is read from (<see cref="Use"/>); until then, or without one,
-/// nothing is found.
+/// nothing is found. The map view reads its textures, models and tables through it too.
 /// </summary>
-public sealed class GameAssets : IDisposable
+public sealed class GameAssets : IDisposable, IMapGameFiles
 {
     // The icons decoded lately, by path as asked; the tree asks for the same few hundred again and again.
     private const int IconsKept = 4000;
@@ -24,6 +25,9 @@ public sealed class GameAssets : IDisposable
     // An install put aside for another stays open until the window closes: a request may still be reading it.
     private readonly List<GameFiles> _retired = [];
     private GameFiles? _files;
+
+    // The install's tables (TerrainArt\Terrain.slk and the like), opened when the map view first asks.
+    private GameTables? _tables;
 
     /// <summary>Makes the assets; <paramref name="map"/> gives the open map.</summary>
     public GameAssets(Func<IMapStore?> map)
@@ -57,6 +61,7 @@ public sealed class GameAssets : IDisposable
             }
 
             _files = files;
+            _tables = null;
             _lists.Clear();
         }
 
@@ -142,8 +147,28 @@ public sealed class GameAssets : IDisposable
     }
 
     /// <inheritdoc />
+    IReadOnlyList<string> IMapGameFiles.List(string folder, string mode, string extension) =>
+        _files?.List(folder, mode, extension) ?? [];
+
+    /// <inheritdoc />
+    public IReadOnlyList<MetaRow>? Table(string relative)
+    {
+        lock (_lists)
+        {
+            if (_files == null)
+            {
+                return null;
+            }
+
+            _tables ??= GameTables.OpenInstall(_files);
+            return _tables.Table(relative);
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
+        _tables?.Dispose();
         _files?.Dispose();
         foreach (var files in _retired)
         {
@@ -155,7 +180,8 @@ public sealed class GameAssets : IDisposable
     private static string Written(string path, string extension) =>
         Path.ChangeExtension(path, extension).Replace('/', '\\');
 
-    // The map's own file of that path, with either slash (imports are named war3mapImported\x.blp and the like).
+    // The map's own file of that path, with either slash (imports are named war3mapImported\x.blp and the like). Object
+    // data names a model .mdl, and the map keeps an imported one as .mdx, as the game keeps its own.
     private byte[]? FromMap(string path)
     {
         var map = _map();
@@ -166,7 +192,10 @@ public sealed class GameAssets : IDisposable
 
         try
         {
-            return map.ReadImport(path);
+            return map.ReadImport(path)
+                ?? (Path.GetExtension(path).Equals(".mdl", StringComparison.OrdinalIgnoreCase)
+                    ? map.ReadImport(Path.ChangeExtension(path, ".mdx"))
+                    : null);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
         {

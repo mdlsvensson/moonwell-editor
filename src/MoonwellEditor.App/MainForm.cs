@@ -388,7 +388,8 @@ public sealed class MainForm : Form
     }
 
     // https://game.moonwelleditor/icon?path=... answers with the icon as PNG, /file?path=... with the file's bytes, 404
-    // when there is none. Read on a background thread: the first icons wait for the install to open.
+    // when there is none. Read on a background thread: the first icons wait for the install to open. /terrain?mode=...
+    // answers with the terrain bytes of the last map scene in that mode (the mapScene command builds them).
     private void ServeAsset(CoreWebView2Environment environment, CoreWebView2WebResourceRequestedEventArgs e)
     {
         var assets = _commands.Assets;
@@ -396,6 +397,19 @@ public sealed class MainForm : Form
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
         var path = query["path"];
         var mode = query["mode"] is "sd" or "hd" or "de" ? query["mode"]! : "de";
+        if (uri.AbsolutePath == "/terrain")
+        {
+            var terrain = _commands.Terrain(mode);
+            e.Response = terrain == null
+                ? environment.CreateWebResourceResponse(null, 404, "Not Found", "Access-Control-Allow-Origin: *")
+                : environment.CreateWebResourceResponse(
+                    new MemoryStream(terrain),
+                    200,
+                    "OK",
+                    "Content-Type: application/octet-stream\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store");
+            return;
+        }
+
         if (assets == null || string.IsNullOrWhiteSpace(path) || uri.AbsolutePath is not ("/icon" or "/file"))
         {
             e.Response = environment.CreateWebResourceResponse(null, 404, "Not Found", "");
