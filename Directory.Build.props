@@ -7,7 +7,7 @@
     <!-- The WebView2 package also ships a WPF assembly whose WindowsBase version clashes; nothing here uses WPF. -->
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
     <!-- The one place the version of the Moonwell packages (Moonwell.GameData and Moonwell.MapFiles) is set. -->
-    <MoonwellVersion>0.3.3-local.2</MoonwellVersion>
+    <MoonwellVersion>0.3.3</MoonwellVersion>
   </PropertyGroup>
 
 </Project>

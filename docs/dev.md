@@ -10,7 +10,8 @@ cd web
 npm install
 ```
 
-The game data is read by Moonwell's `Moonwell.GameData` package, restored from nuget.org like the other packages.
+The game data is read by Moonwell's `Moonwell.GameData` package, and the map's object files by its `Moonwell.MapFiles`,
+both restored from nuget.org like the other packages; `MoonwellVersion` in `Directory.Build.props` sets their version.
 
 ## Run the app with live reload
 
