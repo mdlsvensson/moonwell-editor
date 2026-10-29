@@ -31,6 +31,13 @@ public sealed record SessionState(bool Dirty, int ChangedObjects);
 /// </param>
 public sealed record Startup(string? Map);
 
+/// <summary>What the About page shows: the versions of the editor and of what it runs on.</summary>
+/// <param name="Version">The editor's version (<c>0.1.0</c>), set in Directory.Build.props.</param>
+/// <param name="Moonwell">The version of the Moonwell packages the editor is built with.</param>
+/// <param name="DotNet">The .NET runtime's version.</param>
+/// <param name="WebView2">The WebView2 runtime's version; null when it cannot be read.</param>
+public sealed record About(string Version, string Moonwell, string DotNet, string? WebView2);
+
 /// <summary>The map that was opened or reloaded.</summary>
 /// <param name="Name">The map folder's name, or the archive's file name (<c>Arena.w3x</c>).</param>
 /// <param name="Path">The map folder's or the archive file's full path.</param>
@@ -313,6 +320,7 @@ public sealed class Commands
             "ping" => "pong",
             "gameData" => State(),
             "startup" => TakeStartup(),
+            "about" => AboutApp(),
             "chooseGameData" => ChooseGameData(),
             "openMap" => OpenMap(OptionalText(args, "path"), Flag(args, "archive"), Flag(args, "discard")),
             "currentMap" => Current(),
@@ -354,6 +362,28 @@ public sealed class Commands
         _startupMap = null;
         return new Startup(map);
     }
+
+    private static About AboutApp()
+    {
+        string? webView2;
+        try
+        {
+            webView2 = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString();
+        }
+        catch (Exception)
+        {
+            webView2 = null;
+        }
+
+        return new About(
+            VersionOf(typeof(Commands)),
+            VersionOf(typeof(ObjectKind)),
+            Environment.Version.ToString(),
+            webView2);
+    }
+
+    // An assembly's version as three numbers (0.1.0), as the project sets it.
+    private static string VersionOf(Type type) => type.Assembly.GetName().Version?.ToString(3) ?? "";
 
     // Opens a map, a folder or an archive file. With no path given it asks for one: an archive in the Open File dialog
     // when the page says archive, else a folder. Null when the user cancels the dialog. The game data and the unsaved

@@ -238,6 +238,14 @@ export function startup(): Promise<Startup> {
   return call<Startup>("startup");
 }
 
+/** The versions the About page shows: the editor's, the Moonwell packages', .NET's and WebView2's (null if unknown). */
+export type About = { version: string; moonwell: string; dotNet: string; webView2: string | null };
+
+/** Asks the app for the versions the About page and the start screen show. */
+export function about(): Promise<About> {
+  return call<About>("about");
+}
+
 /** What `openMap` opens: a path, or what the user picks in a dialog. */
 export type OpenMapOptions = {
   /** A map folder or an archive file (`.w3x`, `.w3m`); left out, the user picks one. */

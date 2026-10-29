@@ -149,6 +149,18 @@ public sealed class CommandsTests : IDisposable
     }
 
     [Fact]
+    public async Task About_gives_the_editor_s_version_as_three_numbers()
+    {
+        var commands = Make(_ => throw new InvalidOperationException("must not load"));
+
+        var result = (await Ask(commands, "about")).GetProperty("result");
+
+        Assert.Matches(@"^\d+\.\d+\.\d+$", result.GetProperty("version").GetString());
+        Assert.Matches(@"^\d+\.\d+\.\d+$", result.GetProperty("moonwell").GetString());
+        Assert.False(string.IsNullOrEmpty(result.GetProperty("dotNet").GetString()));
+    }
+
+    [Fact]
     public async Task Game_data_with_no_setting_is_missing()
     {
         var commands = Make(_ => throw new InvalidOperationException("must not load"));

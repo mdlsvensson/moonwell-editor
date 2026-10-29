@@ -1,6 +1,6 @@
 /**
- * The editor's own switches (Sven, 2026-10-27), remembered in the window's storage: whether a reload from disk asks
- * first, the UI scale (the window scales the page; Ctrl and the wheel do not), whether the alpha notice opens at start
+ * The editor's own switches (Sven, 2026-10-27), remembered in the window's storage: whether the editor asks before
+ * reloading, deleting or dropping unsaved changes (Sven, 2026-10-29: off asks nothing at all), the UI scale (the window scales the page; Ctrl and the wheel do not), whether the alpha notice opens at start
  * (Sven, 2026-10-28: only Settings turns it off), whether the experimental features are on (Sven, 2026-10-29: the
  * table view; off at first), and the team colour models are shown in at first (Sven, 2026-10-29: the side panel's and
  * the model picker's; player 1, Red, at first).
@@ -11,7 +11,7 @@ import { playerIndex } from "./teamColors.ts";
 const storageKey = "moonwell-editor.prefs";
 
 type Prefs = {
-  confirmReload: boolean;
+  confirm: boolean;
   uiScale: number;
   alphaNotice: boolean;
   experimental: boolean;
@@ -28,7 +28,8 @@ function saved(): Prefs {
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<Prefs>;
     return {
-      confirmReload: stored.confirmReload !== false,
+      // Kept as confirmReload before it covered every question.
+      confirm: (stored.confirm ?? (stored as { confirmReload?: boolean }).confirmReload) !== false,
       uiScale: uiScales.includes(stored.uiScale ?? 100) ? (stored.uiScale ?? 100) : 100,
       alphaNotice: stored.alphaNotice ?? localStorage.getItem(oldAlphaKey) !== "yes",
       experimental: stored.experimental === true,
@@ -36,7 +37,7 @@ function saved(): Prefs {
     };
   } catch {
     return {
-      confirmReload: true,
+      confirm: true,
       uiScale: 100,
       alphaNotice: true,
       experimental: false,

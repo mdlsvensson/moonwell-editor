@@ -72,7 +72,7 @@ const customKinds = $derived(map ? kinds.filter((kind: Kind) => (map.counts[kind
 
 // The switches under Other.
 const switches = [
-  { key: "confirmReload", text: t("settings.confirmReload") },
+  { key: "confirm", text: t("settings.confirm") },
   { key: "alphaNotice", text: t("settings.alphaNotice") },
   { key: "experimental", text: t("settings.experimental") },
 ] as const;
@@ -159,7 +159,6 @@ function resetAll(): void {
   <div class="min-h-[300px]">
     {#if tab === "general"}
       {@render heading(t("settings.graphicsMode"))}
-      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.graphicsModeNote")}</p>
       <div class="flex gap-1" role="radiogroup" aria-label={t("settings.graphicsMode")}>
         {#each graphicsModes as each (each.mode)}
           <button
@@ -234,7 +233,6 @@ function resetAll(): void {
 
       <!-- The team colour models are shown in at first (Sven, 2026-10-29). -->
       {@render heading(t("settings.teamColour"))}
-      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.teamColourNote")}</p>
       <TeamColourGrid value={prefs.teamColor} onpick={(index) => setPref("teamColor", index)} />
 
       <!-- The switches, together at the bottom (Sven, 2026-10-29). -->
@@ -252,7 +250,6 @@ function resetAll(): void {
         {/each}
       </div>
     {:else if tab === "hotkeys"}
-      <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.hotkeysNote")}</p>
       <div class="flex flex-col">
         {#each actionList as each (each.action)}
           {@const keys = keymap[each.action]}

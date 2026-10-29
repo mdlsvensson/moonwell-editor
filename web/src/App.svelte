@@ -5,8 +5,11 @@ import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import Menu from "@lucide/svelte/icons/menu";
 import Table2 from "@lucide/svelte/icons/table-2";
 import { onMount, tick } from "svelte";
+import AboutDialog from "./lib/AboutDialog.svelte";
 import AlphaNotice from "./lib/AlphaNotice.svelte";
 import {
+  type About,
+  about,
   type CellEdit,
   type ChoiceList,
   choices,
@@ -114,8 +117,11 @@ let showProblems = $state(false);
 let zone = $state<"tree" | "details">("tree");
 // The settings dialog, and the theme on the page (Sven, 2026-10-27).
 let settingsOpen = $state(false);
-// The question before a reload from disk with nothing unsaved.
+// The question before a reload from disk.
 let confirmingReload = $state(false);
+// The About page, and the versions it and the start screen show (null until the app answers).
+let aboutOpen = $state(false);
+let versions = $state.raw<About | null>(null);
 // The alpha notice the editor opens with, until Settings turns it off (Sven, 2026-10-27; 2026-10-28).
 let alphaOpen = $state(prefs.alphaNotice);
 // The hotkeys, which the settings change.
@@ -281,18 +287,20 @@ function settling(question: string, canSave = true, always = false): Settling {
     },
     dirty: () => session?.dirty === true,
     ask: () =>
-      unsaved
-        ? Promise.resolve<Choice>("cancel") // already asking
-        : new Promise<Choice>((answer) => {
-            unsaved = {
-              question,
-              canSave,
-              answer: (choice) => {
-                unsaved = null;
-                answer(choice);
-              },
-            };
-          }),
+      !prefs.confirm
+        ? Promise.resolve<Choice>("discard") // the settings turned every question off (Sven, 2026-10-29)
+        : unsaved
+          ? Promise.resolve<Choice>("cancel") // already asking
+          : new Promise<Choice>((answer) => {
+              unsaved = {
+                question,
+                canSave,
+                answer: (choice) => {
+                  unsaved = null;
+                  answer(choice);
+                },
+              };
+            }),
     save: saveMap,
     always,
   };
@@ -511,11 +519,7 @@ async function saveMap(): Promise<boolean> {
   }
 }
 
-/**
- * The reload button (Sven, 2026-10-27): one question, "Are you sure...?", which says so when there are unsaved
- * changes; the settings can turn the question off, but unsaved changes are always asked about.
- */
-/** The menu at the right of the header (Sven, 2026-10-28): opening a map, reloading it, saving, and the settings. */
+/** The menu at the right of the header (Sven, 2026-10-28): opening a map, reloading it, saving, the settings and About. */
 function openMainMenu(button: HTMLElement): void {
   const box = button.getBoundingClientRect();
   const ready = view === "ready" && !opening;
@@ -544,12 +548,17 @@ function openMainMenu(button: HTMLElement): void {
         shortcut: settingsKey ? shownKey(settingsKey) : undefined,
         run: () => (settingsOpen = true),
       },
+      { label: t("header.about"), run: () => (aboutOpen = true) },
     ],
   };
 }
 
+/**
+ * The reload button (Sven, 2026-10-27): one question, "Are you sure...?", which says so when there are unsaved
+ * changes. With the settings' questions off it reloads at once and drops them (Sven, 2026-10-29).
+ */
 function askReload(): void {
-  if (!prefs.confirmReload && !session?.dirty) reloadFromDisk(false);
+  if (!prefs.confirm) reloadFromDisk(true);
   else confirmingReload = true;
 }
 
@@ -766,6 +775,7 @@ function askDelete(): void {
   const shown = current;
   if (!shown?.baseId) return;
   deleting = { kind: shown.kind, id: shown.id, name: shown.name, baseId: shown.baseId };
+  if (!prefs.confirm) deleteAsked(); // the settings turned every question off; Ctrl Z brings it back
 }
 
 /** The Delete key (Ctrl Shift D with `copy`): deletes (asking first) or copies the custom object shown. */
@@ -965,6 +975,7 @@ function onkeydown(event: KeyboardEvent): void {
     creating ||
     deleting ||
     settingsOpen ||
+    aboutOpen ||
     alphaOpen ||
     confirmingReload
   )
@@ -1112,6 +1123,9 @@ onMount(() => {
   (async () => {
     try {
       await call<string>("ping");
+      about()
+        .then((answer) => (versions = answer))
+        .catch(() => {});
       const state = await gameData();
       data = newer(data, state); // the event may have brought a newer state meanwhile
       // A page loaded again (reloaded, or after its process failed) shows the map the app has open, edits and all.
@@ -1218,7 +1232,7 @@ onMount(() => {
   {:else if !map}
     <main class="grid min-h-0 place-items-center" data-testid="no-map">
       <div class="flex max-w-lg flex-col items-start gap-3 px-6">
-        <h1 class="font-heading text-2xl font-bold text-fg">{t("noMap.title")}</h1>
+        <h1 class="font-heading text-2xl font-bold text-fg">{t("noMap.title", { version: versions?.version ?? "" }).trim()}</h1>
         {#if view === "ready"}
           <p>{t("noMap.text")}</p>
         {:else}
@@ -1515,6 +1529,10 @@ onMount(() => {
     onchoose={choose}
     onclose={() => (settingsOpen = false)}
   />
+{/if}
+
+{#if aboutOpen}
+  <AboutDialog about={versions} game={data?.game ?? null} onclose={() => (aboutOpen = false)} />
 {/if}
 
 {#if alphaOpen}

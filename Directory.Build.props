@@ -6,6 +6,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- The WebView2 package also ships a WPF assembly whose WindowsBase version clashes; nothing here uses WPF. -->
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    <!-- The editor's version, the one place it is set: the exe's and the About page's (Sven, 2026-10-29). -->
+    <Version>0.1.0</Version>
     <!-- The one place the version of the Moonwell packages (Moonwell.GameData and Moonwell.MapFiles) is set. -->
     <MoonwellVersion>0.3.3</MoonwellVersion>
   </PropertyGroup>
