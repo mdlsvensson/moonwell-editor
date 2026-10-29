@@ -43,6 +43,7 @@ out vec3 vNormal;
 out vec3 vTint;
 out vec3 vTeam;
 out vec4 vTangent;
+out vec3 vWorld;
 flat out float vNumber;
 void main() {
   mat4 m = mat4(m0, m1, m2, m3);
@@ -52,6 +53,7 @@ void main() {
     world.z += texelFetch(relief, c, 0).r;
   }
   vUv = uv;
+  vWorld = world.xyz;
   vNormal = mat3(m) * normal;
   vTangent = vec4(mat3(m) * tangent.xyz, tangent.w);
   vTint = tint;
@@ -67,6 +69,7 @@ in vec3 vNormal;
 in vec3 vTint;
 in vec3 vTeam;
 in vec4 vTangent;
+in vec3 vWorld;
 flat in float vNumber;
 uniform sampler2D diffuse;
 uniform sampler2D orm;
@@ -99,7 +102,7 @@ void main() {
     vec2 xy = texture(normalMap, vUv).rg * 2.0 - 1.0;
     n = normalize(t * xy.x + b * xy.y + n * sqrt(max(1.0 - dot(xy, xy), 0.0)));
   }
-  vec3 shaded = lit(rgb, n) * vTint;
+  vec3 shaded = lit(rgb, n, vWorld) * vTint;
   if (glowing) shaded += texture(emissive, vUv).rgb;
   color = vec4(shaded, filterMode == 2 ? texel.a : 1.0);
 }`;

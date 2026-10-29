@@ -27,6 +27,7 @@ uniform ivec2 size;
 uniform vec2 origin;
 out vec2 uv;
 out vec3 normal;
+out vec3 world;
 flat out float layer;
 flat out float whole;
 flat out float dim;
@@ -45,7 +46,8 @@ void main() {
   uv = vec2(corner.x, 1.0 - corner.y);
   whole = (piece >> 8) != 0u ? 1.0 : 0.0;
   dim = (texelFetch(flags, at, 0).r & 2u) != 0u ? 0.55 : 1.0;
-  gl_Position = viewProjection * vec4(origin + vec2(c) * 128.0, z, 1.0);
+  world = vec3(origin + vec2(c) * 128.0, z);
+  gl_Position = viewProjection * vec4(world, 1.0);
 }`;
 
 const fragment = `#version 300 es
@@ -53,6 +55,7 @@ precision highp float;
 precision highp sampler2DArray;
 in vec2 uv;
 in vec3 normal;
+in vec3 world;
 flat in float layer;
 flat in float whole;
 flat in float dim;
@@ -61,7 +64,7 @@ out vec4 color;
 ${litGlsl}
 void main() {
   vec4 texel = texture(sheet, vec3(uv, layer));
-  color = vec4(lit(texel.rgb, normal) * dim, whole > 0.5 ? 1.0 : texel.a);
+  color = vec4(lit(texel.rgb, normal, world) * dim, whole > 0.5 ? 1.0 : texel.a);
 }`;
 
 /** One texture's pass: its sheet and the tiles that use it, two numbers each (the tile, its piece and wholeness). */

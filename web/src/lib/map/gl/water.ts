@@ -75,7 +75,7 @@ void main() {
   vec3 v = normalize(eye - world);
   vec3 r = reflect(-v, n);
   float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
-  float facing = max(dot(n, lightToward), 0.0);
+  float facing = max(dot(n, lightToward), 0.0) * sunlit(world);
   vec3 body = pow(tint.rgb, vec3(2.2)) * (skyAt(vec3(0.0, 0.0, 1.0)) * 0.6 + lightColour * facing * 1.4) * 0.1;
   vec3 glint = lightColour * pow(max(dot(r, lightToward), 0.0), 200.0) * 0.25;
   vec3 rgb = mix(body, skyAt(r) * 0.6, fresnel) + glint;

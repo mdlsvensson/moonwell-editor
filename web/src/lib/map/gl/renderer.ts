@@ -9,9 +9,10 @@ import { colourToNumber } from "../picking.ts";
 import type { MapScene, PlacedThing, Terrain, ThingKind } from "../scene.ts";
 import { type Batch, cliffBatches, thingBatches } from "./batches.ts";
 import { GroundLayer } from "./ground.ts";
-import { type Lighting, lighting } from "./lighting.ts";
+import { type Lighting, lighting, type Shadow } from "./lighting.ts";
 import { MarkerLayer } from "./markers.ts";
 import { MarksLayer } from "./marks.ts";
+import { ShadowMap, shadowReach, sunView } from "./shadows.ts";
 import { makeGroundTexture, makeTexture } from "./textures.ts";
 import { ModelLayer } from "./things.ts";
 import { ripplesPath, WaterLayer } from "./water.ts";
@@ -48,6 +49,9 @@ export class MapRenderer {
   /** The tileset's terrain light (ground and cliffs) and unit light (things) at noon. */
   private readonly terrainLight: Lighting;
   private readonly unitLight: Lighting;
+  /** The sun's shadow map (HD and Definitive Edition), and the empty one that stands in while it is drawn. */
+  private readonly shadowMap: ShadowMap | null;
+  private readonly noShadow: ShadowMap;
   private layers: Layers = allLayers;
   private pickTarget: PickTarget | null = null;
   private stopped = false;
@@ -70,6 +74,11 @@ export class MapRenderer {
     gl.clearColor(0.05, 0.05, 0.07, 1);
     this.terrainLight = lighting(scene.lights.terrain, scene.lights.sky, "terrain");
     this.unitLight = lighting(scene.lights.units, scene.lights.sky, "units");
+    this.noShadow = new ShadowMap(gl, 1);
+    this.shadowMap = this.terrainLight.pbr ? new ShadowMap(gl, 4096) : null;
+    const none: Shadow = { texture: this.noShadow.texture, matrix: mat4.create(), on: false };
+    this.terrainLight.shadow = none;
+    this.unitLight.shadow = none;
     this.ground = new GroundLayer(gl, terrain, scene.textures);
     this.water = new WaterLayer(gl, terrain, scene.water);
     this.marked = scene.things.filter((thing) => !thing.model);
@@ -95,6 +104,8 @@ export class MapRenderer {
     gl.viewport(0, 0, width, height);
     gl.clearColor(0.05, 0.05, 0.07, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    this.drawShadows(view);
+    gl.viewport(0, 0, width, height);
     const viewProjection = this.viewProjection(view, width, height);
     this.ground.draw(viewProjection, this.terrainLight);
     this.cliffs.draw(viewProjection, this.terrainLight);
@@ -162,6 +173,8 @@ export class MapRenderer {
 
   dispose(): void {
     this.stopped = true;
+    this.shadowMap?.dispose();
+    this.noShadow.dispose();
     this.ground.dispose();
     this.water.dispose();
     this.cliffs.dispose();
@@ -182,6 +195,29 @@ export class MapRenderer {
 
   private markShown(): void {
     this.markers.mark(this.marked.filter((thing) => this.layers.kinds.has(thing.kind)));
+  }
+
+  // The sun's view of the ground, cliffs and models around the camera's target, into the shadow map; the lights then
+  // read it. Drawn with the empty map bound, so the map is not read while it is drawn.
+  private drawShadows(view: View): void {
+    const map = this.shadowMap;
+    if (!map) return;
+    const matrix = sunView(
+      [view.x, view.y, view.z],
+      this.terrainLight.toward,
+      shadowReach(view.distance),
+    );
+    const none: Shadow = { texture: this.noShadow.texture, matrix, on: false };
+    const terrainLight = { ...this.terrainLight, shadow: none };
+    const unitLight = { ...this.unitLight, shadow: none };
+    map.begin();
+    this.ground.draw(matrix, terrainLight);
+    this.cliffs.draw(matrix, terrainLight);
+    this.things.draw(matrix, unitLight, false, this.shown);
+    map.end();
+    const shadow: Shadow = { texture: map.texture, matrix, on: true };
+    this.terrainLight.shadow = shadow;
+    this.unitLight.shadow = shadow;
   }
 
   private viewProjection(view: View, width: number, height: number): mat4 {
