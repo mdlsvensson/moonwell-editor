@@ -214,6 +214,35 @@ public sealed partial class PlacedTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_unit_has_its_types_shadow_image_and_a_building_none()
+    {
+        using var folder = new TempFolder();
+        var session = TestGameData.Open(MapFolder.Open(folder.Path));
+        if (session == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        string Field(string id, string field) =>
+            session.Object(ObjectKind.Unit, id)!.Fields.First(each => each.Id == field).Value;
+        float Number(string id, string field) =>
+            float.Parse(Field(id, field), System.Globalization.CultureInfo.InvariantCulture);
+
+        var things = Placed.Things(Files(units: Units(Unit("hfoo"), Unit("hgry"), Unit("htow"))), Flat(), session, "sd");
+
+        var footman = things[0].Shadow;
+        Assert.NotNull(footman);
+        Assert.Equal(@"ReplaceableTextures\Shadows\" + Field("hfoo", "ushu") + ".blp", footman.Texture);
+        Assert.Equal(Number("hfoo", "ushx"), footman.X);
+        Assert.Equal(Number("hfoo", "ushy"), footman.Y);
+        Assert.Equal(Number("hfoo", "ushw"), footman.Width);
+        Assert.Equal(Number("hfoo", "ushh"), footman.Height);
+        Assert.NotEqual(footman.Texture, things[1].Shadow?.Texture); // the gryphon rider's is a flyer's
+        Assert.Null(things[2].Shadow); // a town hall's shadow is baked into the map
+    }
+
+    [Fact]
     public void Region_and_camera_names_become_identifiers()
     {
         Assert.Equal("gg_unit_hfoo_0001", TriggerNames.Unit("hfoo", 1));

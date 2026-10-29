@@ -15,6 +15,7 @@ import { MarksLayer } from "./marks.ts";
 import { ShadowMap, shadowReach, sunView } from "./shadows.ts";
 import { makeGroundTexture, makeTexture } from "./textures.ts";
 import { ModelLayer } from "./things.ts";
+import { UnitShadowLayer } from "./unitShadows.ts";
 import { ripplesPath, WaterLayer } from "./water.ts";
 
 /** Which layers show: the kinds of placed thing, the regions and the cameras. */
@@ -52,6 +53,8 @@ export class MapRenderer {
   /** The sun's shadow map (HD and Definitive Edition), and the empty one that stands in while it is drawn. */
   private readonly shadowMap: ShadowMap | null;
   private readonly noShadow: ShadowMap;
+  /** Classic's unit shadow pictures; null in HD and Definitive Edition, which cast shadows instead. */
+  private readonly unitShadows: UnitShadowLayer | null;
   private layers: Layers = allLayers;
   private pickTarget: PickTarget | null = null;
   private stopped = false;
@@ -79,6 +82,9 @@ export class MapRenderer {
     const none: Shadow = { texture: this.noShadow.texture, matrix: mat4.create(), on: false };
     this.terrainLight.shadow = none;
     this.unitLight.shadow = none;
+    this.unitShadows = this.terrainLight.pbr
+      ? null
+      : new UnitShadowLayer(gl, scene.things, terrain);
     this.ground = new GroundLayer(gl, terrain, scene.textures);
     this.water = new WaterLayer(gl, terrain, scene.water);
     this.marked = scene.things.filter((thing) => !thing.model);
@@ -109,6 +115,7 @@ export class MapRenderer {
     const viewProjection = this.viewProjection(view, width, height);
     this.ground.draw(viewProjection, this.terrainLight);
     this.cliffs.draw(viewProjection, this.terrainLight);
+    if (this.layers.kinds.has("Unit")) this.unitShadows?.draw(viewProjection);
     this.things.draw(viewProjection, this.unitLight, false, this.shown);
     this.markers.draw(viewProjection);
     this.marks.draw(viewProjection, this.layers.regions, this.layers.cameras);
@@ -175,6 +182,7 @@ export class MapRenderer {
     this.stopped = true;
     this.shadowMap?.dispose();
     this.noShadow.dispose();
+    this.unitShadows?.dispose();
     this.ground.dispose();
     this.water.dispose();
     this.cliffs.dispose();
@@ -269,6 +277,14 @@ export class MapRenderer {
           this.changed();
         }
       })(),
+      ...(this.unitShadows?.wanted ?? []).map(async (path) => {
+        const data = await this.bytes(path);
+        const picture = data && !this.stopped ? makeTexture(this.gl, data) : null;
+        if (picture) {
+          this.unitShadows?.setPicture(path, picture);
+          this.changed();
+        }
+      }),
       (async () => {
         if (!this.terrainLight.pbr) return;
         const data = await this.bytes(ripplesPath);

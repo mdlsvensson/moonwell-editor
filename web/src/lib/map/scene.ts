@@ -48,7 +48,15 @@ export type PlacedThing = {
   tint: number;
   /** Which of its model's shapes it is (an HD tree holds all ten in one model). */
   variation: number;
+  /** A unit's Classic shadow picture; null or missing for none. */
+  shadow?: UnitShadow | null;
 };
+
+/**
+ * A unit's shadow picture, laid flat under it in Classic: the unit stands `x`, `y` from its bottom left; it is `width`
+ * by `height`.
+ */
+export type UnitShadow = { texture: string; x: number; y: number; width: number; height: number };
 
 /** A region: its edges and its colour, 0xRRGGBB. */
 export type RegionMark = {

@@ -47,6 +47,7 @@ public enum ThingKind
 /// <param name="Player">The player whose colour its team colour takes, 0 for player 1; -1 for none.</param>
 /// <param name="Tint">Its tint, 0xRRGGBB.</param>
 /// <param name="Variation">Its variation, from its file: which of its model's shapes it is.</param>
+/// <param name="Shadow">A unit's shadow image in Classic; null for none (a building's shadow is baked into the map).</param>
 public sealed record PlacedThing(
     int Number,
     ThingKind Kind,
@@ -64,7 +65,20 @@ public sealed record PlacedThing(
     string? Texture,
     int Player,
     int Tint,
-    int Variation = 0);
+    int Variation = 0,
+    UnitShadow? Shadow = null);
+
+/// <summary>
+/// A unit's shadow image, the picture Classic lays flat on the ground under it (<c>ushu</c>, <c>ushx</c>, <c>ushy</c>,
+/// <c>ushw</c>, <c>ushh</c>): the unit stands <paramref name="X"/>, <paramref name="Y"/> from the picture's bottom left
+/// (*claim*), which is <paramref name="Width"/> by <paramref name="Height"/>.
+/// </summary>
+/// <param name="Texture">The picture's path, <c>ReplaceableTextures\Shadows\Shadow.blp</c>.</param>
+/// <param name="X">How far right of the picture's left edge the unit stands.</param>
+/// <param name="Y">How far up from the picture's bottom edge the unit stands.</param>
+/// <param name="Width">The picture's width.</param>
+/// <param name="Height">The picture's height.</param>
+public sealed record UnitShadow(string Texture, float X, float Y, float Width, float Height);
 
 /// <summary>A region, as the view draws and picks it.</summary>
 /// <param name="Name">Its name.</param>
@@ -211,10 +225,29 @@ public static class Placed
                 null,
                 item ? -1 : player,
                 Tint(look, prefix + "clr", prefix + "clg", prefix + "clb", mode, 0),
-                unit.Variation));
+                unit.Variation,
+                item || look == null ? null : ShadowOf(look, mode)));
         }
 
         return things;
+    }
+
+    // A unit type's shadow image; null for none ("_" or nothing, as a building has) or one of no size.
+    private static UnitShadow? ShadowOf(ObjectView look, string mode)
+    {
+        var image = Text(look, "ushu", mode, 0);
+        if (string.IsNullOrWhiteSpace(image) || image == "_")
+        {
+            return null;
+        }
+
+        var shadow = new UnitShadow(
+            @"ReplaceableTextures\Shadows\" + image + ".blp",
+            Number(look, "ushx", mode, 0, 0f),
+            Number(look, "ushy", mode, 0, 0f),
+            Number(look, "ushw", mode, 0, 0f),
+            Number(look, "ushh", mode, 0, 0f));
+        return shadow.Width > 0 && shadow.Height > 0 ? shadow : null;
     }
 
     /// <summary>The map's regions.</summary>
