@@ -15,10 +15,15 @@ export type CliffPiece = {
   baseZ: number;
 };
 
-/** How the tileset's water looks: its texture without the frame number, and four colours as 0xAARRGGBB. */
+/**
+ * How the tileset's water looks: its texture without the frame number, its frames and how many it plays a second, how
+ * many tiles one picture covers each way, and four colours as 0xAARRGGBB.
+ */
 export type WaterLook = {
   texture: string;
   frames: number;
+  rate: number;
+  cells: number;
   shallowMin: number;
   shallowMax: number;
   deepMin: number;

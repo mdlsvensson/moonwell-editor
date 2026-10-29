@@ -1,12 +1,13 @@
-import { mat4, vec3 } from "gl-matrix";
+import { vec3 } from "gl-matrix";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  bakeGeoset,
   byModel,
   instanceMatrix,
   loadModel,
   mapModel,
   ownGeosets,
+  settle,
+  skinOf,
   texturePaths,
 } from "./models.ts";
 import type { PlacedThing } from "./scene.ts";
@@ -34,29 +35,29 @@ function thing(change: Partial<PlacedThing>): PlacedThing {
   };
 }
 
-/** Bone 1 is moved 10 along x in the pose; bone 0 stays. */
-const pose = (bone: number) =>
-  bone === 1 ? mat4.fromTranslation(mat4.create(), [10, 0, 0]) : undefined;
-
-describe("bakeGeoset", () => {
-  it("moves a Classic vertex by the bones of its group", () => {
+describe("skinOf", () => {
+  it("gives a Classic vertex its group's bones, shared", () => {
     const geoset = {
       Vertices: new Float32Array([1, 2, 3, 4, 5, 6]),
+      Normals: new Float32Array(6),
       VertexGroup: new Uint8Array([0, 1]),
-      Groups: [[0], [1]],
+      Groups: [[0], [1, 2]],
     };
-    expect(Array.from(bakeGeoset(geoset, pose))).toEqual([1, 2, 3, 14, 5, 6]);
+    expect(Array.from(skinOf(geoset))).toEqual([
+      0, 0, 0, 0, 255, 0, 0, 0, 1, 2, 0, 0, 128, 127, 0, 0,
+    ]);
   });
 
-  it("moves an HD vertex by its skin's bones", () => {
+  it("gives an HD vertex its skin", () => {
     const skin = new Uint8Array([1, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0]);
     const geoset = {
       Vertices: new Float32Array([1, 2, 3, 4, 5, 6]),
+      Normals: new Float32Array(6),
       VertexGroup: new Uint8Array([0, 0]),
       Groups: [[0]],
       SkinWeights: skin,
     };
-    expect(Array.from(bakeGeoset(geoset, pose))).toEqual([11, 2, 3, 4, 5, 6]);
+    expect(skinOf(geoset)).toBe(skin);
   });
 });
 
@@ -113,7 +114,7 @@ function parsed(filter: number, layers: object[] = [{ FilterMode: filter, Textur
 
 describe("mapModel", () => {
   it("keeps a solid geoset with its texture", () => {
-    const model = mapModel(parsed(0) as never, () => undefined);
+    const model = mapModel(parsed(0) as never);
     expect(model.geosets).toHaveLength(1);
     expect(model.geosets[0]).toMatchObject({
       texture: "Textures\\Footman.blp",
@@ -127,28 +128,23 @@ describe("mapModel", () => {
       { FilterMode: 0, TextureID: 1 },
       { FilterMode: 1, TextureID: 0 },
     ];
-    expect(mapModel(parsed(0, layers) as never, () => undefined).geosets[0]).toMatchObject({
+    expect(mapModel(parsed(0, layers) as never).geosets[0]).toMatchObject({
       texture: "Textures\\Footman.blp",
       filter: 0,
       teamUnder: true,
     });
   });
 
-  it("leaves out a geoset its first frame of Stand hides (a tree's stump and lumber)", () => {
-    expect(
-      mapModel(
-        parsed(0) as never,
-        () => undefined,
-        () => 0,
-      ).geosets,
-    ).toEqual([]);
-    expect(
-      mapModel(
-        parsed(0) as never,
-        () => undefined,
-        () => 1,
-      ).geosets,
-    ).toHaveLength(1);
+  it("leaves out a geoset no frame of Stand shows (a tree's stump and lumber)", () => {
+    expect(mapModel(parsed(0) as never, () => 0).geosets).toEqual([]);
+    expect(mapModel(parsed(0) as never, () => 0.5).geosets).toHaveLength(1);
+  });
+
+  it("keeps each geoset in its bind pose with its number in the model and its skin", () => {
+    const geoset = mapModel(parsed(0) as never).geosets[0];
+    expect(Array.from(geoset?.positions ?? [])).toEqual([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+    expect(geoset?.index).toBe(0);
+    expect(Array.from(geoset?.skin.subarray(0, 8) ?? [])).toEqual([0, 0, 0, 0, 255, 0, 0, 0]);
   });
 
   it("tells each geoset's variation in a model that holds several (an HD tree's nt0 to nt9)", () => {
@@ -159,10 +155,10 @@ describe("mapModel", () => {
       { ...geoset, Name: "northrendTree_rig:nt1_main_geo" },
       { ...geoset, Name: "northrendTree_rig:shadow" },
     ] as unknown as typeof two.Geosets;
-    const model = mapModel(two as never, () => undefined);
+    const model = mapModel(two as never);
     expect(model.variations).toBe(2);
     expect(model.geosets.map((each) => each.variation)).toEqual([0, 1, null]);
-    expect(mapModel(parsed(0) as never, () => undefined).variations).toBe(1);
+    expect(mapModel(parsed(0) as never).variations).toBe(1);
   });
 
   it("takes numbers in names for shapes only when they run 0, 1, 2 ... (a cape2 is not a second shape)", () => {
@@ -172,15 +168,15 @@ describe("mapModel", () => {
       { ...geoset, Name: "hero_rig:body1_geo" },
       { ...geoset, Name: "hero_rig:cape2_geo" },
     ] as unknown as typeof named.Geosets;
-    const model = mapModel(named as never, () => undefined);
+    const model = mapModel(named as never);
     expect(model.variations).toBe(1);
     expect(model.geosets.map((each) => each.variation)).toEqual([null, null]);
   });
 
   it("tells an HD geoset by its material's shader", () => {
     const hd = parsed(0, [{ FilterMode: 0, TextureID: 0, ShaderTypeId: 1 }]);
-    expect(mapModel(hd as never, () => undefined).geosets[0]?.hd).toBe(true);
-    expect(mapModel(parsed(0) as never, () => undefined).geosets[0]?.hd).toBe(false);
+    expect(mapModel(hd as never).geosets[0]?.hd).toBe(true);
+    expect(mapModel(parsed(0) as never).geosets[0]?.hd).toBe(false);
   });
 
   it("gives an HD geoset its ORM texture, whose alpha marks the team colour (a 1100 layer's ORMTextureID, a 1000 material's third layer)", () => {
@@ -203,12 +199,12 @@ describe("mapModel", () => {
       ),
       Textures: textures,
     };
-    expect(mapModel(newer as never, () => undefined).geosets[0]?.orm).toBe("Troll_orm.dds");
-    expect(mapModel(older as never, () => undefined).geosets[0]).toMatchObject({
+    expect(mapModel(newer as never).geosets[0]?.orm).toBe("Troll_orm.dds");
+    expect(mapModel(older as never).geosets[0]).toMatchObject({
       texture: "Troll_diffuse.dds",
       orm: "Troll_orm.dds",
     });
-    expect(mapModel(parsed(0) as never, () => undefined).geosets[0]?.orm).toBeNull();
+    expect(mapModel(parsed(0) as never).geosets[0]?.orm).toBeNull();
   });
 
   it("gives an HD geoset its normal map, emissive map and tangents, and a Classic one none", () => {
@@ -241,17 +237,17 @@ describe("mapModel", () => {
       ),
       Textures: textures,
     };
-    expect(mapModel(newer as never, () => undefined).geosets[0]).toMatchObject({
+    expect(mapModel(newer as never).geosets[0]).toMatchObject({
       normalMap: "Troll_normal.dds",
       emissive: "Troll_emissive.dds",
       tangents,
     });
-    expect(mapModel(older as never, () => undefined).geosets[0]).toMatchObject({
+    expect(mapModel(older as never).geosets[0]).toMatchObject({
       normalMap: "Troll_normal.dds",
       emissive: "Troll_emissive.dds",
       tangents: null,
     });
-    expect(mapModel(parsed(0) as never, () => undefined).geosets[0]).toMatchObject({
+    expect(mapModel(parsed(0) as never).geosets[0]).toMatchObject({
       normalMap: null,
       emissive: null,
       tangents: null,
@@ -259,8 +255,8 @@ describe("mapModel", () => {
   });
 
   it("leaves glows out, so a model of glows and particles only is a marker", () => {
-    expect(mapModel(parsed(3) as never, () => undefined).geosets).toEqual([]);
-    expect(mapModel({ ...parsed(0), Geosets: [] } as never, () => undefined).geosets).toEqual([]);
+    expect(mapModel(parsed(3) as never).geosets).toEqual([]);
+    expect(mapModel({ ...parsed(0), Geosets: [] } as never).geosets).toEqual([]);
   });
 });
 
@@ -328,5 +324,42 @@ describe("ownGeosets", () => {
 
   it("gives none for a shape whose geosets all draw nothing, so the thing is a marker", () => {
     expect(ownGeosets({ variations: 2, geosets: [geoset(0)] }, 1)).toEqual([]);
+  });
+});
+
+describe("settle", () => {
+  /** A one-frame animation of two bones, bone 1 moved 10 along x and turned a quarter about z. */
+  const animation = {
+    frames: 1,
+    rate: 30,
+    bones: 2,
+    geosets: 1,
+    poses: new Float32Array([
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -1, 0, 10, 1, 0, 0, 0, 0, 0, 1, 0,
+    ]),
+    alphas: new Float32Array([1]),
+  };
+
+  it("bakes a model whose animation never moves into its pose, and drops the animation", () => {
+    const model = mapModel(parsed(0) as never);
+    const geoset = model.geosets[0];
+    if (!geoset) throw new Error("no geoset");
+    geoset.skin = new Uint8Array(24).fill(0);
+    for (let v = 0; v < 3; v++) geoset.skin.set([1, 0, 0, 0, 255, 0, 0, 0], v * 8);
+    const settled = settle({ ...model, animation });
+    expect(settled.animation).toBeNull();
+    expect(Array.from(settled.geosets[0]?.positions ?? [])).toEqual([10, 0, 0, 10, 1, 0, 9, 0, 0]);
+    expect(Array.from(settled.geosets[0]?.normals.subarray(0, 3) ?? [])).toEqual([0, 0, 1]);
+  });
+
+  it("keeps a model whose animation moves as it is", () => {
+    const model = mapModel(parsed(0) as never);
+    const moving = {
+      ...animation,
+      frames: 2,
+      poses: new Float32Array(48),
+      alphas: new Float32Array([1, 0]),
+    };
+    expect(settle({ ...model, animation: moving }).animation).toBe(moving);
   });
 });

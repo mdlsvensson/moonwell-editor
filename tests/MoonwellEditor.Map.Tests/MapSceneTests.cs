@@ -148,6 +148,8 @@ public sealed class MapSceneTests(ITestOutputHelper output)
         Assert.NotEmpty(view.Things);
         Assert.Equal(@"ReplaceableTextures\Water\Water", view.Water.Texture);
         Assert.True(view.Water.Frames > 1);
+        Assert.Equal(15f, view.Water.Rate); // Icecrown's texRate: frames a second
+        Assert.Equal(2, view.Water.Cells); // one picture over two tiles each way
         Assert.Equal(DayLights.Read("I", files, "hd").Terrain.Toward, view.Lights.Terrain.Toward);
         Assert.NotEqual(DayLights.Default, view.Lights.Units);
         Assert.Equal(18, view.Lights.Sky.Length);

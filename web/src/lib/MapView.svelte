@@ -206,9 +206,12 @@ function sizeCanvas(target: HTMLCanvasElement): void {
 
 function redraw(): void {
   if (frame) return;
-  frame = requestAnimationFrame(() => {
+  frame = requestAnimationFrame((now) => {
     frame = 0;
-    if (canvas) renderer?.draw(view, canvas.width, canvas.height);
+    if (!canvas || !renderer) return;
+    renderer.draw(view, canvas.width, canvas.height, now);
+    // Animations and water keep the scene drawing, a frame at a time.
+    if (renderer.moving) redraw();
   });
 }
 

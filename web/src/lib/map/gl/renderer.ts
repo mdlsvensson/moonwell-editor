@@ -103,9 +103,21 @@ export class MapRenderer {
     void this.load(near);
   }
 
-  /** Draws the scene as `view` sees it on a canvas of `width` by `height` pixels. */
-  draw(view: View, width: number, height: number): void {
+  /** Whether anything moves (an animation, the water), so the scene must be drawn again each frame. */
+  get moving(): boolean {
+    return this.things.moving || this.cliffs.moving || this.water.moving;
+  }
+
+  /**
+   * Draws the scene as `view` sees it on a canvas of `width` by `height` pixels, its animations and water at `now`
+   * (milliseconds, as performance.now gives them).
+   */
+  draw(view: View, width: number, height: number, now = 0): void {
     const { gl } = this;
+    const seconds = now / 1000;
+    this.things.time = seconds;
+    this.cliffs.time = seconds;
+    this.water.time = seconds;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     gl.clearColor(0.05, 0.05, 0.07, 1);
@@ -270,11 +282,14 @@ export class MapRenderer {
         this.changed();
       }),
       (async () => {
-        const data = await this.bytes(this.water.framePath);
-        const frame = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
-        if (frame) {
-          this.water.setFrame(frame);
-          this.changed();
+        // The first frame first, so the water shows while the rest load.
+        const paths = this.water.framePaths;
+        for (const [index, path] of paths.entries()) {
+          const data = await this.bytes(path);
+          const frame = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
+          if (!frame) continue;
+          this.water.setFrame(index, frame);
+          if (index === 0) this.changed();
         }
       })(),
       ...(this.unitShadows?.wanted ?? []).map(async (path) => {

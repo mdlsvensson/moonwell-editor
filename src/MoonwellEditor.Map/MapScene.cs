@@ -12,7 +12,17 @@ namespace MoonwellEditor.Map;
 /// <param name="ShallowMax">The colour where shallow water ends, 0xAARRGGBB.</param>
 /// <param name="DeepMin">The colour where deep water begins, 0xAARRGGBB.</param>
 /// <param name="DeepMax">The deepest water's colour, 0xAARRGGBB.</param>
-public sealed record WaterLook(string Texture, int Frames, int ShallowMin, int ShallowMax, int DeepMin, int DeepMax);
+/// <param name="Rate">How many of its frames it plays a second (<c>texRate</c>).</param>
+/// <param name="Cells">How many tiles one picture of it covers each way (<c>cells</c>).</param>
+public sealed record WaterLook(
+    string Texture,
+    int Frames,
+    int ShallowMin,
+    int ShallowMax,
+    int DeepMin,
+    int DeepMax,
+    float Rate = 15,
+    int Cells = 1);
 
 /// <summary>Everything the map view draws but the terrain's corners, which go as bytes (<see cref="TerrainBytes"/>).</summary>
 /// <param name="Columns">Corners a row; 0 when the map has no terrain.</param>
@@ -115,7 +125,9 @@ public static class MapScene
             Colour("Smin"),
             Colour("Smax"),
             Colour("Dmin"),
-            Colour("Dmax"));
+            Colour("Dmax"),
+            Number(water, "texRate", 15f),
+            Math.Max((int)Number(water, "cells", 1f), 1));
     }
 
     private static float Number(IReadOnlyDictionary<string, string> row, string column, float fallback) =>
