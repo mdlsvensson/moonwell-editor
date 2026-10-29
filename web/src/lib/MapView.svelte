@@ -85,7 +85,8 @@ async function open(
           read,
           (path) => fileUrl(path, shown),
           redraw,
-          (ms) => console.info(`[timing] map ground textures ${Math.round(ms)} ms`),
+          (what, ms) => console.info(`[timing] map ${what} ${Math.round(ms)} ms`),
+          [view.x, view.y],
         );
         redraw();
         return () => {

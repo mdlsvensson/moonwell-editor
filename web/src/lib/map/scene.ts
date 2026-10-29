@@ -46,6 +46,8 @@ export type PlacedThing = {
   texture: string | null;
   player: number;
   tint: number;
+  /** Which of its model's shapes it is (an HD tree holds all ten in one model). */
+  variation: number;
 };
 
 /** A region: its edges and its colour, 0xRRGGBB. */

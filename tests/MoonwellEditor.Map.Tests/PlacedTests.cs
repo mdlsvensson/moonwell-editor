@@ -163,6 +163,29 @@ public sealed partial class PlacedTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_thing_keeps_its_variation()
+    {
+        using var folder = new TempFolder();
+        var session = TestGameData.Open(MapFolder.Open(folder.Path));
+        if (session == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var doodads = new MapDoodads(MapWidgetsFormatVersion.v8, MapWidgetsSubVersion.v11, true);
+        doodads.Doodads.Add(new DoodadData
+        {
+            TypeId = "NTtw".FromRawcode(), SkinId = "NTtw".FromRawcode(), Variation = 3, Scale = Vector3.One,
+            State = DoodadState.Normal, CreationNumber = 1,
+        });
+
+        var tree = Assert.Single(Placed.Things(Files(doodads: doodads), Flat(), session, "sd"));
+
+        Assert.Equal(3, tree.Variation);
+    }
+
+    [Fact]
     public void Units_stand_on_the_ground_plus_their_fly_height()
     {
         using var folder = new TempFolder();

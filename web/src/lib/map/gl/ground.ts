@@ -139,14 +139,18 @@ export class GroundLayer {
     return this.passes.map((pass) => pass.texture);
   }
 
-  draw(viewProjection: mat4, sheetTexels: (index: number) => number): void {
+  draw(
+    viewProjection: mat4,
+    sheetTexels: (index: number) => number,
+    light: [number, number, number],
+  ): void {
     const { gl, terrain } = this;
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
     gl.uniformMatrix4fv(this.uniforms.viewProjection ?? null, false, viewProjection);
     gl.uniform2i(this.uniforms.size ?? null, terrain.columns, terrain.rows);
     gl.uniform2f(this.uniforms.origin ?? null, terrain.left, terrain.bottom);
-    gl.uniform3f(this.uniforms.light ?? null, -0.3, -0.3, 0.9);
+    gl.uniform3fv(this.uniforms.light ?? null, light);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.heights);
     gl.uniform1i(this.uniforms.heights ?? null, 0);

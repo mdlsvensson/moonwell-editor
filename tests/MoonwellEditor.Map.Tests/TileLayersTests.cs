@@ -115,6 +115,8 @@ public sealed class TileLayersTests(ITestOutputHelper output)
             Assert.Equal(terrain.TerrainTypes.Count, textures.Blight);
             Assert.All(textures.All, texture => Assert.NotNull(files.File(texture.Path, mode)));
             Assert.Contains(textures.All, texture => texture.Extended);
+            // Outside Classic the ground is the HD textures, the _diffuse files (2048 by 1024 where Classic's are 512).
+            Assert.All(textures.All, texture => Assert.Equal(mode != "sd", texture.Path.Contains("_diffuse")));
             Assert.Equal(terrain.CliffTypes.Count, textures.CliffGround.Count);
             Assert.All(textures.CliffGround, ground => Assert.InRange(ground, 0, textures.All.Count - 1));
         }

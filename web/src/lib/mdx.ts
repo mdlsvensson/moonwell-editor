@@ -176,7 +176,7 @@ export function skinGeosets(
 }
 
 /** A skin from a Classic geoset's vertex groups: up to four of the group's bones, weighted alike. */
-function groupSkin(geoset: Skinnable, count: number): Uint8Array {
+export function groupSkin(geoset: Skinnable, count: number): Uint8Array {
   const skin = new Uint8Array(count * 8);
   for (let v = 0; v < count; v++) {
     const bones = (geoset.Groups[geoset.VertexGroup[v] ?? 0] ?? [0]).slice(0, 4);

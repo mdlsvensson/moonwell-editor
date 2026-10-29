@@ -40,12 +40,13 @@ public sealed class TerrainTextures(IReadOnlyList<TerrainTexture> all, int bligh
         {
             var id = FourCC.Text((int)type);
             var path = tiles.TryGetValue(id, out var row)
-                ? row.Columns.GetValueOrDefault("dir", "") + "\\" + row.Columns.GetValueOrDefault("file", "") + ".blp"
+                ? HdOrClassic(files, row.Columns.GetValueOrDefault("dir", "") + "\\" + row.Columns.GetValueOrDefault("file", ""), mode)
                 : "";
             all.Add(new TerrainTexture(id, path, path != "" && IsExtended(files.File(path, mode))));
         }
 
         var blight = BlightOf(terrain, files, mode);
+        blight = blight == "" ? "" : HdOrClassic(files, blight[..^".blp".Length], mode);
         all.Add(new TerrainTexture("blight", blight, blight != "" && IsExtended(files.File(blight, mode))));
 
         var cliffs = (files.Table("TerrainArt/CliffTypes.slk") ?? []).ToDictionary(row => row.Id, StringComparer.Ordinal);
@@ -60,6 +61,13 @@ public sealed class TerrainTextures(IReadOnlyList<TerrainTexture> all, int bligh
 
         return new TerrainTextures(all, all.Count - 1, ground);
     }
+
+    /// <summary>
+    /// A ground texture's file: outside Classic its HD version, the <c>_diffuse</c> file (2048 by 1024 where Classic's
+    /// is 512 by 256), when the install has one, as HiveWE takes it (*claim*); else the Classic one.
+    /// </summary>
+    private static string HdOrClassic(IMapGameFiles files, string stem, string mode) =>
+        mode != "sd" && files.File(stem + "_diffuse.blp", mode) != null ? stem + "_diffuse.blp" : stem + ".blp";
 
     /// <summary>The number of the texture with this id; -1 when the map has none.</summary>
     public int IndexOf(string tileId) => All.ToList().FindIndex(texture => texture.TileId == tileId);

@@ -46,6 +46,7 @@ public enum ThingKind
 /// <param name="Texture">The texture its model's replaceable texture takes (a tree's), or null.</param>
 /// <param name="Player">The player whose colour its team colour takes, 0 for player 1; -1 for none.</param>
 /// <param name="Tint">Its tint, 0xRRGGBB.</param>
+/// <param name="Variation">Its variation, from its file: which of its model's shapes it is.</param>
 public sealed record PlacedThing(
     int Number,
     ThingKind Kind,
@@ -62,7 +63,8 @@ public sealed record PlacedThing(
     string? Model,
     string? Texture,
     int Player,
-    int Tint);
+    int Tint,
+    int Variation = 0);
 
 /// <summary>A region, as the view draws and picks it.</summary>
 /// <param name="Name">Its name.</param>
@@ -165,7 +167,8 @@ public static class Placed
                 look == null ? null : Model(look, prefix + "fil", prefix + "var", doodad.Variation, mode),
                 string.IsNullOrEmpty(texture) ? null : texture,
                 -1,
-                tint));
+                tint,
+                doodad.Variation));
         }
 
         foreach (var unit in files.Units?.Units ?? [])
@@ -179,7 +182,8 @@ public static class Placed
                 things.Add(new PlacedThing(
                     things.Count + 1, ThingKind.StartLocation, id,
                     Texts.Get("app.mapView.startLocation", ("player", unit.OwnerId + 1)), null,
-                    unit.Position.X, unit.Position.Y, ground, unit.Rotation, 1, 1, 1, null, null, unit.OwnerId, 0xFFFFFF));
+                    unit.Position.X, unit.Position.Y, ground, unit.Rotation, 1, 1, 1, null, null, unit.OwnerId, 0xFFFFFF,
+                    unit.Variation));
                 continue;
             }
 
@@ -206,7 +210,8 @@ public static class Placed
                 look == null ? null : Model(look, item ? "ifil" : "umdl", null, 0, mode),
                 null,
                 item ? -1 : player,
-                Tint(look, prefix + "clr", prefix + "clg", prefix + "clb", mode, 0)));
+                Tint(look, prefix + "clr", prefix + "clg", prefix + "clb", mode, 0),
+                unit.Variation));
         }
 
         return things;
