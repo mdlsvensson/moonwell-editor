@@ -134,6 +134,8 @@ public sealed partial class Session
                 continue;
             }
 
+            standard = standard == null ? null : data.ByOwnId(standard, id);
+
             var levels = resolver.Levels(standard, found);
             var cells = new List<TableCell>(columns.Count);
             for (var i = 0; i < columns.Count; i++)

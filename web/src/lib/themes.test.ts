@@ -13,10 +13,11 @@ describe("the themes", () => {
     expect(new Set(themes.map((each) => each.id)).size).toBe(themes.length);
   });
 
-  it("start with Vitesse Dark, as app.css draws the page before a theme is put on", () => {
-    const vitesse = themeOf(defaultTheme);
-    expect(themes[0]).toBe(vitesse);
-    for (const token of tokens) expect(css).toContain(`--${token}: ${vitesse.colors[token]};`);
+  it("start with Kanagawa Wave, as app.css draws the page before a theme is put on", () => {
+    const wave = themeOf(defaultTheme);
+    expect(wave.name).toBe("Kanagawa Wave");
+    expect(themes[0]).toBe(wave);
+    for (const token of tokens) expect(css).toContain(`--${token}: ${wave.colors[token]};`);
   });
 
   it("include the ones Sven asked for", () => {

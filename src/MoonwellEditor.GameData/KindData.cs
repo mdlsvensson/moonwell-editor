@@ -58,6 +58,22 @@ public sealed class KindData
     /// </summary>
     public bool Applies(FieldInfo field, StandardObject obj) => Applies(_kind, field, obj);
 
+    /// <summary>
+    /// The standard object the fields of the object with this id go by (the object itself, or a custom object's base):
+    /// a unit is a hero by its own id's first letter, not its base's, as World Editor makes a copy of the Peasant with
+    /// an upper-case <c>H</c> id a hero with the hero fields (docs/game-facts.md, seen 10-28, Sven).
+    /// </summary>
+    public StandardObject ByOwnId(StandardObject standard, string id)
+    {
+        if (_kind != ObjectKind.Unit || id.Length == 0)
+        {
+            return standard;
+        }
+
+        var hero = char.IsUpper(id[0]);
+        return hero == standard.Hero ? standard : standard with { Hero = hero };
+    }
+
     /// <summary>Whether a field of the kind belongs to the object; see the instance <c>Applies</c>.</summary>
     internal static bool Applies(ObjectKind kind, FieldInfo field, StandardObject obj)
     {

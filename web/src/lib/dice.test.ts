@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FieldView } from "./api.ts";
 import {
   diceRange,
-  parseBound,
+  parseRange,
   rangeEdits,
   rangeOf,
   rangeText,
@@ -54,24 +54,26 @@ describe("diceRange", () => {
   });
 });
 
-describe("rangeText and parseBound", () => {
+describe("rangeText and parseRange", () => {
   it("write a range as the game does", () => {
     expect(rangeText({ min: 12, max: 13 })).toBe("12 - 13");
     expect(rangeText({ min: 7, max: 7 })).toBe("7");
   });
 
-  it("read an end typed as a whole number, with or without spaces or a sign", () => {
-    expect(parseBound("10")).toBe(10);
-    expect(parseBound(" 15 ")).toBe(15);
-    expect(parseBound("-5")).toBe(-5);
-    expect(parseBound("+3")).toBe(3);
+  it("read a range typed with or without spaces, with to or a dash, or as one number", () => {
+    expect(parseRange("10 - 39")).toEqual({ min: 10, max: 39 });
+    expect(parseRange("10-39")).toEqual({ min: 10, max: 39 });
+    expect(parseRange("10 to 39")).toEqual({ min: 10, max: 39 });
+    expect(parseRange("10 — 39")).toEqual({ min: 10, max: 39 });
+    expect(parseRange(" 15 ")).toEqual({ min: 15, max: 15 });
+    expect(parseRange("-5 - 3")).toEqual({ min: -5, max: 3 });
   });
 
-  it("refuse an end that is not a whole number", () => {
-    expect(parseBound("ten")).toBeNull();
-    expect(parseBound("")).toBeNull();
-    expect(parseBound("12 - 13")).toBeNull();
-    expect(parseBound("1.5")).toBeNull();
+  it("refuse text that is not a range, or one that runs backwards", () => {
+    expect(parseRange("ten")).toBeNull();
+    expect(parseRange("12 - ")).toBeNull();
+    expect(parseRange("1.5")).toBeNull();
+    expect(parseRange("39 - 10")).toBeNull();
   });
 });
 

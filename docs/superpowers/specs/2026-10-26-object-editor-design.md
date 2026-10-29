@@ -377,8 +377,9 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
 
 ## Look and feel
 
-- **Theme:** Vitesse Dark (the tokens wc3-dev used: `#121212` background, `#dbd7ca` text, `#4d9375` green accent,
-  `#e6cc77` yellow for changed values, `#cb7676` red for warnings).
+- **Theme:** Kanagawa Wave by default since 2026-10-29 (Sven): `#16161d` background, `#dcd7ba` text, `#7e9cd8` blue
+  accent, `#e6c384` yellow for changed values, `#e46876` red for warnings. Vitesse Dark (the tokens wc3-dev used) was
+  the default before and is still one of the themes.
 - **Fonts:** readable only, never pixel fonts. Interface text in Google Sans (Nunito for headings), as in steam2fiddy
   and wc3-dev; ids, values and code in JetBrains Mono. Bundled through fontsource, so no network is needed. *(Agent's
   call; "JetBrains Mono (Nerd Font)" is read as JetBrains Mono, since icons come from Lucide.)*
@@ -406,7 +407,7 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   - The title bar has back and forward at the left (and the mouse's back and forward buttons walk the history too).
     Uses and Used by open and close; the tooltip preview's place is back, for a later version.
   - Button positions get a command card (4 wide, 3 high): a click sets X and Y as one edit; other values are typed.
-  - Settings (in the header's menu since 2026-10-28; the gear before): a theme (Vitesse Dark, Kanagawa Wave and Dragon, Gruvbox Dark, Dracula,
+  - Settings (in the header's menu since 2026-10-28; the gear before): a theme (Kanagawa Wave and Dragon, Vitesse Dark, Gruvbox Dark, Dracula,
     Catppuccin Mocha and Macchiato, Tokyo Night, Nord, One Dark, Rose Pine, Everforest Dark, Solarized Dark),
     remembered in the window's storage, and the open map's details, with its Data Set and Data Version from
     `war3map.w3i` and the tables the game reads under them. The values shown are still the base tables'.
@@ -498,10 +499,11 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     rolls (Attack 1 - Damage 12 — 13: base + dice to base + dice × sides), with the base, number of dice and sides per
     die under it. The lowest and highest typed in set the three as one edit, keeping the number of dice when it splits
     the range evenly, else the most that do; a range of one number is dice of 1 side. *(Agent's call: World Editor has
-    no such row; the rule for the dice is the agent's.)* Since 2026-10-28 (Sven) the lowest and highest are two boxes
-    with an em dash between them, and the arrow that shows the three sits in the gutter left of the names, so the
+    no such row; the rule for the dice is the agent's.)* From 2026-10-28 to 2026-10-29 the lowest and highest were two
+    boxes with an em dash between them; since 2026-10-29 (Sven) the range is one box again (`10-15`, `10 - 15`,
+    `10 to 15` or one number). Since 2026-10-28 (Sven) the arrow that shows the three sits in the gutter left of the names, so the
     total's name lines up with the other fields'. *(Agent's calls: the arrow takes the changed colour in place of the
-    row's changed bar; moving from one box to the other sends nothing, so the lowest can pass the old highest.)*
+    row's changed bar.)*
   - Ground Texture is a dropdown of the install's splats (`Splats\UberSplatData.slk`) by World Editor's names for
     them (`WESTRING_UBERSPLAT_<code>`), by name, after None. Shadow Texture (Building) and a destructable's shadow are
     a dropdown of the shadows the standard buildings and destructables use, under Buildings and Destructibles, each
@@ -567,6 +569,31 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
   while the box is hovered or has the cursor), in place of the browser's grey block; a click steps by 1 and the value
   is sent once the clicks stop, as before. *(Agent's call: drawn by the field editor, since the browser's arrows,
   restyled, no longer stepped down from their lower half.)*
+- **Sven, 2026-10-29, second batch:**
+  - Popups (dialogs, lists, menus) have a small shadow, not the large dark halo.
+  - A dialog stays open until the page closes it: the settings had been closed by Bits UI on its own (Ctrl Esc, which
+    opens Windows' Start menu, while a hotkey was being pressed) and then could not be opened again. Leaving the window
+    also stops the hotkey listening.
+  - No cut: Ctrl X and the context menu's Cut are gone for objects (a paste never deletes the object copied) and for
+    fields. Text in a box is still cut as anywhere.
+  - True or False is the word alone, no checkbox; a click turns it, and its box is as wide for either word.
+  - Every box of a field (number, text, True or False, dropdown, flags) shows only its value: a dashed border on hover,
+    the accent's with the cursor; a dropdown keeps its arrow. The selected field's boxes show a solid border.
+    *(Agent's call: the solid border is the faint grey one, the accent stays for the box with the cursor.)*
+  - ↺ on a changed field sits at the row's right end.
+  - The table view is an experimental feature, off until Settings, General, Other turns it on. The tree's icon frame
+    is always on (its switch is gone). The switches (ask before a reload, the alpha notice, experimental features) are
+    together under Other at the bottom of General.
+  - A unit is a hero by its own id: a copy of the Peasant with an upper-case `H` id gets the hero fields (Abilities -
+    Hero, the attributes) and Hero in its chain, as World Editor does (game facts, 10-28); a copy of a hero with a
+    lower-case id loses them. *(Agent's call: the building flag still comes from the base.)*
+  - Tooltip editor: the text's field name shows above its box, where it covers nothing. The toolbar has the colours
+    the game's own tooltips use (gold for levels and hotkeys, autocast's pale blue, the item grey, green, blue, purple
+    and orange, quest yellow, consumable sky blue: counted in the game's ability and item texts), the eraser for no
+    colour, a divider, then the user's own colours and a dashed +. The + opens the colour picker (the browser's own,
+    which shows the code); a colour picked colours the selection and is kept as a swatch, and a new + follows until
+    there are 8. A click on one of them colours the selection and opens the picker to change it. *(Agent's calls: 8
+    colours, kept in the window's storage; the picker is the browser's.)*
   - A bits field (Extra Versions, Pick Flags...) reads its values as the game's data spells them, each bit's own value
     (1, 2, 4): before, the editor read 6 as bits 1 and 2, so it ticked the wrong entries and wrote the wrong bits. A bit
     World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's

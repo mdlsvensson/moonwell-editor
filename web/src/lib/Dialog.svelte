@@ -2,7 +2,10 @@
 /**
  * A small dialog over the page: a title, its text and its buttons, on Bits UI's dialog (Sven, 2026-10-28). Esc or a
  * click on the veil cancels; the first input, else the first button, gets the focus when it opens, Tab stays inside
- * it, and the focus goes back where it was when it closes.
+ * it, and the focus goes back where it was when it closes. It stays open until the page takes it away: a cancel the
+ * page does not act on (the settings' Esc while a hotkey is being pressed) leaves it there, where Bits UI had closed
+ * it on its own and the page, still thinking it open, could not open it again (Sven, 2026-10-29). Its shadow is a
+ * small one (Sven, 2026-10-29).
  */
 import { Dialog } from "bits-ui";
 import type { Component, Snippet } from "svelte";
@@ -34,6 +37,13 @@ let {
 }: Props = $props();
 
 let box: HTMLDivElement | null = $state(null);
+let open = $state(true);
+
+function onOpenChange(next: boolean): void {
+  if (next) return;
+  open = true;
+  oncancel();
+}
 
 // The first input (its text selected), else the button marked primary, else the first button.
 function focusFirst(event: Event): void {
@@ -47,7 +57,7 @@ function focusFirst(event: Event): void {
 }
 </script>
 
-<Dialog.Root open onOpenChange={(open) => !open && oncancel()}>
+<Dialog.Root bind:open {onOpenChange}>
   <Dialog.Portal>
     <Dialog.Overlay class="fixed inset-0 z-30 bg-black/55" />
     <Dialog.Content
@@ -57,7 +67,7 @@ function focusFirst(event: Event): void {
         ? 'top-[60px] max-h-[calc(100%-90px)] w-[760px] overflow-auto'
         : wide
           ? 'top-[60px] max-h-[calc(100%-90px)] w-[620px] overflow-auto'
-          : 'top-[120px] w-[460px]'} max-w-[calc(100%-32px)] rounded-[10px] border border-line bg-surface p-4 shadow-[0_20px_60px_rgba(0,0,0,.5)] outline-none"
+          : 'top-[120px] w-[460px]'} max-w-[calc(100%-32px)] rounded-[10px] border border-line bg-surface p-4 shadow-[0_6px_18px_rgba(0,0,0,.35)] outline-none"
     >
       <Dialog.Title
         class="m-0 mb-2 flex gap-2 font-heading text-base font-bold text-fg {Icon ? 'items-center' : 'items-baseline'}"

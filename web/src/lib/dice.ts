@@ -44,9 +44,13 @@ export function rangeText(range: Range): string {
   return range.min === range.max ? String(range.min) : `${range.min} - ${range.max}`;
 }
 
-/** One end of a range as typed, a whole number (`12`, ` -5 `); null when it is not one. */
-export function parseBound(text: string): number | null {
-  return /^\s*[+-]?\d+\s*$/.test(text) ? Number.parseInt(text, 10) : null;
+/** A range as typed: `12 - 13`, `12-13`, `12 to 13`, or one number; null when it is not one, or runs backwards. */
+export function parseRange(text: string): Range | null {
+  const match = text.trim().match(/^([+-]?\d+)(?:\s*(?:-|–|—|to)\s*([+-]?\d+))?$/i);
+  if (!match) return null;
+  const min = Number.parseInt(match[1] ?? "", 10);
+  const max = match[2] === undefined ? min : Number.parseInt(match[2], 10);
+  return min <= max ? { min, max } : null;
 }
 
 /**

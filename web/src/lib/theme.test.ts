@@ -5,10 +5,10 @@ const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
 
 describe("app.css theme", () => {
   it.each([
-    ["--bg", "#121212"],
-    ["--accent", "#4d9375"],
-    ["--changed", "#e6cc77"],
-    ["--warn", "#cb7676"],
+    ["--bg", "#16161d"],
+    ["--accent", "#7e9cd8"],
+    ["--changed", "#e6c384"],
+    ["--warn", "#e46876"],
   ])("defines %s as %s", (name, value) => {
     expect(css.toLowerCase()).toContain(`${name}: ${value};`);
   });

@@ -297,7 +297,7 @@ public sealed partial class Session
             throw new EditException("noObject", $"There is no {ObjectKinds.Key(kind)} {id}.");
         }
 
-        return (map, data, found, standard);
+        return (map, data, found, standard == null ? null : data.ByOwnId(standard, id));
     }
 
     private static void RefuseReadOnly(MapKind map, MapObject? found)

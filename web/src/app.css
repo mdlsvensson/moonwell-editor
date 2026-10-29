@@ -8,35 +8,35 @@
 @import "@fontsource-variable/nunito";
 @import "@fontsource-variable/jetbrains-mono";
 
-/* Vitesse Dark (github.com/antfu/vscode-theme-vitesse). */
+/* Kanagawa Wave (github.com/rebelot/kanagawa.nvim), the default theme (Sven, 2026-10-29). */
 :root {
   /* Every theme is dark: the number boxes' arrows and the scroll bars follow it. */
   color-scheme: dark;
-  --bg: #121212;
-  --surface: #181818;
-  --raised: #1e1e1e;
-  --hover: #222222;
-  --border: #262626;
-  --fg: #dbd7ca;
-  --text: #bfbaaa;
-  --muted: #959da5;
-  --faint: #6b6f73;
-  --accent: #4d9375;
-  --accent-hi: #80a665;
-  --accent-lo: #144620;
-  --changed: #e6cc77;
-  --warn: #cb7676;
+  --bg: #16161d;
+  --surface: #1f1f28;
+  --raised: #2a2a37;
+  --hover: #2a2a37;
+  --border: #363646;
+  --fg: #dcd7ba;
+  --text: #c8c093;
+  --muted: #938aa9;
+  --faint: #727169;
+  --accent: #7e9cd8;
+  --accent-hi: #7fb4ca;
+  --accent-lo: #223249;
+  --changed: #e6c384;
+  --warn: #e46876;
   --warn-lo: #43242b;
-  --cyan: #5eaab5;
-  --purple: #6872ab;
-  /* One colour per kind of object, for its icon and its name (from Vitesse Dark's palette). */
-  --kind-unit: #6394bf;
-  --kind-item: #d4976c;
-  --kind-destructable: #80a665;
-  --kind-doodad: #b8a965;
-  --kind-ability: #5eaab5;
-  --kind-buff: #a28dcd;
-  --kind-upgrade: #c98a7d;
+  --cyan: #7aa89f;
+  --purple: #957fb8;
+  /* One colour per kind of object, for its icon and its name (from Kanagawa Wave's palette). */
+  --kind-unit: #7e9cd8;
+  --kind-item: #ffa066;
+  --kind-destructable: #98bb6c;
+  --kind-doodad: #c0a36e;
+  --kind-ability: #7aa89f;
+  --kind-buff: #957fb8;
+  --kind-upgrade: #d27e99;
   --font-ui: "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Nunito Variable", "Google Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;

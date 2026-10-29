@@ -211,23 +211,21 @@ async function paste(field: FieldView): Promise<void> {
 }
 
 /**
- * Ctrl C, Ctrl X or Ctrl V while a field is selected and the panel is where the user is (the page asks only then):
- * copies the field's value, or pastes the copied one into it (a field is never cut). False when no field is selected,
- * so the key goes to the object.
+ * Ctrl C or Ctrl V while a field is selected and the panel is where the user is (the page asks only then): copies the
+ * field's value, or pastes the copied one into it (there is no cut). False when no field is selected, so the key goes
+ * to the object.
  */
-export function clipKey(key: "c" | "x" | "v"): boolean {
+export function clipKey(key: "c" | "v"): boolean {
   const total = selectedTotal();
   if (total) {
     if (key === "c") copyTotal(total.label, total.dice);
-    else if (key === "v") pasteTotal(total.label, total.dice);
-    else onnotice(t("details.cannotCut"), false);
+    else pasteTotal(total.label, total.dice);
     return true;
   }
   const field = selectedField();
   if (!field) return false;
   if (key === "c") copy(field);
-  else if (key === "v") paste(field);
-  else onnotice(t("details.cannotCut"), false);
+  else paste(field);
   return true;
 }
 

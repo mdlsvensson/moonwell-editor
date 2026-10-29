@@ -1,6 +1,6 @@
 /**
- * The page's colour themes (Sven, 2026-10-27): each sets the colour tokens app.css defines on `:root` (Vitesse Dark
- * there, and first here), from its scheme's own palette. The choice is remembered in the window's storage.
+ * The page's colour themes (Sven, 2026-10-27): each sets the colour tokens app.css defines on `:root` (Kanagawa Wave
+ * there, and first here: the default, Sven, 2026-10-29), from its scheme's own palette. The choice is remembered in the window's storage.
  */
 
 /** The colour tokens every theme sets, as app.css names them without the `--`. */
@@ -49,12 +49,6 @@ function theme(id: string, name: string, values: string[]): Theme {
 // cyan, purple, then unit, item, destructable, doodad, ability, buff, upgrade.
 // biome-ignore format: nine colours to a line keep each palette readable
 export const themes: Theme[] = [
-  // github.com/antfu/vscode-theme-vitesse
-  theme("vitesse-dark", "Vitesse Dark", [
-    "#121212", "#181818", "#1e1e1e", "#222222", "#262626", "#dbd7ca", "#bfbaaa", "#959da5", "#6b6f73",
-    "#4d9375", "#80a665", "#144620", "#e6cc77", "#cb7676", "#43242b", "#5eaab5", "#6872ab",
-    "#6394bf", "#d4976c", "#80a665", "#b8a965", "#5eaab5", "#a28dcd", "#c98a7d",
-  ]),
   // github.com/rebelot/kanagawa.nvim
   theme("kanagawa-wave", "Kanagawa Wave", [
     "#16161d", "#1f1f28", "#2a2a37", "#2a2a37", "#363646", "#dcd7ba", "#c8c093", "#938aa9", "#727169",
@@ -65,6 +59,12 @@ export const themes: Theme[] = [
     "#0d0c0c", "#181616", "#282727", "#282727", "#393836", "#c5c9c5", "#b4b8b4", "#a6a69c", "#737c73",
     "#8ba4b0", "#8ea4a2", "#2a3438", "#c4b28a", "#c4746e", "#3a2626", "#8ea4a2", "#8992a7",
     "#8ba4b0", "#b6927b", "#87a987", "#c4b28a", "#8ea4a2", "#a292a3", "#c4746e",
+  ]),
+  // github.com/antfu/vscode-theme-vitesse
+  theme("vitesse-dark", "Vitesse Dark", [
+    "#121212", "#181818", "#1e1e1e", "#222222", "#262626", "#dbd7ca", "#bfbaaa", "#959da5", "#6b6f73",
+    "#4d9375", "#80a665", "#144620", "#e6cc77", "#cb7676", "#43242b", "#5eaab5", "#6872ab",
+    "#6394bf", "#d4976c", "#80a665", "#b8a965", "#5eaab5", "#a28dcd", "#c98a7d",
   ]),
   // github.com/morhetz/gruvbox
   theme("gruvbox-dark", "Gruvbox Dark", [
@@ -128,7 +128,7 @@ export const themes: Theme[] = [
 ];
 
 /** The theme the page starts with when none is chosen. */
-export const defaultTheme = "vitesse-dark";
+export const defaultTheme = "kanagawa-wave";
 
 const storageKey = "moonwell-editor.theme";
 

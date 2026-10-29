@@ -1,13 +1,18 @@
 /**
- * The editor's own switches (Sven, 2026-10-27), remembered in the window's storage: whether the object tree's icons
- * get a frame in the theme's colours over the game's own icon border, whether a reload from disk asks first, the UI
- * scale (the window scales the page; Ctrl and the wheel do not), and whether the alpha notice opens at start (Sven,
- * 2026-10-28: only Settings turns it off).
+ * The editor's own switches (Sven, 2026-10-27), remembered in the window's storage: whether a reload from disk asks
+ * first, the UI scale (the window scales the page; Ctrl and the wheel do not), whether the alpha notice opens at start
+ * (Sven, 2026-10-28: only Settings turns it off), and whether the experimental features are on (Sven, 2026-10-29: the
+ * table view; off at first).
  */
 
 const storageKey = "moonwell-editor.prefs";
 
-type Prefs = { iconFrames: boolean; confirmReload: boolean; uiScale: number; alphaNotice: boolean };
+type Prefs = {
+  confirmReload: boolean;
+  uiScale: number;
+  alphaNotice: boolean;
+  experimental: boolean;
+};
 
 /** The UI scales the settings offer, in percent, as the app takes them. */
 export const uiScales = [80, 100, 120];
@@ -19,13 +24,13 @@ function saved(): Prefs {
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as Partial<Prefs>;
     return {
-      iconFrames: stored.iconFrames !== false,
       confirmReload: stored.confirmReload !== false,
       uiScale: uiScales.includes(stored.uiScale ?? 100) ? (stored.uiScale ?? 100) : 100,
       alphaNotice: stored.alphaNotice ?? localStorage.getItem(oldAlphaKey) !== "yes",
+      experimental: stored.experimental === true,
     };
   } catch {
-    return { iconFrames: true, confirmReload: true, uiScale: 100, alphaNotice: true };
+    return { confirmReload: true, uiScale: 100, alphaNotice: true, experimental: false };
   }
 }
 

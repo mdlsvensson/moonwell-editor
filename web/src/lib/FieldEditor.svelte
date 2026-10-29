@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
  * The editor of one field at one level, by its type (see `editorFor`): a number or text box (Enter or leaving it
- * sends the value, Esc puts the value back), a toggle, a select, the flags' checkboxes, or an object list's chips
+ * sends the value, Esc puts the value back), True or False (a click turns it), a select, the flags' checkboxes, or an object list's chips
  * and picker. A value the app refuses keeps what was typed, with the reason in `error`. The table's cell editor starts
  * it with what was typed into the cell (`initial`), and sends or drops the typed value itself (`commit`, `cancel`).
  */
@@ -39,6 +39,8 @@ type Props = {
   error?: string;
   /** Text the box starts with as typed (a number or text box only); null or undefined starts from the value. */
   initial?: string | null;
+  /** True when the field is the one selected: its boxes show their border, not only on hover. */
+  selected?: boolean;
 };
 
 let {
@@ -50,6 +52,7 @@ let {
   onopen,
   error = $bindable(),
   initial = null,
+  selected = false,
 }: Props = $props();
 
 // What the user typed and has not sent yet (or that was refused); null shows the field's value.
@@ -125,19 +128,21 @@ const title = $derived(
 );
 // Values start at the left of their box, and a box in the details panel is as wide as its value (between 8 characters
 // and the column), as World Editor shows them (Sven, 2026-10-27); a level grid's cell fills its column. The box has a
-// background and border of its own, so it shows as a box on the row (Sven, 2026-10-27). A box that is typed in (a
-// number, a text) shows only its value, as the tooltip editor's texts do: a dashed border on hover, the accent's while
-// it has the cursor, and its placeholder when it is empty (Sven, 2026-10-28). A dropdown keeps its box (`tone`).
-const tone = $derived(
-  `${error || field.warning ? "border-warn bg-warn-lo" : `${compact ? "border-transparent" : "border-line"} bg-raised hover:border-muted`} ${
-    field.changed ? "text-changed" : "text-fg"
-  }`,
-);
+// background and border of its own, so it shows as a box on the row (Sven, 2026-10-27). Every box (a number, a text,
+// True or False, a dropdown) shows only its value, as the tooltip editor's texts do: a dashed border on hover, the
+// accent's while it has the cursor, and its placeholder when it is empty (Sven, 2026-10-28); a dropdown keeps its
+// arrow (Sven, 2026-10-29). The selected field's boxes show a solid border, as they do with the cursor in them (Sven,
+// 2026-10-29).
 const quiet = $derived(
-  `${error || field.warning ? "border-warn bg-warn-lo" : "border-transparent bg-transparent hover:border-dashed hover:border-muted"} ${
+  `${error || field.warning ? "border-warn bg-warn-lo" : selected ? "border-muted bg-transparent" : "border-transparent bg-transparent hover:border-dashed hover:border-muted"} ${
     field.changed ? "text-changed" : "text-fg"
   }`,
 );
+// True and False, both kept in the box so it is as wide for either (Sven, 2026-10-29).
+const toggleWords = $derived([
+  shownValue({ ...field, value: "1" }, choices, nameOf),
+  shownValue({ ...field, value: "0" }, choices, nameOf),
+]);
 const boxClass = $derived(
   `min-w-0 rounded border py-[3px] font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-solid focus:border-accent ${
     compact ? "w-full" : "field-sizing-content min-w-[8ch] max-w-full"
@@ -193,12 +198,6 @@ export async function commit(): Promise<boolean> {
   return taken && draft === null;
 }
 
-// A toggle the app refused shows the field's value again.
-async function choose(element: HTMLInputElement, value: string): Promise<void> {
-  if (await send(value)) return;
-  element.checked = field.value === "1";
-}
-
 /** Drops what was typed (and its error): the box shows the value again. */
 export function cancel(): void {
   setDraft(null);
@@ -238,33 +237,33 @@ function oninput(event: Event): void {
 
 <span class="block min-w-0 {compact ? '' : 'max-w-full'}" {title}>
   {#if editor === "toggle"}
-    <!-- No line height of its own: in the mono font's line the text sat a pixel low against the box (Sven,
-         2026-10-27). -->
-    <label class="inline-flex cursor-pointer items-center gap-2 px-1.5 py-[3px] font-mono text-[12.5px] leading-none {field.changed
-        ? 'text-changed'
-        : 'text-fg'}">
-      <input
-        type="checkbox"
-        class="accent-accent"
-        checked={field.value === "1"}
-        data-field="{field.id}:{field.level}"
-        onchange={(event) => choose(event.currentTarget, event.currentTarget.checked ? "1" : "0")}
-      />
-      {shown}
-    </label>
+    <!-- The word alone, no checkbox; a click turns it (Sven, 2026-10-29). -->
+    <button
+      type="button"
+      class="inline-grid cursor-pointer rounded border px-1.5 py-[3px] text-left font-mono text-[12.5px] outline-none focus:border-solid focus:border-accent {quiet}"
+      aria-pressed={field.value === "1"}
+      aria-label={field.label}
+      data-field="{field.id}:{field.level}"
+      onclick={() => send(field.value === "1" ? "0" : "1")}
+    >
+      {#each toggleWords as word (word)}
+        <span class="invisible col-start-1 row-start-1" aria-hidden="true">{word}</span>
+      {/each}
+      <span class="col-start-1 row-start-1">{shown}</span>
+    </button>
   {:else if editor === "select" && list}
     <Select
       {options}
       value={entryOf(list, field.value)?.value ?? field.value}
       missing={field.value === "" ? emptyText(field, choices) : field.value}
       label={field.label}
-      {tone}
+      tone={quiet}
       {compact}
       field="{field.id}:{field.level}"
       onpick={(value) => send(value)}
     />
   {:else if editor === "flags" && list}
-    <FlagsEditor {field} {list} {shown} {compact} onset={send} />
+    <FlagsEditor {field} {list} {shown} {compact} tone={quiet} onset={send} />
   {:else if editor === "ids"}
     <IdsEditor {field} {lookup} {compact} onset={send} {onopen} />
   {:else if editor === "number"}

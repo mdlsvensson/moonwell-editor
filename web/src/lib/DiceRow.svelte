@@ -1,16 +1,16 @@
 <script lang="ts">
 /**
  * A total of dice in the details panel (Sven, 2026-10-27): a unit's damage per attack or bounty as the range the game
- * rolls (Attack 1 - Damage 12 — 13), its lowest and highest in boxes of their own (Sven, 2026-10-28), with its base,
- * number of dice and sides per die under it as fields of their own. Typing the lowest or highest sets the three (one
- * edit, keeping the number of dice where it can); editing one of the three changes the range. The arrow that shows and
+ * rolls (Attack 1 - Damage 12 - 13), in one box again (Sven, 2026-10-29: `10-15` typed in one go), with its base,
+ * number of dice and sides per die under it as fields of their own. Typing a range sets the three (one edit, keeping
+ * the number of dice where it can); editing one of the three changes the range. The arrow that shows and
  * hides the three sits in the gutter left of the names, so the total's name lines up with the other fields' (Sven,
  * 2026-10-28); it takes the changed colour when one of the three is changed.
  */
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
-import { type DiceFields, parseBound, rangeEdits, rangeOf, rangeText } from "./dice.ts";
+import { type DiceFields, parseRange, rangeEdits, rangeOf, rangeText } from "./dice.ts";
 import FieldRow from "./FieldRow.svelte";
 import type { Lookup } from "./fields.ts";
 import { t } from "./text.ts";
@@ -73,66 +73,43 @@ const standard = $derived(
   ),
 );
 
-// What was typed in each box and not sent yet; null shows the range's end.
-let lowDraft = $state<string | null>(null);
-let highDraft = $state<string | null>(null);
+// What was typed and not sent yet; null shows the range.
+let draft = $state<string | null>(null);
 let error = $state("");
-let low: HTMLInputElement | undefined = $state();
-let high: HTMLInputElement | undefined = $state();
 // A range changed elsewhere (an edit of one of the three, undo) replaces what was typed.
 $effect(() => {
   void range.min;
   void range.max;
-  lowDraft = null;
-  highDraft = null;
+  draft = null;
   error = "";
 });
 
 async function commit(): Promise<void> {
-  if (lowDraft === null && highDraft === null) return;
-  const lowText = lowDraft ?? String(range.min);
-  const highText = highDraft ?? String(range.max);
-  const min = parseBound(lowText);
-  const max = parseBound(highText);
-  if (min === null || max === null) {
-    error = t("dice.notNumber", { field: label, text: min === null ? lowText : highText });
+  if (draft === null) return;
+  const typed = parseRange(draft);
+  if (!typed) {
+    error = t("dice.notRange", { field: label, text: draft });
     return;
   }
-  if (min > max) {
-    error = t("dice.backwards", { field: label, min, max });
-    return;
-  }
-  const edits = rangeEdits(fields, { min, max });
+  const edits = rangeEdits(fields, typed);
   if (edits.length === 0) {
-    lowDraft = null;
-    highDraft = null;
+    draft = null;
     error = "";
     return;
   }
   const problem = await onfields(edits);
   error = problem ?? "";
-  if (problem === null) {
-    lowDraft = null;
-    highDraft = null;
-  }
-}
-
-// Moving from one box to the other sends nothing yet, so a lowest above the old highest can be typed before the new
-// highest.
-function leave(event: FocusEvent): void {
-  const to = event.relatedTarget;
-  if (to !== low && to !== high) commit();
+  if (problem === null) draft = null;
 }
 
 function onkey(event: KeyboardEvent): void {
   if (event.key === "Enter") {
     event.preventDefault();
     commit();
-  } else if (event.key === "Escape" && (lowDraft !== null || highDraft !== null || error)) {
+  } else if (event.key === "Escape" && (draft !== null || error)) {
     event.preventDefault();
     event.stopPropagation();
-    lowDraft = null;
-    highDraft = null;
+    draft = null;
     error = "";
   }
 }
@@ -149,34 +126,6 @@ async function resetAll(): Promise<void> {
   }
 }
 </script>
-
-{#snippet bound(
-  draft: string | null,
-  shown: number,
-  name: string,
-  oninput: (text: string) => void,
-  bind: (element: HTMLInputElement) => void,
-  field?: string,
-)}
-  <input
-    class="field-sizing-content min-w-[5ch] max-w-full rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-solid focus:border-accent {error
-      ? 'border-warn bg-warn-lo'
-      : 'border-transparent bg-transparent hover:border-dashed hover:border-muted'} {changed ? 'text-changed' : 'text-fg'}"
-    value={draft ?? String(shown)}
-    placeholder="0"
-    data-field={field}
-    aria-label={name}
-    aria-invalid={!!error}
-    title={changed ? t("field.standard", { value: standard }) : undefined}
-    {@attach bind}
-    oninput={(event) => {
-      oninput(event.currentTarget.value);
-      error = "";
-    }}
-    onkeydown={onkey}
-    onblur={leave}
-  />
-{/snippet}
 
 <div
   data-changed={changed || undefined}
@@ -217,32 +166,30 @@ async function resetAll(): Promise<void> {
   </button>
   <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
     {#if editable}
-      <span class="flex min-w-0 items-center gap-1.5">
-        {@render bound(
-          lowDraft,
-          range.min,
-          t("dice.lowest", { field: label }),
-          (text) => (lowDraft = text),
-          (element) => {
-            low = element;
-          },
-          `${fields.base.id}:total`,
-        )}
-        <span class="text-muted" aria-hidden="true">—</span>
-        {@render bound(
-          highDraft,
-          range.max,
-          t("dice.highest", { field: label }),
-          (text) => (highDraft = text),
-          (element) => {
-            high = element;
-          },
-        )}
-      </span>
+      <!-- Shows only its value, as the other boxes do; a solid border while the total is selected (Sven, 2026-10-29). -->
+      <input
+        class="field-sizing-content min-w-[8ch] max-w-full rounded border px-1.5 py-[3px] font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-solid focus:border-accent {error
+          ? 'border-warn bg-warn-lo'
+          : selected === `${fields.base.id}:total`
+            ? 'border-muted bg-transparent'
+            : 'border-transparent bg-transparent hover:border-dashed hover:border-muted'} {changed ? 'text-changed' : 'text-fg'}"
+        value={draft ?? rangeText(range)}
+        placeholder="0"
+        data-field="{fields.base.id}:total"
+        aria-label={label}
+        aria-invalid={!!error}
+        title={changed ? t("field.standard", { value: standard }) : undefined}
+        oninput={(event) => {
+          draft = event.currentTarget.value;
+          error = "";
+        }}
+        onkeydown={onkey}
+        onblur={commit}
+      />
       {#if changed}
         <button
           type="button"
-          class="shrink-0 px-1 text-changed hover:text-fg"
+          class="ml-auto shrink-0 px-1 text-changed hover:text-fg"
           title={t("field.resetTitle", { value: standard })}
           aria-label={t("field.resetLabel", { field: label })}
           onclick={resetAll}
@@ -252,7 +199,7 @@ async function resetAll(): Promise<void> {
       {/if}
     {:else}
       <span class="px-1.5 py-[3px] font-mono text-[12.5px] {changed ? 'text-changed' : 'text-fg'}"
-        >{range.min} — {range.max}</span
+        >{rangeText(range)}</span
       >
     {/if}
   </span>

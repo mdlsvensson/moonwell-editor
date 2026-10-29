@@ -88,12 +88,15 @@ type Creating = {
   id: string;
   error: string;
   busy: boolean;
-  /** For a paste: the object copied (or cut, to be deleted once its copy is made); absent for a new object. */
+  /** For a paste: the object copied; absent for a new object. */
   from?: Clip;
 };
 
-/** An object copied or cut (Ctrl C, Ctrl X, the context menu), for Ctrl V to paste as a new custom object. */
-type Clip = { kind: Kind; id: string; name: string; baseId: string; cut: boolean };
+/**
+ * An object copied (Ctrl C, the context menu), for Ctrl V to paste as a new custom object. There is no cut (Sven,
+ * 2026-10-29): a paste never deletes the object it came from.
+ */
+type Clip = { kind: Kind; id: string; name: string; baseId: string };
 
 /** The object the delete dialog asks about. */
 type Deleting = { kind: Kind; id: string; name: string; baseId: string | null };
@@ -153,6 +156,10 @@ let choiceLists = $state.raw<Record<string, ChoiceList> | null>(null);
 
 // Which view the middle of the window shows: the selected object's details, or the kind's table.
 let page = $state<"details" | "table">("details");
+// The table view is an experimental feature (Sven, 2026-10-29): turning them off goes back to the details.
+$effect(() => {
+  if (!prefs.experimental && page === "table") page = "details";
+});
 // The tree's filter text; the table filters its rows by it too.
 let treeFilter = $state("");
 // The table's chips, sort and columns per kind, while the map is open.
@@ -166,7 +173,7 @@ let details:
   | {
       focusFilter(): void;
       focusField(field: FieldView): Promise<boolean>;
-      clipKey(key: "c" | "x" | "v"): boolean;
+      clipKey(key: "c" | "v"): boolean;
       scrollPosition(): number;
       scrollTo(top: number): void;
     }
@@ -619,16 +626,11 @@ async function create(): Promise<void> {
       from ? copyObject(each, from.id, wanted) : createObject(each, baseId, wanted),
     );
     creating = null;
-    if (from?.cut) {
-      // A cut object goes once its copy is made: it moved to the new id.
-      await queued(() => deleteObject(each, from.id));
-      clipboard = null;
-    }
     await refreshTrees(each);
     await show(each, id);
     say(
       from
-        ? t(from.cut ? "notice.moved" : "notice.pasted", { name: from.name, from: from.id, id })
+        ? t("notice.pasted", { name: from.name, from: from.id, id })
         : t("notice.made", { id, base: baseName }),
     );
   } catch (error) {
@@ -642,19 +644,15 @@ function entryOf(each: Kind, id: string): TreeEntry | undefined {
   return trees[each]?.find((entry) => entry.id === id);
 }
 
-/** Ctrl C, or Ctrl X with `cut` (custom objects only): keeps the object for Ctrl V. */
-function clip(each: Kind, id: string, cut: boolean): void {
+/** Ctrl C: keeps the object for Ctrl V. */
+function clip(each: Kind, id: string): void {
   const entry = entryOf(each, id);
   if (!entry) return;
-  if (cut && !entry.baseId) {
-    say(t("notice.onlyCustomCut"));
-    return;
-  }
-  clipboard = { kind: each, id, name: entry.name, baseId: entry.baseId ?? id, cut };
-  say(t(cut ? "notice.cut" : "notice.copied", { name: entry.name, id }));
+  clipboard = { kind: each, id, name: entry.name, baseId: entry.baseId ?? id };
+  say(t("notice.copied", { name: entry.name, id }));
 }
 
-/** Ctrl V: the id dialog for a copy of the object copied or cut, with the next free id. */
+/** Ctrl V: the id dialog for a copy of the object copied, with the next free id. */
 async function paste(): Promise<void> {
   const from = clipboard;
   if (!from || !map) {
@@ -709,13 +707,7 @@ async function objectMenu(each: Kind, id: string, x: number, y: number): Promise
     x,
     y,
     items: [
-      { label: t("menu.copy"), shortcut: "Ctrl C", run: () => clip(each, id, false) },
-      {
-        label: t("menu.cut"),
-        shortcut: "Ctrl X",
-        disabled: !custom,
-        run: () => clip(each, id, true),
-      },
+      { label: t("menu.copy"), shortcut: "Ctrl C", run: () => clip(each, id) },
       {
         label: clipboard ? t("menu.pasteObject", { name: clipboard.name }) : t("menu.paste"),
         shortcut: "Ctrl V",
@@ -965,15 +957,14 @@ function onkeydown(event: KeyboardEvent): void {
       undoOrRedo(action === "redo");
       break;
     case "copy":
-    case "cut":
     case "paste": {
       if (page !== "details" || !map || typingIn(event.target) || inPopup(event.target)) return;
       if (action !== "paste" && (window.getSelection()?.toString() ?? "") !== "") return; // copying text
       event.preventDefault();
-      const clipboardKey = action === "copy" ? "c" : action === "cut" ? "x" : "v";
+      const clipboardKey = action === "copy" ? "c" : "v";
       if (zone === "details" && details?.clipKey(clipboardKey)) return; // a selected field's value
       if (action === "paste") paste();
-      else if (current) clip(current.kind, current.id, action === "cut");
+      else if (current) clip(current.kind, current.id);
       break;
     }
     case "rename":
@@ -1118,10 +1109,10 @@ onMount(() => {
           class="rounded-[5px] p-1.5 {page === each.key
             ? 'bg-accent-lo text-accent-hi'
             : 'text-muted hover:bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted'}"
-          title={each.name}
+          title={each.key === "table" && !prefs.experimental ? t("header.tableExperimental") : each.name}
           aria-label={each.name}
           aria-pressed={page === each.key}
-          disabled={!map}
+          disabled={!map || (each.key === "table" && !prefs.experimental)}
           onclick={() => (page = each.key)}
         >
           <each.Icon size={17} />
@@ -1345,7 +1336,7 @@ onMount(() => {
   {@const typedProblem = idProblem(asked.kind, asked.id)}
   <Dialog
     title={asked.from
-      ? t(asked.from.cut ? "dialog.new.move" : "dialog.new.paste", { name: asked.from.name })
+      ? t("dialog.new.paste", { name: asked.from.name })
       : t("dialog.new.title", { name: asked.baseName })}
     note={asked.from ? asked.from.id : asked.baseId}
     oncancel={() => (creating = null)}

@@ -67,6 +67,11 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
     public ObjectView View(string id, StandardObject? standard, MapObject? map, string? readOnly)
     {
         var custom = map is { Custom: true };
+        if (standard != null)
+        {
+            standard = data.ByOwnId(standard, id);
+        }
+
         var name = Name(standard, map, id);
         var levels = Levels(standard, map);
         var fields = new List<FieldView>();

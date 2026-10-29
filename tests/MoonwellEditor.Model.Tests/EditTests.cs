@@ -243,6 +243,30 @@ public sealed class EditTests(GameDataFixture fixture, ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_unit_is_a_hero_by_its_own_id()
+    {
+        if (Skipped(out var game))
+        {
+            return;
+        }
+
+        using var map = TempMap.Of("we-3.0");
+        var session = Session.Open(MapFolder.Open(map.Folder), game);
+
+        // World Editor makes a Peasant copied to an upper-case H id a hero, with the hero fields (Sven, 2026-10-28).
+        var hero = session.Create(ObjectKind.Unit, "hpea", "H00P");
+        var heroView = session.Object(ObjectKind.Unit, hero)!;
+        Assert.Contains(heroView.Fields, field => field.Id == "ustr");
+        Assert.Contains(heroView.Fields, field => field.Id == "uhab");
+        Assert.Contains(heroView.Chain, link => link.Name == "Hero");
+        session.Set(ObjectKind.Unit, hero, "ustr", 0, "30");
+        Assert.Equal("30", Single(session.Object(ObjectKind.Unit, hero)!, "ustr", 0).Value);
+
+        var unit = session.Create(ObjectKind.Unit, "Hpal", "h00P");
+        Assert.DoesNotContain(session.Object(ObjectKind.Unit, unit)!.Fields, field => field.Id == "ustr");
+    }
+
+    [Fact]
     public void New_ids_follow_world_editor()
     {
         if (Skipped(out var game))

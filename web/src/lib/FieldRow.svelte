@@ -116,7 +116,7 @@ async function reset(): Promise<void> {
     {field.label}
     {#if showIds}<span class="ml-1.5 font-mono text-[12.5px] text-faint">{field.id}</span>{/if}
   </button>
-  <!-- The value starts right after the names, with ↺ after it, as World Editor lays them out (Sven, 2026-10-27). -->
+  <!-- The value starts right after the names, as World Editor lays them out (Sven, 2026-10-27). -->
   <span class="flex min-w-0 items-center gap-1 px-2 py-[3px]">
     {#if field.asset === "icon" && field.value.trim()}
       <!-- The icon the field names (Sven, 2026-10-27). -->
@@ -129,7 +129,7 @@ async function reset(): Promise<void> {
       />
     {/if}
     {#if editable}
-      <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} bind:error /></span>
+      <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} {selected} bind:error /></span>
       {#if pair && onpair}
         {@const both = pair}
         <CommandCard pair={both} onpick={(x, y) => onpair(both, x, y)} />
@@ -146,9 +146,10 @@ async function reset(): Promise<void> {
         />
       {/if}
       {#if field.changed}
+        <!-- At the row's right end (Sven, 2026-10-29). -->
         <button
           type="button"
-          class="shrink-0 px-1 text-changed hover:text-fg"
+          class="ml-auto shrink-0 px-1 text-changed hover:text-fg"
           title={t("field.resetTitle", { value: standard === "" ? t("field.empty") : standard })}
           aria-label={t("field.resetLabel", { field: field.label })}
           onclick={reset}

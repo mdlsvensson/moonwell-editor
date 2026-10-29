@@ -35,7 +35,7 @@ const point = $derived({ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) })
       collisionPadding={4}
       onCloseAutoFocus={(event) => event.preventDefault()}
       data-popup
-      class="z-50 min-w-[210px] rounded-lg border border-line bg-surface p-1 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)] outline-none"
+      class="z-50 min-w-[210px] rounded-lg border border-line bg-surface p-1 text-[13px] text-body shadow-[0_4px_12px_rgba(0,0,0,.3)] outline-none"
       oncontextmenu={(event) => event.preventDefault()}
     >
       {#each items as item, index (index)}

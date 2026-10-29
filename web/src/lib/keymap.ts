@@ -13,7 +13,6 @@ export type Action =
   | "newObject"
   | "copyObject"
   | "copy"
-  | "cut"
   | "paste"
   | "rename"
   | "deleteObject"
@@ -30,7 +29,6 @@ export const actionList: { action: Action; name: string; keys: string[] }[] = [
   { action: "newObject", name: t("hotkey.newObject"), keys: ["Ctrl+Shift+N"] },
   { action: "copyObject", name: t("hotkey.copyObject"), keys: ["Ctrl+Shift+D"] },
   { action: "copy", name: t("hotkey.copy"), keys: ["Ctrl+C"] },
-  { action: "cut", name: t("hotkey.cut"), keys: ["Ctrl+X"] },
   { action: "paste", name: t("hotkey.paste"), keys: ["Ctrl+V"] },
   { action: "rename", name: t("hotkey.rename"), keys: ["F2"] },
   { action: "deleteObject", name: t("hotkey.deleteObject"), keys: ["Delete"] },

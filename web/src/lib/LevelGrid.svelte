@@ -116,6 +116,7 @@ async function reset(field: FieldView): Promise<void> {
                         {choices}
                         {lookup}
                         compact
+                        selected={selected === key}
                         {onset}
                         {onopen}
                         bind:error={errors[key]}

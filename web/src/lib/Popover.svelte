@@ -37,7 +37,7 @@ let { anchor, onclose, children, large = false }: Props = $props();
         if (event.target instanceof Node && anchor.contains(event.target)) event.preventDefault();
       }}
       data-popup
-      class="z-40 w-max min-w-[200px] overflow-auto rounded-lg border border-line bg-surface p-1.5 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)] outline-none {large
+      class="z-40 w-max min-w-[200px] overflow-auto rounded-lg border border-line bg-surface p-1.5 text-[13px] text-body shadow-[0_4px_12px_rgba(0,0,0,.3)] outline-none {large
         ? 'max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)]'
         : 'max-h-[320px] max-w-[360px]'}"
     >

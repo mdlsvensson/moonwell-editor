@@ -163,7 +163,7 @@ const folderName = $derived(
 
   {#if showProblems && problems.length > 0}
     <div
-      class="absolute bottom-[30px] left-3 z-10 w-[560px] max-w-[calc(100%-24px)] rounded-lg border border-line bg-surface p-3 text-[13px] text-body shadow-[0_10px_40px_rgba(0,0,0,.5)]"
+      class="absolute bottom-[30px] left-3 z-10 w-[560px] max-w-[calc(100%-24px)] rounded-lg border border-line bg-surface p-3 text-[13px] text-body shadow-[0_4px_12px_rgba(0,0,0,.3)]"
       role="dialog"
       aria-label={t("status.problemsTitle")}
     >

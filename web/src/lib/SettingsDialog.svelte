@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
- * The editor's settings (Sven, 2026-10-27), in tabs: General (the graphics mode and the theme, which show at once and
- * are remembered), Hotkeys (each action's keys, which a click and a key press change), Map (what the editor knows
+ * The editor's settings (Sven, 2026-10-27), in tabs: General (the graphics mode, the UI scale and the theme, which show
+ * at once and are remembered, then the switches under Other), Hotkeys (each action's keys, which a click and a key press change), Map (what the editor knows
  * about the open map: its name, its game data option and the tables the game reads under it) and Game data.
  */
 import Check from "@lucide/svelte/icons/check";
@@ -68,6 +68,13 @@ const swatch = [
 ] as const;
 const customKinds = $derived(map ? kinds.filter((kind: Kind) => (map.counts[kind] ?? 0) > 0) : []);
 
+// The switches under Other.
+const switches = [
+  { key: "confirmReload", text: t("settings.confirmReload") },
+  { key: "alphaNotice", text: t("settings.alphaNotice") },
+  { key: "experimental", text: t("settings.experimental") },
+] as const;
+
 // The theme list, open under its button.
 let themesOpen = $state(false);
 let themeButton: HTMLButtonElement | undefined = $state();
@@ -102,7 +109,9 @@ function resetAll(): void {
 }
 </script>
 
-<svelte:window onkeydowncapture={listen} />
+<!-- A key Windows takes for itself (Ctrl Esc opens the Start menu) moves the focus away: that stops the listening too
+     (Sven, 2026-10-29). -->
+<svelte:window onkeydowncapture={listen} onblur={() => (listening = null)} />
 
 {#snippet row(label: string, value: string, mono = false)}
   <div class="flex gap-3 py-0.5">
@@ -180,36 +189,6 @@ function resetAll(): void {
         {/each}
       </div>
 
-      {@render heading(t("settings.icons"))}
-      <label class="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={prefs.iconFrames}
-          onchange={(event) => setPref("iconFrames", event.currentTarget.checked)}
-        />
-        {t("settings.iconFrames")}
-      </label>
-
-      {@render heading(t("settings.reload"))}
-      <label class="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={prefs.confirmReload}
-          onchange={(event) => setPref("confirmReload", event.currentTarget.checked)}
-        />
-        {t("settings.confirmReload")}
-      </label>
-
-      {@render heading(t("settings.start"))}
-      <label class="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={prefs.alphaNotice}
-          onchange={(event) => setPref("alphaNotice", event.currentTarget.checked)}
-        />
-        {t("settings.alphaNotice")}
-      </label>
-
       {@render heading(t("settings.theme"))}
       <button
         type="button"
@@ -245,6 +224,21 @@ function resetAll(): void {
           </div>
         </Popover>
       {/if}
+
+      <!-- The switches, together at the bottom (Sven, 2026-10-29). -->
+      {@render heading(t("settings.switches"))}
+      <div class="flex flex-col gap-1.5">
+        {#each switches as each (each.key)}
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={prefs[each.key]}
+              onchange={(event) => setPref(each.key, event.currentTarget.checked)}
+            />
+            {each.text}
+          </label>
+        {/each}
+      </div>
     {:else if tab === "hotkeys"}
       <p class="m-0 mb-2 text-[12.5px] text-faint">{t("settings.hotkeysNote")}</p>
       <div class="flex flex-col">
