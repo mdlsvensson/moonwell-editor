@@ -190,9 +190,10 @@ export function byModel(things: readonly PlacedThing[]): Map<string, PlacedThing
  * `_diffuse` version (an HD tree's diffuse map is LordaeronSnowTree_diffuse, 2048 by 1024, where the Classic texture
  * is 256 by 256 and laid out for the Classic model; seen in the install 2026-10-29). None for any other number.
  *
- * An HD cliff model names its texture as a file, ReplaceableTextures\Cliff\Cliff1_Diffuse.tif, which the install does
- * not have; CliffTypes.slk's overrideTexture names that file for the cliff type, so the cliff type's texture takes its
- * place (*claim*, seen as a white cliff on WarChasers 2026-10-29).
+ * An HD cliff model names its texture as a file the install does not have, Cliff0 or Cliff1 (_Diffuse.tif), in
+ * ReplaceableTextures\Cliff\ or, for a ramp, Doodads\Terrain\#ignore_Cliffs\; CliffTypes.slk's overrideTexture names
+ * that file for the cliff type, so the cliff type's texture takes its place (*claim*, seen as white cliffs on WarChasers
+ * and Ekrezem's Maze 2026-10-29).
  */
 export function texturePaths(
   texture: string | number,
@@ -202,7 +203,7 @@ export function texturePaths(
   const cliffFile =
     typeof texture === "string" &&
     !!batchTexture &&
-    /^replaceabletextures[\\/]cliff[\\/]/i.test(texture);
+    /(^|[\\/])cliff\d(_diffuse)?\.[a-z0-9]+$/i.test(texture);
   if (typeof texture === "string" && !cliffFile) return texture ? [texture] : [];
   const replaced = cliffFile || texture === 11 || (Number(texture) >= 31 && Number(texture) <= 37);
   if (!replaced || !batchTexture) return [];

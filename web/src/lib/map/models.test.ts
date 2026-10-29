@@ -217,6 +217,10 @@ describe("texturePaths", () => {
       String.raw`TerrainArt\Dungeon\Dungeon_Cliff1_diffuse.blp`,
       cliff,
     ]);
+    // A ramp's HD model names it in another folder (Ekrezem's Maze, 2026-10-29).
+    expect(texturePaths("Doodads/Terrain/#ignore_Cliffs/Cliff1_Diffuse.tif", cliff, false)).toEqual(
+      [cliff],
+    );
     // Not for a model that is not a cliff (no cliff texture on its batch).
     expect(texturePaths("ReplaceableTextures/Cliff/Cliff1_Diffuse.tif", null, true)).toEqual([
       "ReplaceableTextures/Cliff/Cliff1_Diffuse.tif",

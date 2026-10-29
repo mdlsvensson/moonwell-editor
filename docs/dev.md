@@ -85,6 +85,24 @@ The tests that need the game read the install the same way and check nothing whe
 map-archive test that opens Blizzard's `(4)losttemple.w3m` takes it from a folder, `maps` in the folder in
 `MOONWELL_EDITOR_GAME_DATA`.
 
+## The map view
+
+The Terrain Editor button shows the whole map, read only (design: wc3-cs `docs/plans/2026-10-29-map-view-design.md`).
+`MoonwellEditor.Map` reads the map's `war3map.w3e`, `war3map.doo`, `war3mapUnits.doo`, `war3map.w3r`, `war3map.w3c`
+and `war3map.w3i` with War3Net, and works out the corner heights, the tiles' texture pieces, the cliff and ramp
+models and each placed thing's model and trigger name (`gg_unit_hfoo_0001`). The page asks for it with the `mapScene`
+command (a graphics mode), then fetches the terrain's bytes from `https://game.moonwelleditor/terrain?mode=` (their
+layout is in `TerrainBytes.cs`). It draws with its own WebGL2 code in `web/src/lib/map/`, war3-model only reading the
+models, and picks by drawing each thing's number into a hidden picture. The page logs `[timing] map scene`, `map
+ground` and `map models` lines.
+
+To look into the page of a running exe (its console, its WebGL calls), start it with WebView2's debugging port open
+and attach Chrome's DevTools or a script to `http://127.0.0.1:9333`:
+
+```
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333" src/MoonwellEditor.App/bin/Release/net10.0-windows/win-x64/publish/MoonwellEditor.exe "C:\Maps\Arena.w3x"
+```
+
 ## Interface text
 
 Every text the page writes itself (buttons, tooltips, headings, dialogs, notices, errors) is in
