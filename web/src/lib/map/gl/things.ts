@@ -17,7 +17,7 @@ import type { Animation } from "../animation.ts";
 import { loadModel, type MapModel, ownGeosets, texturePaths } from "../models.ts";
 import type { Terrain } from "../scene.ts";
 import { type Batch, instanceFloats } from "./batches.ts";
-import { seen } from "./culling.ts";
+import { modelReach, reliefReach, seen } from "./culling.ts";
 import { type Lighting, lightingUniforms, litGlsl, setLighting } from "./lighting.ts";
 import { floatTexture, plainTexture, program } from "./program.ts";
 import { makeTexture } from "./textures.ts";
@@ -73,7 +73,8 @@ void main() {
   if (animated) {
     // Each copy starts at its own point of the loop, by its number.
     float at = floor(time * rate + fract(number * 0.618034) * float(frames));
-    int f = int(mod(at, float(frames)));
+    // A whole-number remainder: a float mod can round up to frames itself and read past the last row.
+    int f = clamp(int(at) % frames, 0, frames - 1);
     mat4 s = mat4(0.0);
     float total = 0.0;
     for (int i = 0; i < 4; i++) {
@@ -188,7 +189,8 @@ type Loaded = {
 
 export class ModelLayer {
   private readonly program: WebGLProgram;
-  private readonly relief: WebGLTexture;
+  /** The ground's heights without cliff levels, which cliffs stand on, and the greatest of them either way. */
+  private readonly relief: { texture: WebGLTexture; reach: number };
   private readonly white: WebGLTexture;
   private readonly uniforms: Record<string, WebGLUniformLocation | null>;
   private readonly instances = new Map<Batch, WebGLBuffer>();
@@ -244,7 +246,10 @@ export class ModelLayer {
         ...lightingUniforms,
       ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
     );
-    this.relief = floatTexture(gl, terrain.columns, terrain.rows, terrain.relief);
+    this.relief = {
+      texture: floatTexture(gl, terrain.columns, terrain.rows, terrain.relief),
+      reach: reliefReach(terrain.relief),
+    };
     this.white = plainTexture(gl, [255, 255, 255, 255]);
     for (const batch of batches) {
       const buffer = gl.createBuffer();
@@ -287,7 +292,7 @@ export class ModelLayer {
     setLighting(gl, this.uniforms, light);
     gl.uniform1i(this.uniforms.picking ?? null, picking ? 1 : 0);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, this.relief);
+    gl.bindTexture(gl.TEXTURE_2D, this.relief.texture);
     gl.uniform1i(this.uniforms.relief ?? null, 1);
     gl.uniform1i(this.uniforms.diffuse ?? null, 0);
     gl.uniform1i(this.uniforms.orm ?? null, 2);
@@ -384,7 +389,7 @@ export class ModelLayer {
     for (const texture of this.textures.values())
       void texture.then((made) => made && gl.deleteTexture(made));
     for (const texture of this.movingTextures) gl.deleteTexture(texture);
-    gl.deleteTexture(this.relief);
+    gl.deleteTexture(this.relief.texture);
     gl.deleteTexture(this.white);
     gl.deleteProgram(this.program);
   }
@@ -422,22 +427,14 @@ export class ModelLayer {
     if (this.stopped) return;
     const { gl } = this;
     const instances = this.instances.get(batch) ?? null;
-    // How far the model reaches from its origin; an animated one may reach further as it moves.
-    let reach = 0;
-    for (const geoset of own) {
-      for (let i = 0; i < geoset.positions.length; i += 3) {
-        const along = Math.hypot(
-          geoset.positions[i] ?? 0,
-          geoset.positions[i + 1] ?? 0,
-          geoset.positions[i + 2] ?? 0,
-        );
-        if (along > reach) reach = along;
-      }
-    }
     this.loaded.push({
       batch,
       // A cliff stands on the ground's relief, which its copy's place leaves out.
-      reach: (model.moving ? reach * 1.5 + 64 : reach + 16) + (batch.cliff ? 512 : 0),
+      reach:
+        modelReach(
+          own.map((geoset) => geoset.positions),
+          model.model.animation,
+        ) + (batch.cliff ? this.relief.reach : 0),
       whole: true,
       moving: model.moving,
       geosets: geosets.map(({ geoset, texture, orm, normalMap, emissive, buffers }) => {

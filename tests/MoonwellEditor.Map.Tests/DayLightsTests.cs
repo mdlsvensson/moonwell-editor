@@ -95,6 +95,41 @@ public sealed class DayLightsTests(ITestOutputHelper output)
         Assert.Null(DayLights.Noon([1, 2, 3]));
     }
 
+    [Fact]
+    public void A_file_of_bad_sizes_reads_as_no_light_without_hanging()
+    {
+        // A chunk that says it is -8 long, then a light that says it is 0 long.
+        byte[] negative = [.. Encoding.ASCII.GetBytes("MDLX"), .. Encoding.ASCII.GetBytes("JUNK"), .. BitConverter.GetBytes(-8)];
+        byte[] lite = [.. Encoding.ASCII.GetBytes("LITE"), .. BitConverter.GetBytes(8), .. new byte[8]];
+        byte[] empty = [.. Encoding.ASCII.GetBytes("MDLX"), .. lite];
+
+        Assert.Null(Finishes(() => DayLights.Noon(negative)));
+        Assert.Null(Finishes(() => DayLights.Noon(empty)));
+    }
+
+    [Fact]
+    public void An_environment_map_of_impossible_size_reads_as_no_sky()
+    {
+        var dds = new byte[200];
+        Encoding.ASCII.GetBytes("DDS ").CopyTo(dds, 0);
+        Encoding.ASCII.GetBytes("DX10").CopyTo(dds, 84);
+        BitConverter.GetBytes(int.MaxValue).CopyTo(dds, 16); // width
+        BitConverter.GetBytes(int.MaxValue).CopyTo(dds, 28); // mipmaps
+        BitConverter.GetBytes(72).CopyTo(dds, 128); // BC1 sRGB
+        BitConverter.GetBytes(4).CopyTo(dds, 136); // a cube
+        BitConverter.GetBytes(2).CopyTo(dds, 140); // two of them
+
+        Assert.Null(Finishes(() => DayLights.SkyColours(dds)));
+    }
+
+    // The result of a read that must end within two seconds.
+    private static T Finishes<T>(Func<T> read)
+    {
+        var task = Task.Run(read);
+        Assert.True(task.Wait(TimeSpan.FromSeconds(2)), "the read did not end");
+        return task.Result;
+    }
+
     private static void Near(float[] expected, float[] actual)
     {
         Assert.Equal(expected.Length, actual.Length);

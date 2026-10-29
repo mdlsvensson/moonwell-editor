@@ -240,6 +240,17 @@ export class MapRenderer {
     this.unitLight.shadow = shadow;
   }
 
+  // One frame of the water texture, if the view draws it.
+  private async loadWaterFrame(index: number): Promise<void> {
+    const path = this.water.framePaths(this.terrainLight.pbr)[index];
+    if (!path) return;
+    const data = await this.bytes(path);
+    const frame = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
+    if (!frame) return;
+    this.water.setFrame(index, frame);
+    if (index === 0) this.changed();
+  }
+
   private viewProjection(view: View, width: number, height: number): mat4 {
     const { view: look, projection } = matrices(view, width, height);
     return mat4.multiply(mat4.create(), projection, look);
@@ -281,17 +292,8 @@ export class MapRenderer {
         this.ground.setSheet(index, sheet);
         this.changed();
       }),
-      (async () => {
-        // The first frame first, so the water shows while the rest load.
-        const paths = this.water.framePaths;
-        for (const [index, path] of paths.entries()) {
-          const data = await this.bytes(path);
-          const frame = data && !this.stopped ? makeTexture(this.gl, data, true) : null;
-          if (!frame) continue;
-          this.water.setFrame(index, frame);
-          if (index === 0) this.changed();
-        }
-      })(),
+      // The water's first frame with the ground; the rest after, so the models need not wait for them.
+      this.loadWaterFrame(0),
       ...(this.unitShadows?.wanted ?? []).map(async (path) => {
         const data = await this.bytes(path);
         const picture = data && !this.stopped ? makeTexture(this.gl, data) : null;
@@ -312,6 +314,10 @@ export class MapRenderer {
     ]);
     if (this.stopped) return;
     this.loaded("ground", performance.now() - started);
+    void (async () => {
+      const count = this.water.framePaths(this.terrainLight.pbr).length;
+      for (let index = 1; index < count && !this.stopped; index++) await this.loadWaterFrame(index);
+    })();
     await Promise.all([this.cliffs.load(near), this.things.load(near)]);
     if (!this.stopped) this.loaded("models", performance.now() - started);
   }

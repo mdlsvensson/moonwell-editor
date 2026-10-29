@@ -96,6 +96,11 @@ public static class DayLights
                 var tag = Encoding.ASCII.GetString(mdx, at, 4);
                 var size = BitConverter.ToInt32(mdx, at + 4);
                 var data = at + 8;
+                if (size < 0 || size > mdx.Length - data)
+                {
+                    return null;
+                }
+
                 switch (tag)
                 {
                     case "VERS":
@@ -126,7 +131,16 @@ public static class DayLights
         {
             var size = BitConverter.ToInt32(mdx, at);
             var node = at + 4;
+            if (size <= 0 || size > end - at)
+            {
+                return null;
+            }
+
             var nodeSize = BitConverter.ToInt32(mdx, node);
+            if (nodeSize < 96 || nodeSize > size - 4)
+            {
+                return null;
+            }
             var turn = Quaternion.Identity;
             foreach (var (tag, keys) in Tracks(mdx, node + 96, node + nodeSize))
             {
@@ -201,6 +215,12 @@ public static class DayLights
             var count = BitConverter.ToInt32(mdx, at + 4);
             var tangents = BitConverter.ToInt32(mdx, at + 8) > 1;
             var key = at + 16;
+            var keyBytes = 4 + (width * 4 * (tangents ? 3 : 1));
+            if (count < 0 || count > (end - key) / keyBytes)
+            {
+                break;
+            }
+
             var keys = new List<(int, float[])>();
             for (var i = 0; i < count; i++)
             {
@@ -256,27 +276,29 @@ public static class DayLights
         var width = BitConverter.ToInt32(dds, 16);
         var mips = Math.Max(BitConverter.ToInt32(dds, 28), 1);
         var cubes = BitConverter.ToInt32(dds, 140);
-        if (format is not (71 or 72) || (BitConverter.ToInt32(dds, 136) & 4) == 0 || cubes < 1)
+        // A map of a size no file of this one's length can hold is not read.
+        if (format is not (71 or 72) || (BitConverter.ToInt32(dds, 136) & 4) == 0 || cubes < 1
+            || width is < 1 or > 16384 || mips > 16)
         {
             return null;
         }
 
         var cube = Math.Min(cubes - 1, 1);
-        var faceBytes = 0;
+        long faceBytes = 0;
         for (int level = 0, side = width; level < mips; level++, side = Math.Max(side / 2, 1))
         {
-            faceBytes += Math.Max((side + 3) / 4, 1) * Math.Max((side + 3) / 4, 1) * 8;
+            faceBytes += (long)Math.Max((side + 3) / 4, 1) * Math.Max((side + 3) / 4, 1) * 8;
+        }
+
+        if (148 + ((cube + 1) * 6 * faceBytes) > dds.Length)
+        {
+            return null;
         }
 
         var colours = new float[18];
         for (var face = 0; face < 6; face++)
         {
-            var block = 148 + (cube * 6 + face + 1) * faceBytes - 8;
-            if (block + 8 > dds.Length)
-            {
-                return null;
-            }
-
+            var block = (int)(148 + ((cube * 6 + face + 1) * faceBytes) - 8);
             var texel = Bc1First(dds, block);
             texel.CopyTo(colours, face * 3);
         }

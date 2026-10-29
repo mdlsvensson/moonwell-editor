@@ -4,7 +4,39 @@
  * a map's thousands of HD trees drawn twice a frame, for the screen and the sun, were too slow). Copies keep their order.
  */
 import type { mat4 } from "gl-matrix";
+import type { Animation } from "../animation.ts";
 import { instanceFloats } from "./batches.ts";
+
+/**
+ * How far a model reaches from its origin: its farthest vertex, plus the farthest any bone moves in its animation (a
+ * bird circling far from where it stands), a little more.
+ */
+export function modelReach(
+  positions: readonly ArrayLike<number>[],
+  animation: Animation | null,
+): number {
+  let reach = 0;
+  for (const list of positions) {
+    for (let i = 0; i + 2 < list.length; i += 3) {
+      reach = Math.max(reach, Math.hypot(list[i] ?? 0, list[i + 1] ?? 0, list[i + 2] ?? 0));
+    }
+  }
+  let travel = 0;
+  if (animation) {
+    for (let at = 0; at + 11 < animation.poses.length; at += 12) {
+      const p = animation.poses;
+      travel = Math.max(travel, Math.hypot(p[at + 3] ?? 0, p[at + 7] ?? 0, p[at + 11] ?? 0));
+    }
+  }
+  return reach + travel + 16;
+}
+
+/** The ground's greatest height either way: a cliff stands on it, beyond its copy's place. */
+export function reliefReach(relief: Float32Array): number {
+  let most = 0;
+  for (const height of relief) most = Math.max(most, Math.abs(height));
+  return most;
+}
 
 // The frustum's planes, a, b, c, d each, the normal a, b, c of unit length pointing inward (Gribb and Hartmann).
 function planes(m: mat4): number[][] {
@@ -53,7 +85,9 @@ export function seen(
     const r = reach * scale;
     const inside = sides.every(([a = 0, b = 0, c = 0, d = 0]) => a * x + b * y + c * z + d >= -r);
     if (!inside) continue;
-    target.set(instances.subarray(at, at + instanceFloats), kept * instanceFloats);
+    // Number by number: a view of each copy would be garbage made every frame.
+    const to = kept * instanceFloats;
+    for (let k = 0; k < instanceFloats; k++) target[to + k] = instances[at + k] ?? 0;
     kept++;
   }
   return { instances: target, count: kept };

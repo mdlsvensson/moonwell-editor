@@ -14,6 +14,18 @@ import { argb, floatTexture, plainTexture, program } from "./program.ts";
 /** The game's water normal map (HD and Definitive Edition), two channels. */
 export const ripplesPath = "ReplaceableTextures\\Water\\Water_Normal.blp";
 
+/**
+ * The water texture's frames the view fetches, Water00 first: Classic's all, for water it plays; none for a map
+ * without water, or in HD and Definitive Edition (`pbr`), whose water draws no frame.
+ */
+export function waterFramePaths(look: WaterLook, wet: boolean, pbr: boolean): string[] {
+  if (!wet || pbr) return [];
+  return Array.from(
+    { length: Math.max(look.frames, 1) },
+    (_, index) => `${look.texture}${String(index).padStart(2, "0")}.blp`,
+  );
+}
+
 /** What the shader reads for a corner without water. */
 const none = -1e9;
 
@@ -162,11 +174,9 @@ export class WaterLayer {
     this.buffers.push(corners, instances);
   }
 
-  /** The paths of the water texture's frames (Water00 to Water44). */
-  get framePaths(): string[] {
-    return this.frames.map(
-      (_, index) => `${this.look.texture}${String(index).padStart(2, "0")}.blp`,
-    );
+  /** The water texture's frames the view fetches (see waterFramePaths). */
+  framePaths(pbr: boolean): string[] {
+    return waterFramePaths(this.look, this.count > 0, pbr);
   }
 
   setFrame(index: number, frame: WebGLTexture): void {
