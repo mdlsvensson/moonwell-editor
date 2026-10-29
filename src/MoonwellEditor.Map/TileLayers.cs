@@ -12,7 +12,7 @@ public readonly record struct TileLayer(byte Texture, byte Piece);
 /// The textures each tile draws, lowest first (*claim*, from HiveWE): every texture its four corners hold, in the
 /// textures' order. The first is drawn whole, in the piece its variation picks; each one after it in the piece of its
 /// corners: bottom right 1, bottom left 2, top right 4, top left 8. A corner by a cliff holds its cliff type's ground
-/// texture, a blighted corner the blight.
+/// texture, a blighted corner the blight, and one naming a texture the map does not list the map's first.
 /// </summary>
 public sealed class TileLayers
 {
@@ -37,7 +37,8 @@ public sealed class TileLayers
             var corner = corners[index];
             held[index] = (byte)(cliffs.Touches(index % columns, index / columns) && textures.CliffGround.Count > 0
                 ? textures.CliffGround[Cliffs.TypeAt(corner, textures.CliffGround.Count)]
-                : corner.IsBlighted ? textures.Blight : corner.Texture);
+                : corner.IsBlighted ? textures.Blight
+                : corner.Texture < textures.Blight ? corner.Texture : 0);
         }
 
         var tiles = new TileLayer[(columns - 1) * (rows - 1)][];

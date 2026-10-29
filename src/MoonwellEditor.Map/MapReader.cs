@@ -43,18 +43,19 @@ public static class MapReader
             problems);
     }
 
-    // One file: null when the map has none, or when War3Net cannot read it (its reason added to problems).
+    // One file: null when the map has none, or when it cannot be read, out of the archive (a protected map's bogus
+    // entry) or by War3Net (its reason added to problems).
     private static T? Read<T>(IMapStore store, string name, List<string> problems, Func<BinaryReader, T> read)
         where T : class
     {
-        var bytes = store.Read(name);
-        if (bytes == null)
-        {
-            return null;
-        }
-
         try
         {
+            var bytes = store.Read(name);
+            if (bytes == null)
+            {
+                return null;
+            }
+
             using var reader = new BinaryReader(new MemoryStream(bytes));
             return read(reader);
         }

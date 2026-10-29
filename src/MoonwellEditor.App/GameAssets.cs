@@ -197,8 +197,10 @@ public sealed class GameAssets : IDisposable, IMapGameFiles
                     ? map.ReadImport(Path.ChangeExtension(path, ".mdx"))
                     : null);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException
+            or MapArchiveException)
         {
+            // An import there but not readable (a protected map's bogus entry) is as good as none: the game's is next.
             return null;
         }
     }

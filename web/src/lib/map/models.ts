@@ -91,8 +91,11 @@ export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapM
     return textures[index];
   };
   const named = model.Geosets.map((geoset) => variationOf((geoset as { Name?: string }).Name));
-  const variations = new Set(named.filter((each) => each !== null)).size;
-  const several = variations > 1;
+  const numbers = new Set(named.filter((each) => each !== null));
+  const variations = numbers.size;
+  // Shapes only when the numbers run 0, 1, 2 ... with none missing (a body1 and a cape2 are not shapes).
+  const several =
+    variations > 1 && [...numbers].every((each) => each !== null && each < variations);
   const geosets: MapGeoset[] = [];
   model.Geosets.forEach((geoset, index) => {
     if ((geoset.LevelOfDetail ?? 0) !== 0) return;
@@ -212,4 +215,16 @@ export function texturePaths(
   const stem = extension ? batchTexture.slice(0, -extension.length) : batchTexture;
   const file = `${stem}${extension || ".blp"}`;
   return hd ? [`${stem}_diffuse${extension || ".blp"}`, file] : [file];
+}
+
+/**
+ * The geosets a thing of `variation` draws: those of its own shape and those of every shape. None when its shape's
+ * geosets all draw nothing, and then the thing is a marker (Review Focus 2).
+ */
+export function ownGeosets(
+  model: Pick<MapModel, "geosets" | "variations">,
+  variation: number,
+): MapGeoset[] {
+  const shape = variation % model.variations;
+  return model.geosets.filter((geoset) => geoset.variation === null || geoset.variation === shape);
 }

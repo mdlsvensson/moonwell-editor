@@ -35,6 +35,34 @@ public sealed class MapSceneCommandTests : IDisposable
     }
 
     [Fact]
+    public void An_import_the_archive_cannot_give_is_not_found()
+    {
+        Directory.CreateDirectory(_root);
+        using var assets = new GameAssets(() => new Unreadable(_root));
+
+        Assert.Null(assets.File(@"war3mapImported\Box.mdx"));
+    }
+
+    // A map archive whose every import is there but cannot be read out of it.
+    private sealed class Unreadable(string path) : IMapStore
+    {
+        public string Path => path;
+
+        public bool IsArchive => true;
+
+        public byte[]? Read(string name) => null;
+
+        public byte[]? ReadImport(string import) => throw new MapArchiveException(path, "bad compression");
+
+        public string? WriteProblem(string name) => null;
+
+        public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null) =>
+            throw new InvalidOperationException();
+
+        public string Stamp() => "";
+    }
+
+    [Fact]
     public void An_import_named_mdl_is_found_as_mdx()
     {
         Directory.CreateDirectory(Path.Combine(_root, "map", "war3mapImported"));

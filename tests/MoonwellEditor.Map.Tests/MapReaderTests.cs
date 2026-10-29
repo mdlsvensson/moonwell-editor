@@ -77,6 +77,24 @@ public sealed class MapReaderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_file_the_archive_cannot_give_is_a_problem()
+    {
+        var store = InstallMaps.Open(InstallMaps.LostTemple);
+        if (store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        // A protected map: the entry is there, but cannot be read out of the archive.
+        var files = MapReader.Read(new Broken(store, "war3mapUnits.doo"));
+
+        Assert.Null(files.Units);
+        Assert.Contains("war3mapUnits.doo", Assert.Single(files.Problems));
+        Assert.NotNull(files.Terrain);
+    }
+
+    [Fact]
     public void Reading_writes_nothing()
     {
         var store = InstallMaps.Open(InstallMaps.LostTemple);
@@ -89,6 +107,26 @@ public sealed class MapReaderTests(ITestOutputHelper output)
         var files = MapReader.Read(new NoWrites(store));
 
         Assert.NotNull(files.Terrain);
+    }
+
+    // A map one of whose entries the archive cannot give (a protector's bogus compression).
+    private sealed class Broken(IMapStore inner, string broken) : IMapStore
+    {
+        public string Path => inner.Path;
+
+        public bool IsArchive => inner.IsArchive;
+
+        public byte[]? Read(string name) =>
+            name == broken ? throw new MapArchiveException(inner.Path, "bad compression") : inner.Read(name);
+
+        public byte[]? ReadImport(string path) => inner.ReadImport(path);
+
+        public string? WriteProblem(string name) => inner.WriteProblem(name);
+
+        public void Write(IReadOnlyList<(string Name, byte[]? Bytes)> files, string? stamp = null) =>
+            throw new InvalidOperationException("The map view wrote to the map.");
+
+        public string Stamp() => inner.Stamp();
     }
 
     // A map whose every write fails the test.

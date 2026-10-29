@@ -1303,7 +1303,10 @@ onMount(() => {
   {:else}
     {#if page === "map"}
       <main class="min-h-0" aria-label={t("main.map")}>
-        <MapView mode={graphics.mode} />
+        <!-- A map opened or reloaded is a new object: the view is made again and reads it. -->
+        {#key map}
+          <MapView mode={graphics.mode} />
+        {/key}
       </main>
     {/if}
     {#if page === "table"}

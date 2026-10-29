@@ -72,6 +72,13 @@ const kindNames: Record<PickKind, TextKey> = {
 };
 const pickKinds = Object.keys(kindNames) as PickKind[];
 
+/** The host made last, whatever the mode: when the view goes, its context goes back to the browser. */
+let lastHost: GlHost | null = null;
+$effect(() => {
+  if (!canvas) return;
+  return () => lastHost?.stop(true);
+});
+
 $effect(() => {
   const shown = mode;
   const target = canvas;
@@ -80,7 +87,10 @@ $effect(() => {
   let stopped = false;
   void open(shown, target, (made) => {
     if (stopped) made.stop();
-    else host = made;
+    else {
+      host = made;
+      lastHost = made;
+    }
   });
   const resize = new ResizeObserver(() => sizeCanvas(target));
   resize.observe(target);

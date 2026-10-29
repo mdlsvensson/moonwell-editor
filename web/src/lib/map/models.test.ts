@@ -6,6 +6,7 @@ import {
   instanceMatrix,
   loadModel,
   mapModel,
+  ownGeosets,
   texturePaths,
 } from "./models.ts";
 import type { PlacedThing } from "./scene.ts";
@@ -164,6 +165,18 @@ describe("mapModel", () => {
     expect(mapModel(parsed(0) as never, () => undefined).variations).toBe(1);
   });
 
+  it("takes numbers in names for shapes only when they run 0, 1, 2 ... (a cape2 is not a second shape)", () => {
+    const named = parsed(0);
+    const [geoset] = named.Geosets;
+    named.Geosets = [
+      { ...geoset, Name: "hero_rig:body1_geo" },
+      { ...geoset, Name: "hero_rig:cape2_geo" },
+    ] as unknown as typeof named.Geosets;
+    const model = mapModel(named as never, () => undefined);
+    expect(model.variations).toBe(1);
+    expect(model.geosets.map((each) => each.variation)).toEqual([null, null]);
+  });
+
   it("tells an HD geoset by its material's shader", () => {
     const hd = parsed(0, [{ FilterMode: 0, TextureID: 0, ShaderTypeId: 1 }]);
     expect(mapModel(hd as never, () => undefined).geosets[0]?.hd).toBe(true);
@@ -225,5 +238,20 @@ describe("texturePaths", () => {
     expect(texturePaths("ReplaceableTextures/Cliff/Cliff1_Diffuse.tif", null, true)).toEqual([
       "ReplaceableTextures/Cliff/Cliff1_Diffuse.tif",
     ]);
+  });
+});
+
+describe("ownGeosets", () => {
+  const geoset = (variation: number | null) =>
+    ({ variation }) as unknown as import("./models.ts").MapGeoset;
+
+  it("gives a thing its own shape's geosets and those of every shape", () => {
+    const model = { variations: 2, geosets: [geoset(0), geoset(1), geoset(null)] };
+    expect(ownGeosets(model, 3).map((each) => each.variation)).toEqual([1, null]);
+    expect(ownGeosets(model, 0).map((each) => each.variation)).toEqual([0, null]);
+  });
+
+  it("gives none for a shape whose geosets all draw nothing, so the thing is a marker", () => {
+    expect(ownGeosets({ variations: 2, geosets: [geoset(0)] }, 1)).toEqual([]);
   });
 });

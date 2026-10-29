@@ -6,7 +6,7 @@
  * to `failed`, and its things become markers.
  */
 import type { mat4 } from "gl-matrix";
-import { loadModel, type MapGeoset, type MapModel, texturePaths } from "../models.ts";
+import { loadModel, type MapGeoset, type MapModel, ownGeosets, texturePaths } from "../models.ts";
 import type { Terrain } from "../scene.ts";
 import { type Batch, instanceFloats } from "./batches.ts";
 import { floatTexture, plainTexture, program } from "./program.ts";
@@ -214,27 +214,29 @@ export class ModelLayer {
   private async loadBatch(batch: Batch): Promise<void> {
     const model = await this.model(batch.model);
     if (this.stopped) return;
-    if (!model || model.model.geosets.length === 0) {
+    // A model of several shapes draws the batch's variation's geosets, and those of every variation; a thing whose
+    // shape draws nothing is a marker, as one whose model draws nothing.
+    const own = model ? ownGeosets(model.model, batch.variation) : [];
+    if (!model || own.length === 0) {
       this.failed(batch);
       return;
     }
-    // A model of several shapes draws the batch's variation's geosets, and those of every variation.
-    const shape = batch.variation % model.model.variations;
     const geosets = await Promise.all(
-      model.model.geosets.map(async (geoset, index) => {
+      own.map(async (geoset) => {
         const texture = await this.texture(geoset, batch);
-        return { geoset, texture, buffers: model.buffers[index] ?? [] };
+        return {
+          geoset,
+          texture,
+          buffers: model.buffers[model.model.geosets.indexOf(geoset)] ?? [],
+        };
       }),
     );
     if (this.stopped) return;
     const { gl } = this;
     const instances = this.instances.get(batch) ?? null;
-    const own = geosets.filter(
-      ({ geoset }) => geoset.variation === null || geoset.variation === shape,
-    );
     this.loaded.push({
       batch,
-      geosets: own.map(({ geoset, texture, buffers }) => {
+      geosets: geosets.map(({ geoset, texture, buffers }) => {
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
         const [positions, normals, uvs, indices] = buffers;

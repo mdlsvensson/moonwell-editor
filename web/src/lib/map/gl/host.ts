@@ -22,15 +22,23 @@ export class GlHost {
     this.make();
   }
 
-  /** Drops everything and stops making it again. */
-  stop(): void {
+  /**
+   * Drops everything and stops making it again. With `release`, for a canvas that goes, it also hands the context back:
+   * Chromium keeps a few live contexts and drops the oldest beyond them, which could be the model preview's. Without
+   * it the canvas keeps its context for the next host (a new graphics mode).
+   */
+  stop(release = false): void {
     this.stopped = true;
     this.canvas.removeEventListener("webglcontextlost", this.lost);
     this.canvas.removeEventListener("webglcontextrestored", this.restored);
     this.drop?.();
     this.drop = null;
     this.gl = null;
+    if (release) this.context?.getExtension("WEBGL_lose_context")?.loseContext();
   }
+
+  /** The context last made, kept to hand back. */
+  private context: WebGL2RenderingContext | null = null;
 
   private make(): void {
     const gl = this.canvas.getContext("webgl2", {
@@ -38,6 +46,7 @@ export class GlHost {
     }) as WebGL2RenderingContext | null;
     if (!gl) return;
     this.gl = gl;
+    this.context = gl;
     this.drop = this.build(gl);
   }
 

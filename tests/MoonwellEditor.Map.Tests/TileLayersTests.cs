@@ -86,6 +86,17 @@ public sealed class TileLayersTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_corner_naming_a_texture_the_map_does_not_list_draws_its_first()
+    {
+        var terrain = Grids.Flat(2, 2);
+        terrain.At(1, 1).Texture = 40; // the map lists four textures and the blight
+
+        var layers = TileLayers.From(terrain, Textures(extended: false), Flat(terrain)).At(0, 0);
+
+        Assert.Equal([new TileLayer(0, 0)], layers);
+    }
+
+    [Fact]
     public void A_blighted_corner_takes_the_blight_texture()
     {
         var terrain = Grids.Flat(2, 2);
