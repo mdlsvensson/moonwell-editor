@@ -254,6 +254,15 @@ describe("mapModel", () => {
     });
   });
 
+  it("gives an HD geoset its emissive gain, the first key of an animated one, 1 without", () => {
+    const layer = { FilterMode: 0, TextureID: 0, EmissiveTextureID: 0, ShaderTypeId: 1 };
+    const gain = (EmissiveGain: unknown) =>
+      mapModel(parsed(0, [{ ...layer, EmissiveGain }]) as never).geosets[0]?.emissiveGain;
+    expect(gain(0.25)).toBe(0.25);
+    expect(gain({ Keys: [{ Frame: 0, Vector: new Float32Array([0.5]) }] })).toBe(0.5);
+    expect(gain(undefined)).toBe(1);
+  });
+
   it("leaves glows out, so a model of glows and particles only is a marker", () => {
     expect(mapModel(parsed(3) as never).geosets).toEqual([]);
     expect(mapModel({ ...parsed(0), Geosets: [] } as never).geosets).toEqual([]);

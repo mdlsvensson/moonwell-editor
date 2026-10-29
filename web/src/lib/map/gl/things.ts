@@ -122,6 +122,7 @@ uniform sampler2D normalMap;
 uniform sampler2D emissive;
 uniform bool mapped;
 uniform bool glowing;
+uniform float glow;
 uniform int filterMode;
 uniform bool teamUnder;
 uniform bool teamMasked;
@@ -149,7 +150,7 @@ void main() {
     n = normalize(t * xy.x + b * xy.y + n * sqrt(max(1.0 - dot(xy, xy), 0.0)));
   }
   vec3 shaded = lit(rgb, n, vWorld) * vTint;
-  if (glowing) shaded += texture(emissive, vUv).rgb;
+  if (glowing) shaded += texture(emissive, vUv).rgb * glow;
   color = vec4(shaded, filterMode == 2 ? texel.a * vAlpha : 1.0);
 }`;
 
@@ -163,6 +164,7 @@ type Drawn = {
   /** An HD geoset's normal map and emissive map, null for none. */
   normalMap: WebGLTexture | null;
   emissive: WebGLTexture | null;
+  emissiveGain: number;
   filter: number;
   teamUnder: boolean;
   /** Its number among the model's geosets (its column of the animation's alphas). */
@@ -227,6 +229,7 @@ export class ModelLayer {
         "emissive",
         "mapped",
         "glowing",
+        "glow",
         "filterMode",
         "teamUnder",
         "teamMasked",
@@ -329,6 +332,7 @@ export class ModelLayer {
           gl.uniform1i(this.uniforms.teamMasked ?? null, geoset.orm ? 1 : 0);
           gl.uniform1i(this.uniforms.mapped ?? null, geoset.normalMap ? 1 : 0);
           gl.uniform1i(this.uniforms.glowing ?? null, geoset.emissive ? 1 : 0);
+          gl.uniform1f(this.uniforms.glow ?? null, geoset.emissiveGain);
           if (geoset.normalMap) {
             gl.activeTexture(gl.TEXTURE4);
             gl.bindTexture(gl.TEXTURE_2D, geoset.normalMap);
@@ -486,6 +490,7 @@ export class ModelLayer {
           orm,
           normalMap: tangents ? normalMap : null,
           emissive,
+          emissiveGain: geoset.emissiveGain,
           filter: geoset.filter,
           teamUnder: geoset.teamUnder,
           index: geoset.index,

@@ -53,6 +53,8 @@ export type MapGeoset = {
   normalMap: string | null;
   /** An HD geoset's emissive map, the light it gives off itself; null for none. */
   emissive: string | null;
+  /** How much of its emissive map's light it gives off (its layer's EmissiveGain; the first key of an animated one). */
+  emissiveGain: number;
   /** An HD geoset's tangents, four numbers a vertex (the fourth the bitangent's side), as its file has them. */
   tangents: Float32Array | null;
 };
@@ -95,8 +97,16 @@ type Layer = {
   NormalTextureID?: unknown;
   ORMTextureID?: unknown;
   EmissiveTextureID?: unknown;
+  EmissiveGain?: unknown;
   ShaderTypeId?: number;
 };
+
+// A layer's number that may be keyed: the number, or its first key's value; `fallback` without one.
+function firstValue(value: unknown, fallback: number): number {
+  if (typeof value === "number") return value;
+  const key = (value as { Keys?: { Vector: ArrayLike<number> }[] } | undefined)?.Keys?.[0];
+  return key?.Vector[0] ?? fallback;
+}
 
 /** What the view draws of a parsed model, leaving out the geosets its Stand never shows. */
 export function mapModel(model: Model, shown: Shown = () => 1): MapModel {
@@ -160,6 +170,7 @@ export function mapModel(model: Model, shown: Shown = () => 1): MapModel {
       orm: orm?.Image || null,
       normalMap: normalMap?.Image || null,
       emissive: emissive?.Image || null,
+      emissiveGain: firstValue(layers[0]?.EmissiveGain, 1),
       tangents: hd && tangents?.length === (geoset.Vertices.length / 3) * 4 ? tangents : null,
     });
   });
