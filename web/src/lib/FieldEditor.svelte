@@ -9,6 +9,7 @@ import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { onDestroy, untrack } from "svelte";
 import type { ChoiceList, FieldView, Kind } from "./api.ts";
+import { calculate, isArithmetic } from "./calc.ts";
 import FlagsEditor from "./FlagsEditor.svelte";
 import {
   assetText,
@@ -173,7 +174,17 @@ export async function commit(): Promise<boolean> {
   if (draft === null) return true;
   if (draft === refused) return false;
   if (draft === sending && pending) return pending;
-  const typed = draft;
+  let typed = draft;
+  // A number box works out arithmetic typed into it (Sven, 2026-10-29): `10*2+5`, or `*2` on the value it holds.
+  if (editor === "number" && isArithmetic(typed)) {
+    const result = calculate(typed, Number(field.value) || 0);
+    if (result === null) {
+      error = t("field.notArithmetic", { text: typed });
+      return false;
+    }
+    typed = String(field.type === "int" ? Math.round(result) : Math.round(result * 1e6) / 1e6);
+    setDraft(typed);
+  }
   const checked = checkValue(field, typed);
   if (!checked.ok) {
     error = checked.problem;
@@ -209,7 +220,10 @@ export function cancel(): void {
 }
 
 function onkeydown(event: KeyboardEvent): void {
-  if (event.key === "Enter" && !(multiline && event.shiftKey)) {
+  if (editor === "number" && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    event.preventDefault();
+    step(event.key === "ArrowUp" ? 1 : -1);
+  } else if (event.key === "Enter" && !(multiline && event.shiftKey)) {
     event.preventDefault();
     commit();
   } else if (event.key === "Escape" && (draft !== null || error)) {
@@ -277,12 +291,13 @@ function oninput(event: Event): void {
     <IdsEditor {field} {lookup} {compact} {showIds} onset={send} {onopen} />
   {:else if editor === "number"}
     <span class="group/number relative inline-flex max-w-full align-top {compact ? 'w-full' : ''}">
+    <!-- A text box, so arithmetic can be typed (Sven, 2026-10-29); its arrows and the arrow keys step it. -->
     <input
-      type="number"
+      inputmode="decimal"
+      spellcheck="false"
       class="{boxClass} pr-4 pl-1.5"
       style:width="calc({numberWidth}ch + 30px)"
       bind:this={numberBox}
-      step={field.type === "int" ? 1 : "any"}
       value={draft ?? boxValue}
       {placeholder}
       data-field="{field.id}:{field.level}"
@@ -290,14 +305,6 @@ function oninput(event: Event): void {
       aria-invalid={!!error}
       {oninput}
       {onkeydown}
-      onchange={() => {
-        clearTimeout(stepping);
-        stepping = setTimeout(commit, 400);
-      }}
-      onwheel={(event) => {
-        // The wheel scrolls the panel: it never steps a box that has the cursor.
-        if (document.activeElement === event.currentTarget) event.currentTarget.blur();
-      }}
       onblur={() => {
         clearTimeout(stepping);
         commit();

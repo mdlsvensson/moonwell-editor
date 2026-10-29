@@ -89,6 +89,15 @@ function titleOf(view: FieldView): string {
 async function reset(): Promise<void> {
   error = (await onreset(field)) ?? "";
 }
+
+// A double click anywhere on a True or False field turns it (Sven, 2026-10-29); a click on the word itself already
+// does, so a double click there is left to its two clicks.
+async function flip(event: MouseEvent): Promise<void> {
+  if (!editable || field.type !== "bool" || (event.target as Element).closest("[aria-pressed]"))
+    return;
+  window.getSelection()?.removeAllRanges();
+  error = (await onset(field, field.value === "1" ? "0" : "1")) ?? "";
+}
 </script>
 
 <div
@@ -100,6 +109,7 @@ async function reset(): Promise<void> {
   aria-label={field.label}
   onfocusin={() => onselect(field)}
   onpointerdown={() => onselect(field)}
+  ondblclick={flip}
   oncontextmenu={(event) => {
     event.preventDefault();
     onselect(field);

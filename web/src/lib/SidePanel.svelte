@@ -58,8 +58,8 @@ let teamColor = $state(0);
 let width = $state(270);
 let level = $state(1);
 
-// The sections the user closed.
-let closed = $state<Record<string, boolean>>({});
+// The sections the user closed; Uses and Used by start closed (Sven, 2026-10-29).
+let closed = $state<Record<string, boolean>>({ uses: true, usedBy: true });
 
 // Used by is asked for again with each new view of the object (another object, or the same one after an edit).
 let users = $state.raw<Reference[] | null>(null);
@@ -106,7 +106,8 @@ $effect(() => {
       </span>
       {title}
       {#if count !== null}
-        <span class="font-mono text-[11px] tracking-normal text-faint">{count}</span>
+        <!-- At the right end, as the tree's counts are (Sven, 2026-10-29). -->
+        <span class="ml-auto font-mono text-[11px] tracking-normal text-faint">{count}</span>
       {/if}
     </button>
   </h3>
@@ -133,13 +134,14 @@ $effect(() => {
 <div class="relative">
   {@render heading("tooltip", t("side.tooltip"), null, "mt-5")}
   {#if onedittooltip}
+    <!-- As tall as the heading's text (Sven, 2026-10-29). -->
     <button
       type="button"
-      class="absolute top-0 right-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-muted hover:bg-hover hover:text-fg"
+      class="absolute top-0 right-0 flex items-center gap-1 rounded px-1 text-[13px] leading-[inherit] text-muted hover:bg-hover hover:text-fg"
       title={t("side.editTooltip")}
       onclick={onedittooltip}
     >
-      <PencilLine size={12} />
+      <PencilLine size={13} />
       {t("side.edit")}
     </button>
   {/if}

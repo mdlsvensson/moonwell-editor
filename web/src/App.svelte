@@ -934,8 +934,12 @@ function onkeydown(event: KeyboardEvent): void {
     return; // and so do the dialogs
   if (page === "table" && tableKey(event)) return;
   if (event.key === "Escape") {
-    // An Esc that closed a list or a menu is spent (Bits UI marks it).
-    if (!event.defaultPrevented) showProblems = false;
+    // An Esc that closed a list or a menu is spent (Bits UI marks it). Otherwise it also lets go of a button clicked
+    // last (a kind, a view), which would show its focus ring (Sven, 2026-10-29).
+    if (!event.defaultPrevented) {
+      showProblems = false;
+      if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+    }
     return;
   }
   // The keys of the keymap, which the settings change (Sven, 2026-10-27).

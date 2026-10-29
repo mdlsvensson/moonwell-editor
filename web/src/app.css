@@ -80,11 +80,13 @@ body,
   margin: 0;
 }
 
+/* Only what is typed in can be selected: the names, values, panels and status bar cannot (Sven, 2026-10-29). */
 body {
   background: var(--bg);
   color: var(--text);
   font: 14px / 1.45 var(--font-ui);
   overflow: hidden;
+  user-select: none;
 }
 
 /*
@@ -93,6 +95,17 @@ body {
  * would beat every class.
  */
 @layer base {
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+  }
+
+  /* A focus ring, when one shows, is the accent's, not the browser's black (Sven, 2026-10-29). */
+  :focus-visible {
+    outline-color: var(--accent);
+  }
+
   input[type="checkbox"] {
     appearance: none;
     flex: none;

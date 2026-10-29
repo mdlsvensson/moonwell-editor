@@ -28,6 +28,7 @@ import {
   stripChunks,
   unreadChunks,
 } from "./mdx.ts";
+import Popover from "./Popover.svelte";
 import Select from "./Select.svelte";
 import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
 import { t, tCount } from "./text.ts";
@@ -606,6 +607,10 @@ function brightHd(text: string): string {
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
+
+// The team colours' list, open under its square.
+let coloursOpen = $state(false);
+let coloursButton: HTMLButtonElement | undefined = $state();
 </script>
 
 <div class="flex shrink-0 flex-col gap-1.5" style="width: {size}px">
@@ -642,8 +647,11 @@ function message(e: unknown): string {
       </div>
     {/if}
   </div>
-  <!-- Always there, also while the model loads or when it has none, so the panel keeps its height. -->
+  <!-- Always there, also while the model loads or when it has none, so the panel keeps its height. The team colour is a
+       square beside the animations that opens the 24 colours (Sven, 2026-10-29). -->
+  <div class="flex items-stretch gap-1.5">
   {#if animations}
+    <div class="min-w-0 flex-1">
     <Select
       options={sequences.map((name, index) => ({ value: String(index), label: name || t("model.unnamed", { index }) }))}
       value={String(playing)}
@@ -654,9 +662,26 @@ function message(e: unknown): string {
       disabled={sequences.length === 0}
       onpick={(value) => current?.play(Number(value))}
     />
+    </div>
   {/if}
   {#if picker}
-    <div class="grid grid-cols-12 gap-0.5" role="radiogroup" aria-label={t("model.teamColour")}>
+    {@const shown = teamColors[playerIndex(teamColor)]}
+    <button
+      type="button"
+      class="aspect-square w-[30px] shrink-0 rounded border border-line hover:border-muted"
+      style:background-color={shown?.hex}
+      title={t("model.teamColourTitle", { colour: shown?.name ?? "" })}
+      aria-label={t("model.teamColour")}
+      aria-haspopup="dialog"
+      aria-expanded={coloursOpen}
+      bind:this={coloursButton}
+      onclick={() => (coloursOpen = !coloursOpen)}
+    ></button>
+  {/if}
+  </div>
+  {#if picker && coloursOpen && coloursButton}
+    <Popover anchor={coloursButton} onclose={() => (coloursOpen = false)}>
+    <div class="grid w-[264px] grid-cols-12 gap-0.5" role="radiogroup" aria-label={t("model.teamColour")}>
       {#each teamColors as colour, index (colour.name)}
         {@const chosen = playerIndex(teamColor) === index}
         <button
@@ -669,10 +694,14 @@ function message(e: unknown): string {
           aria-label={t("model.playerLabel", { player: index + 1, colour: colour.name })}
           role="radio"
           aria-checked={chosen}
-          onclick={() => (teamColor = index)}
+          onclick={() => {
+            teamColor = index;
+            coloursOpen = false;
+          }}
         ></button>
       {/each}
     </div>
+    </Popover>
   {/if}
 </div>
 

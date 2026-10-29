@@ -620,6 +620,17 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's
     6) is not offered or shown, as World Editor shows none, and stays in the value when the others are ticked (Sven's
     choice). What the game does with that bit is not known.
+- **Sven, 2026-10-29, fourth batch:**
+  - A double click anywhere on a True or False field (or level cell) turns it.
+  - A number box is a text box that works out arithmetic when it sends its value: `10*2+5`, `(3+4)/2`, and `*2` or
+    `/2` on the value it holds; `+` and `-` in front are a sign. A whole-number field takes the result rounded. The
+    arrow keys step it, as its arrows do. *(Agent's calls: rounding, and `*` or `/` in front working on the value.)*
+  - The side panel: the tooltip's Edit is as tall as its heading, the counts of Uses and Used by sit at the right
+    end, Uses and Used by start closed, and the team colour is a square beside the animations that opens the 24
+    colours.
+  - Only what is typed in can be selected: names, values, the panels, the tree and the status bar cannot.
+  - Esc lets go of the button clicked last (a kind, a view), so its focus ring does not show; a focus ring is the
+    accent's colour, not the browser's black.
 - **Keys** (first set): Ctrl K search, Ctrl S save, Ctrl Z / Ctrl Y undo and redo, Ctrl D field ids (as in World
   Editor), Ctrl F filter fields, Ctrl Shift N new object from the selected one, F2 rename, Delete delete, Alt ←/→ back
   and forward through visited objects.
