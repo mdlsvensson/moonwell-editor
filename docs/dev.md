@@ -96,6 +96,15 @@ layout is in `TerrainBytes.cs`). It draws with its own WebGL2 code in `web/src/l
 models, and picks by drawing each thing's number into a hidden picture. The page logs `[timing] map scene`, `map
 ground` and `map models` lines.
 
+It lights the map as World Editor's Lighting: Noon does: `DayLights.cs` reads the tileset's day and night light
+models (version 1800 lights, read by hand) at the middle of their day, and HD and Definitive Edition add the
+environment map's colours as the sky (`gl/lighting.ts` has the shading and its scales, set by eye against World
+Editor). HD and Definitive Edition cast the sun's shadows from a depth map drawn around the camera's target before
+each frame (`gl/shadows.ts`); Classic darkens the ground by the map's baked `war3map.shd` and lays each unit's shadow
+picture under it (`gl/unitShadows.ts`). Each model's Stand animation is sampled into textures the shaders read
+(`map/animation.ts`); while anything moves the view draws every frame, each pass only the copies it can see
+(`gl/culling.ts`).
+
 To look into the page of a running exe (its console, its WebGL calls), start it with WebView2's debugging port open
 and attach Chrome's DevTools or a script to `http://127.0.0.1:9333`:
 
