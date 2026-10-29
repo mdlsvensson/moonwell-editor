@@ -4,7 +4,7 @@
  * (3), its team colour (3) and its number (1, 0 for a cliff, which cannot be picked).
  */
 import { mat4 } from "gl-matrix";
-import { teamRgb } from "../../teamColors.ts";
+import { ownerRgb } from "../../teamColors.ts";
 import { byModel, instanceMatrix } from "../models.ts";
 import type { MapScene, PlacedThing, ThingKind } from "../scene.ts";
 
@@ -94,7 +94,7 @@ export function thingBatches(things: readonly PlacedThing[]): Batch[] {
         index,
         instanceMatrix(thing),
         thing.tint,
-        teamRgb(thing.player),
+        ownerRgb(thing.player),
         thing.number,
       );
     });

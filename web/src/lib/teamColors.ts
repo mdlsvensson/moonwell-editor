@@ -46,3 +46,11 @@ export function teamRgb(index: number): [number, number, number] {
   const channel = (at: number) => Number.parseInt(hex.slice(at, at + 2), 16) / 255;
   return [channel(1), channel(3), channel(5)];
 }
+
+/** The grey the game gives the neutral players (25 to 28: hostile, victim, extra, passive): its TeamColor24 to 27 files. */
+const neutralGrey = 0x2e / 255;
+
+/** The team colour a placed thing's owner (0 for player 1) gives it: a player's own, or the neutral players' grey. */
+export function ownerRgb(player: number): [number, number, number] {
+  return player >= 24 && player <= 27 ? [neutralGrey, neutralGrey, neutralGrey] : teamRgb(player);
+}

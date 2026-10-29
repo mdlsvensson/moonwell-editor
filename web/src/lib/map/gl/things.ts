@@ -3,10 +3,11 @@
  * blended ones after with the depth left alone. A cliff's vertices stand on the ground beneath them: each is raised by
  * the height (without cliff levels) of the corner at the bottom left of the tile it falls in (*claim*, HiveWE). Models
  * load in the background, nearest the camera first; a model that is missing, cannot be read or draws nothing is told
- * to `failed`, and its things become markers.
+ * to `failed`, and its things become markers. A Classic geoset's team colour is under its texture; an HD geoset's is
+ * its texture times the colour where its ORM texture's alpha says (war3-model's HD shader).
  */
 import type { mat4 } from "gl-matrix";
-import { loadModel, type MapGeoset, type MapModel, ownGeosets, texturePaths } from "../models.ts";
+import { loadModel, type MapModel, ownGeosets, texturePaths } from "../models.ts";
 import type { Terrain } from "../scene.ts";
 import { type Batch, instanceFloats } from "./batches.ts";
 import { floatTexture, plainTexture, program } from "./program.ts";
@@ -59,8 +60,10 @@ in vec3 vTint;
 in vec3 vTeam;
 flat in float vNumber;
 uniform sampler2D diffuse;
+uniform sampler2D orm;
 uniform int filterMode;
 uniform bool teamUnder;
+uniform bool teamMasked;
 uniform bool picking;
 uniform vec3 light;
 out vec4 color;
@@ -73,7 +76,9 @@ void main() {
     color = vec4(float(n & 255u), float((n >> 8) & 255u), float((n >> 16) & 255u), 255.0) / 255.0;
     return;
   }
-  vec3 rgb = teamUnder ? mix(vTeam, texel.rgb, texel.a) : texel.rgb;
+  vec3 rgb = texel.rgb;
+  if (teamUnder) rgb = mix(vTeam, texel.rgb, texel.a);
+  else if (teamMasked) rgb = mix(texel.rgb, texel.rgb * vTeam, texture(orm, vUv).a);
   float shade = clamp(dot(normalize(vNormal), light) * 0.4 + 0.7, 0.35, 1.2);
   color = vec4(rgb * vTint * shade, filterMode == 2 ? texel.a : 1.0);
 }`;
@@ -83,6 +88,8 @@ type Drawn = {
   vao: WebGLVertexArrayObject;
   count: number;
   texture: WebGLTexture;
+  /** An HD geoset's ORM texture, null for none. */
+  orm: WebGLTexture | null;
   filter: number;
   teamUnder: boolean;
 };
@@ -122,8 +129,10 @@ export class ModelLayer {
         "size",
         "origin",
         "diffuse",
+        "orm",
         "filterMode",
         "teamUnder",
+        "teamMasked",
         "picking",
         "light",
       ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
@@ -169,6 +178,7 @@ export class ModelLayer {
     gl.bindTexture(gl.TEXTURE_2D, this.relief);
     gl.uniform1i(this.uniforms.relief ?? null, 1);
     gl.uniform1i(this.uniforms.diffuse ?? null, 0);
+    gl.uniform1i(this.uniforms.orm ?? null, 2);
     gl.disable(gl.CULL_FACE);
     // Solid and alpha-tested first; blended after, over them, without writing depth (not when picking).
     for (const blended of [false, true]) {
@@ -189,6 +199,11 @@ export class ModelLayer {
           gl.bindTexture(gl.TEXTURE_2D, geoset.texture);
           gl.uniform1i(this.uniforms.filterMode ?? null, geoset.filter);
           gl.uniform1i(this.uniforms.teamUnder ?? null, geoset.teamUnder ? 1 : 0);
+          gl.uniform1i(this.uniforms.teamMasked ?? null, geoset.orm ? 1 : 0);
+          if (geoset.orm) {
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, geoset.orm);
+          }
           gl.bindVertexArray(geoset.vao);
           gl.drawElementsInstanced(gl.TRIANGLES, geoset.count, gl.UNSIGNED_SHORT, 0, batch.count);
         }
@@ -223,10 +238,14 @@ export class ModelLayer {
     }
     const geosets = await Promise.all(
       own.map(async (geoset) => {
-        const texture = await this.texture(geoset, batch);
+        const [texture, orm] = await Promise.all([
+          this.file(texturePaths(geoset.texture, batch.texture, geoset.hd)),
+          this.file(geoset.orm ? [geoset.orm] : []),
+        ]);
         return {
           geoset,
           texture,
+          orm,
           buffers: model.buffers[model.model.geosets.indexOf(geoset)] ?? [],
         };
       }),
@@ -236,7 +255,7 @@ export class ModelLayer {
     const instances = this.instances.get(batch) ?? null;
     this.loaded.push({
       batch,
-      geosets: geosets.map(({ geoset, texture, buffers }) => {
+      geosets: geosets.map(({ geoset, texture, orm, buffers }) => {
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
         const [positions, normals, uvs, indices] = buffers;
@@ -271,6 +290,7 @@ export class ModelLayer {
           vao,
           count: geoset.indices.length,
           texture: texture ?? this.white,
+          orm,
           filter: geoset.filter,
           teamUnder: geoset.teamUnder,
         };
@@ -307,9 +327,8 @@ export class ModelLayer {
     return known;
   }
 
-  // A geoset's texture: the first of its files that loads (see texturePaths); null, drawn white, for none.
-  private texture(geoset: MapGeoset, batch: Batch): Promise<WebGLTexture | null> {
-    const paths = texturePaths(geoset.texture, batch.texture, geoset.hd);
+  // A texture: the first of its files that loads (a geoset's, see texturePaths); null for none (a diffuse drawn white).
+  private file(paths: string[]): Promise<WebGLTexture | null> {
     if (paths.length === 0) return Promise.resolve(null);
     const key = paths.join("|").toLowerCase();
     let known = this.textures.get(key);

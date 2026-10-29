@@ -81,6 +81,13 @@ describe("thingBatches", () => {
     expect(floats[22]).toBe(7);
   });
 
+  it("gives a neutral hostile creep the neutral players' grey, not player 1's red", () => {
+    const [batch] = thingBatches([thing({ player: 24 })]);
+    expect(Array.from(batch?.instances.subarray(19, 22) ?? [])).toEqual(
+      [0x2e / 255, 0x2e / 255, 0x2e / 255].map((v) => Math.fround(v)),
+    );
+  });
+
   it("gives markers their own colour by kind", () => {
     expect(markerColour("StartLocation")).not.toEqual(markerColour("Unit"));
   });

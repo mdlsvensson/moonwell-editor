@@ -183,6 +183,34 @@ describe("mapModel", () => {
     expect(mapModel(parsed(0) as never, () => undefined).geosets[0]?.hd).toBe(false);
   });
 
+  it("gives an HD geoset its ORM texture, whose alpha marks the team colour (a 1100 layer's ORMTextureID, a 1000 material's third layer)", () => {
+    const textures = [
+      { Image: "Troll_diffuse.dds" },
+      { Image: "Troll_normal.dds" },
+      { Image: "Troll_orm.dds" },
+      { ReplaceableId: 1 },
+    ];
+    const newer = {
+      ...parsed(0, [
+        { FilterMode: 0, TextureID: 0, NormalTextureID: 1, ORMTextureID: 2, ShaderTypeId: 1 },
+      ]),
+      Textures: textures,
+    };
+    const older = {
+      ...parsed(
+        0,
+        [0, 1, 2, 0, 3, 0].map((id) => ({ FilterMode: 0, TextureID: id })),
+      ),
+      Textures: textures,
+    };
+    expect(mapModel(newer as never, () => undefined).geosets[0]?.orm).toBe("Troll_orm.dds");
+    expect(mapModel(older as never, () => undefined).geosets[0]).toMatchObject({
+      texture: "Troll_diffuse.dds",
+      orm: "Troll_orm.dds",
+    });
+    expect(mapModel(parsed(0) as never, () => undefined).geosets[0]?.orm).toBeNull();
+  });
+
   it("leaves glows out, so a model of glows and particles only is a marker", () => {
     expect(mapModel(parsed(3) as never, () => undefined).geosets).toEqual([]);
     expect(mapModel({ ...parsed(0), Geosets: [] } as never, () => undefined).geosets).toEqual([]);

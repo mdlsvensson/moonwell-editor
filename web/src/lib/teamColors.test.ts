@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playerIndex, teamColors, teamRgb } from "./teamColors.ts";
+import { ownerRgb, playerIndex, teamColors, teamRgb } from "./teamColors.ts";
 
 describe("teamColors", () => {
   it("has the game's 24 player colours in player order", () => {
@@ -28,5 +28,17 @@ describe("teamRgb", () => {
       expect(playerIndex(index)).toBe(0);
       expect(teamRgb(index)).toEqual(teamRgb(0));
     }
+  });
+});
+
+describe("ownerRgb", () => {
+  it("gives a player's own colour", () => {
+    expect(ownerRgb(1)).toEqual(teamRgb(1));
+    expect(ownerRgb(23)).toEqual(teamRgb(23));
+  });
+
+  it("gives the neutral players (25 to 28) the grey of the game's TeamColor24 to 27 files", () => {
+    for (const player of [24, 25, 26, 27])
+      expect(ownerRgb(player)).toEqual([0x2e / 255, 0x2e / 255, 0x2e / 255]);
   });
 });

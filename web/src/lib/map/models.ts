@@ -3,7 +3,7 @@
  * mdx.ts), posed once in the first frame of their Stand animation, and cut down to what the view draws of them: the
  * solid, alpha-tested and blended geosets of the most detailed level, each with its diffuse texture. Glows, effect
  * sheets and particles are left out, so a model of nothing else is a marker (Review Focus 2). An HD model is drawn
- * with its diffuse texture only (plan's call).
+ * with its diffuse texture, and its ORM texture for where the team colour goes (plan's call; no normal maps yet).
  */
 import { mat4 } from "gl-matrix";
 import { ModelRenderer, parseMDX } from "war3-model";
@@ -37,6 +37,11 @@ export type MapGeoset = {
   variation: number | null;
   /** Whether its material is the HD shader's, whose replaceable textures are the `_diffuse` files. */
   hd: boolean;
+  /**
+   * An HD geoset's ORM texture, whose alpha marks where the diffuse texture takes the team colour (war3-model's HD
+   * shader); null for none.
+   */
+  orm: string | null;
 };
 
 /** A model as the view draws it; no geosets for one that draws as a marker. `variations` is 1 for most. */
@@ -76,7 +81,12 @@ export function bakeGeoset(
 }
 
 type Texture = { Image?: string; ReplaceableId?: number };
-type Layer = { FilterMode?: number; TextureID?: unknown; ShaderTypeId?: number };
+type Layer = {
+  FilterMode?: number;
+  TextureID?: unknown;
+  ORMTextureID?: unknown;
+  ShaderTypeId?: number;
+};
 
 /** What the view draws of a parsed model, in `pose`, leaving out the geosets the pose hides. */
 export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapModel {
@@ -109,6 +119,15 @@ export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapM
     const texture = textureOf(diffuse);
     const filter = (teamUnder ? layers[0]?.FilterMode : diffuse?.FilterMode) ?? 0;
     if (!diffuse || !texture || !drawn.includes(filter)) return;
+    // An HD material is one layer of the HD shader with its textures named in it (version 1100), or six layers of one
+    // texture each, the ORM third (version 1000).
+    const shader = layers[0]?.ShaderTypeId === 1;
+    const hd = shader || layers.length === 6;
+    const orm = shader
+      ? textureOf({ TextureID: layers[0]?.ORMTextureID })
+      : hd
+        ? textureOf(layers[2])
+        : undefined;
     geosets.push({
       positions: bakeGeoset(geoset, pose),
       normals: Float32Array.from(geoset.Normals),
@@ -120,7 +139,8 @@ export function mapModel(model: Model, pose: Pose, shown: Shown = () => 1): MapM
       filter,
       teamUnder,
       variation: several ? (named[index] ?? null) : null,
-      hd: layers[0]?.ShaderTypeId === 1 || layers.length === 6,
+      hd,
+      orm: orm?.Image || null,
     });
   });
   return { geosets, variations: several ? variations : 1 };
