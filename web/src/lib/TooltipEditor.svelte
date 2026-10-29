@@ -13,6 +13,7 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Eraser from "@lucide/svelte/icons/eraser";
 import Plus from "@lucide/svelte/icons/plus";
 import { type FieldView, iconUrl, type ObjectView } from "./api.ts";
+import ColorPicker from "./ColorPicker.svelte";
 import Dialog from "./Dialog.svelte";
 import { uiIcons } from "./gameIcons.ts";
 import { graphics } from "./graphics.svelte.ts";
@@ -174,10 +175,13 @@ const presets = [
 ];
 
 // The user's own colours, after the divider: + picks a new one (until there are `maxOwn`), and a click on one colours
-// the selection and opens the picker to change it (Sven, 2026-10-29). They are remembered in the window's storage.
+// the selection and opens the picker to change it (Sven, 2026-10-29). The picker is the editor's own: WebView2's could
+// not pick a colour. They are remembered in the window's storage.
 const maxOwn = 8;
 const ownKey = "moonwell-editor.tooltip-colours";
 let own = $state<string[]>(savedOwn());
+// The picker, open under + (index null, a new colour) or under one of the user's colours.
+let picking = $state<{ index: number | null; anchor: HTMLElement } | null>(null);
 
 function savedOwn(): string[] {
   try {
@@ -299,6 +303,7 @@ const changedCount = $derived(
         single={part.single}
         {describe}
         label={part.field.label}
+        limit={part.field.maxLength}
         class={look}
         onfocus={() => (active = key)}
         onchange={(markup) => (drafts[key] = markup)}
@@ -332,48 +337,37 @@ const changedCount = $derived(
       <Eraser size={12} />
     </button>
     <span class="mx-1 h-4 w-px bg-line" aria-hidden="true"></span>
-    <!-- The picker is the game's colour box itself, laid over the swatch; it shows the colour's code. -->
+    <!-- The user's own colours, then + while there is room; the picker opens under the one clicked. -->
     {#each own as colour, index (index)}
-      <label
-        class="relative size-5 cursor-pointer rounded border border-line hover:border-fg"
+      <button
+        type="button"
+        class="size-5 rounded border hover:border-fg {picking?.index === index ? 'border-fg' : 'border-line'}"
         style:background-color={colour}
         title={t("tooltipEditor.ownTitle", { colour })}
+        aria-label={t("tooltipEditor.ownTitle", { colour })}
+        aria-haspopup="dialog"
         onpointerdown={(event) => event.preventDefault()}
-      >
-        <input
-          type="color"
-          class="absolute inset-0 size-full cursor-pointer opacity-0"
-          value={colour}
-          aria-label={t("tooltipEditor.ownTitle", { colour })}
-          onclick={() => colorSelection(colour)}
-          onchange={(event) => {
-            const changed = event.currentTarget.value;
-            setOwn(own.map((each, at) => (at === index ? changed : each)));
-            colorSelection(changed);
-          }}
-        />
-      </label>
+        onclick={(event) => {
+          colorSelection(colour);
+          picking = { index, anchor: event.currentTarget };
+        }}
+      ></button>
     {/each}
     {#if own.length < maxOwn}
-      <label
-        class="relative flex size-5 cursor-pointer items-center justify-center rounded border border-dashed border-line text-muted hover:border-accent hover:text-fg"
+      <button
+        type="button"
+        class="flex size-5 items-center justify-center rounded border border-dashed text-muted hover:border-accent hover:text-fg {picking?.index ===
+        null
+          ? 'border-accent'
+          : 'border-line'}"
         title={t("tooltipEditor.addColour", { max: maxOwn })}
+        aria-label={t("tooltipEditor.addColour", { max: maxOwn })}
+        aria-haspopup="dialog"
         onpointerdown={(event) => event.preventDefault()}
+        onclick={(event) => (picking = { index: null, anchor: event.currentTarget })}
       >
         <Plus size={12} />
-        <input
-          type="color"
-          class="absolute inset-0 size-full cursor-pointer opacity-0"
-          value="#ffffff"
-          aria-label={t("tooltipEditor.addColour", { max: maxOwn })}
-          onchange={(event) => {
-            const added = event.currentTarget.value;
-            event.currentTarget.value = "#ffffff";
-            setOwn([...own, added]);
-            colorSelection(added);
-          }}
-        />
-      </label>
+      </button>
     {/if}
     {#if insertable.length > 0}
       <span class="mx-1 h-4 w-px bg-line" aria-hidden="true"></span>
@@ -415,6 +409,24 @@ const changedCount = $derived(
     {/if}
   </div>
 
+  <!-- Opened anew for each colour clicked. -->
+  {#key picking}
+    {#if picking}
+      {@const at = picking.index}
+      <Popover anchor={picking.anchor} onclose={() => (picking = null)}>
+      <ColorPicker
+        value={at === null ? (own.at(-1) ?? "#ffcc00") : (own[at] ?? "#ffffff")}
+        action={at === null ? t("colourPicker.add") : t("colourPicker.change")}
+        onpick={(css) => {
+          setOwn(at === null ? [...own, css] : own.map((each, index) => (index === at ? css : each)));
+          colorSelection(css);
+          picking = null;
+        }}
+      />
+    </Popover>
+    {/if}
+  {/key}
+
   {#if inserting && insertButton}
     <Popover anchor={insertButton} onclose={() => (inserting = false)}>
       <div class="flex flex-col" role="menu" aria-label={t("tooltipEditor.insert")}>
@@ -453,6 +465,12 @@ const changedCount = $derived(
         <span class="ml-auto truncate text-muted">
           {named.field.label} · <span class="font-mono">{named.field.id}</span>{#if named.field.level > 0}
             · {t("tooltipEditor.levelTag", { level: named.field.level })}{/if}
+          {#if named.field.maxLength}
+            {@const length = (drafts[keyOf(named.field)] ?? named.field.value).length}
+            · <span class="font-mono {length >= named.field.maxLength ? 'text-warn' : ''}"
+              >{t("tooltipEditor.length", { length, max: named.field.maxLength })}</span
+            >
+          {/if}
         </span>
       {/if}
     </div>

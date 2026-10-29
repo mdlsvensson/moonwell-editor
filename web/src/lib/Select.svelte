@@ -29,6 +29,8 @@ type Props = {
   field?: string;
   /** True when there is nothing to pick: the button shows `missing` and does not open. */
   disabled?: boolean;
+  /** As wide as the choice shown, not the widest one (a field's dropdown, Sven, 2026-10-29). */
+  snug?: boolean;
 };
 
 let {
@@ -41,13 +43,14 @@ let {
   compact = false,
   field,
   disabled = false,
+  snug = false,
 }: Props = $props();
 
 const chosen = $derived(options.find((option) => option.value === value));
 // The widest label, in characters (and one spare, so it is never cut); the padding, border, gaps and chevron take 32
 // pixels.
 const width = $derived(
-  `calc(${Math.max(4, missing.length, ...options.map((option) => option.label.length)) + 1}ch + 32px)`,
+  `calc(${Math.max(4, ...(snug ? [(chosen?.label ?? missing).length] : [missing.length, ...options.map((option) => option.label.length)])) + 1}ch + 32px)`,
 );
 </script>
 

@@ -242,7 +242,8 @@ internal sealed class Resolver(ObjectKind kind, KindData data, WtsFile? strings,
             modes,
             field.Asset,
             field.Meta,
-            field.Pointer);
+            field.Pointer,
+            field.MaxLength);
     }
 
     /// <summary>

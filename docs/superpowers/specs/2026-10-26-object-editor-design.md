@@ -377,9 +377,9 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
 
 ## Look and feel
 
-- **Theme:** Kanagawa Wave by default since 2026-10-29 (Sven): `#16161d` background, `#dcd7ba` text, `#7e9cd8` blue
-  accent, `#e6c384` yellow for changed values, `#e46876` red for warnings. Vitesse Dark (the tokens wc3-dev used) was
-  the default before and is still one of the themes.
+- **Theme:** Kanagawa Dragon by default since 2026-10-29 (Sven, after a few hours of Kanagawa Wave): `#0d0c0c`
+  background, `#c5c9c5` text, `#8ba4b0` blue-grey accent, `#c4b28a` yellow for changed values, `#c4746e` red for
+  warnings. Vitesse Dark (the tokens wc3-dev used) was the default before and is still one of the themes.
 - **Fonts:** readable only, never pixel fonts. Interface text in Google Sans (Nunito for headings), as in steam2fiddy
   and wc3-dev; ids, values and code in JetBrains Mono. Bundled through fontsource, so no network is needed. *(Agent's
   call; "JetBrains Mono (Nerd Font)" is read as JetBrains Mono, since icons come from Lucide.)*
@@ -576,7 +576,8 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     also stops the hotkey listening.
   - No cut: Ctrl X and the context menu's Cut are gone for objects (a paste never deletes the object copied) and for
     fields. Text in a box is still cut as anywhere.
-  - True or False is the word alone, no checkbox; a click turns it, and its box is as wide for either word.
+  - True or False is the word alone, no checkbox and (later the same day) no box either; a click turns it, and it
+    takes as much room for either word.
   - Every box of a field (number, text, True or False, dropdown, flags) shows only its value: a dashed border on hover,
     the accent's with the cursor; a dropdown keeps its arrow. The selected field's boxes show a solid border.
     *(Agent's call: the solid border is the faint grey one, the accent stays for the box with the cursor.)*
@@ -593,7 +594,21 @@ of text ("Above World Editor's limit of 99999."). Text in a number field is refu
     colour, a divider, then the user's own colours and a dashed +. The + opens the colour picker (the browser's own,
     which shows the code); a colour picked colours the selection and is kept as a swatch, and a new + follows until
     there are 8. A click on one of them colours the selection and opens the picker to change it. *(Agent's calls: 8
-    colours, kept in the window's storage; the picker is the browser's.)*
+    colours, kept in the window's storage.)* The picker was WebView2's own at first, which could not pick a colour;
+    since later the same day it is the editor's own: a square of saturation and brightness over a hue bar, the code
+    to read or type, and Add (or Change). *(Agent's calls: its look, and the arrows step it.)*
+- **Sven, 2026-10-29, third batch:**
+  - A field's dropdown (and flags) is as wide as the choice shown, or its placeholder, not its widest choice
+    (reverses the 2026-10-27 decision; the model preview's lists keep the widest).
+  - An object list's chips show their objects' ids only while the field ids are shown (Ctrl D).
+  - An extended tooltip's box cannot be resized by dragging its corner: it grows with its text.
+  - Tooltips take World Editor's lengths: 2048 characters for a tooltip, 8191 for an extended one (any tooltip whose
+    name has Extended), measured in World Editor's box (game facts, 10-29). The details panel's boxes stop there, and
+    the tooltip editor's texts take no more markup (a text already longer can still be shortened) and show their
+    length beside the field name.
+  - The page's strings file holds every text the page shows; True, False and None, the 24 player colours and
+    Night Elf were the last left in the code. The app's own texts (error messages, World Editor limit warnings, the
+    tree's folder names, the close question) are still in the C# code.
   - A bits field (Extra Versions, Pick Flags...) reads its values as the game's data spells them, each bit's own value
     (1, 2, 4): before, the editor read 6 as bits 1 and 2, so it ticked the wrong entries and wrote the wrong bits. A bit
     World Editor does not list but the standard data uses (Extra Versions' 4, which 20 standard units hold, the Priest's

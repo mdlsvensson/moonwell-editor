@@ -189,7 +189,7 @@ internal static class Builder
             field.ForBuilding,
             field.Rules.Min,
             field.Rules.Max,
-            field.Rules.MaxLength,
+            field.Rules.MaxLength ?? TextSize(Cell(meta, "maxVal"), field.Rules.Label ?? field.Name),
             field.Rules.MaxEntries,
             field.Rules.Required,
             field.Rules.NoNegative,
@@ -421,6 +421,20 @@ internal static class Builder
 
     /// <summary>A choice value's label, or its text when the tables have no label for it.</summary>
     private static string LabelOf(ChoiceMember member) => member.Label.Length > 0 ? member.Label : member.Text;
+
+    /// <summary>
+    /// The most characters World Editor's box takes for a tooltip, whose metadata names a text size: 2048 for a tooltip
+    /// (<c>TTDesc</c>: Basic, Revive, Awaken, Normal, Turn Off, Learn), 8191 for an extended one (<c>TTUber</c>)
+    /// (docs/game-facts.md, Sven, 2026-10-29). Null for any other field: other texts of <c>TTDesc</c> (a model file, a
+    /// description) and a name's <c>TTName</c> were not measured.
+    /// </summary>
+    private static int? TextSize(string maxVal, string label) =>
+        !label.StartsWith("Tooltip", StringComparison.Ordinal) ? null : maxVal switch
+        {
+            "TTDesc" => 2048,
+            "TTUber" => 8191,
+            _ => null,
+        };
 
     private static string Cell(MetaRow meta, string column) =>
         meta.Columns.TryGetValue(column, out var value) ? value.Trim() : "";

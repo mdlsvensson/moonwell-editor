@@ -15,12 +15,14 @@ type Props = {
   field: FieldView;
   lookup: Lookup;
   compact: boolean;
+  /** True when the field ids are shown (Ctrl D): each chip shows its object's id too (Sven, 2026-10-29). */
+  showIds?: boolean;
   /** Sends a value; it ends once the app has answered (well or not). */
   onset: (value: string) => Promise<unknown>;
   onopen: (kind: Kind, id: string) => void;
 };
 
-let { field, lookup, compact, onset, onopen }: Props = $props();
+let { field, lookup, compact, showIds = false, onset, onopen }: Props = $props();
 
 // The search spans every kind, so it asks for many hits and keeps the list's kinds.
 const limit = 200;
@@ -121,7 +123,7 @@ function focusOnMount(element: HTMLInputElement): void {
         >
           <!-- A skin list names its abilities without their suffixes, as World Editor shows it. -->
           {field.meta === "abilitySkinList" ? (found.bare ?? found.name) : found.name}
-          <span class="font-mono text-faint">{object.id}</span>
+          {#if showIds}<span class="font-mono text-faint">{object.id}</span>{/if}
         </button>
       {:else}
         <span class="px-1.5 font-mono text-muted">{object.id}</span>

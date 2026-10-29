@@ -15,7 +15,7 @@ internal static class Cache
 {
     // Raised whenever what is cached changes (these records, or what Moonwell's reader makes), so an older cache is
     // built again.
-    private const int Format = 12;
+    private const int Format = 13;
 
     /// <summary>
     /// The version of the code that builds the data: the module ids of this assembly and of Moonwell's reader

@@ -47,9 +47,9 @@ const options = $derived([
     })),
 ]);
 
-// The widest single choice, in characters of the fixed-width font (and one spare); the padding, border, gap and
-// chevron take 32 pixels.
-const width = $derived(Math.max(4, ...options.map((option) => option.label.length)) + 1);
+// As wide as what it shows (Sven, 2026-10-29: the widest choice made a long button), in characters of the fixed-width
+// font and one spare; the padding, border, gap and chevron take 32 pixels.
+const width = $derived(Math.max(4, (shown === "" ? t("flags.none") : shown).length) + 1);
 
 async function toggle(value: string, on: boolean): Promise<void> {
   const next = on ? [...ticked, value] : ticked.filter((each) => each !== value);

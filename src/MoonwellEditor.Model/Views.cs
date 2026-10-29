@@ -104,6 +104,10 @@ public sealed record ChainLink(string Name, string Id);
 /// An ability's data field letter as a number (<c>DataA</c> is 1), which its tooltips name it by
 /// (<c>&lt;AHbz,DataA1&gt;</c>); 0 for any other field.
 /// </param>
+/// <param name="MaxLength">
+/// The most characters World Editor's box takes for the text (a tooltip's 2048, an extended tooltip's 8191); null for
+/// none.
+/// </param>
 public sealed record FieldView(
     string Id,
     string Label,
@@ -121,4 +125,5 @@ public sealed record FieldView(
     IReadOnlyDictionary<string, string>? Modes,
     string? Asset = null,
     string? Meta = null,
-    int Data = 0);
+    int Data = 0,
+    int? MaxLength = null);

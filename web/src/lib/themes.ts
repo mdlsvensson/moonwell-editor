@@ -1,5 +1,5 @@
 /**
- * The page's colour themes (Sven, 2026-10-27): each sets the colour tokens app.css defines on `:root` (Kanagawa Wave
+ * The page's colour themes (Sven, 2026-10-27): each sets the colour tokens app.css defines on `:root` (Kanagawa Dragon
  * there, and first here: the default, Sven, 2026-10-29), from its scheme's own palette. The choice is remembered in the window's storage.
  */
 
@@ -50,15 +50,15 @@ function theme(id: string, name: string, values: string[]): Theme {
 // biome-ignore format: nine colours to a line keep each palette readable
 export const themes: Theme[] = [
   // github.com/rebelot/kanagawa.nvim
-  theme("kanagawa-wave", "Kanagawa Wave", [
-    "#16161d", "#1f1f28", "#2a2a37", "#2a2a37", "#363646", "#dcd7ba", "#c8c093", "#938aa9", "#727169",
-    "#7e9cd8", "#7fb4ca", "#223249", "#e6c384", "#e46876", "#43242b", "#7aa89f", "#957fb8",
-    "#7e9cd8", "#ffa066", "#98bb6c", "#c0a36e", "#7aa89f", "#957fb8", "#d27e99",
-  ]),
   theme("kanagawa-dragon", "Kanagawa Dragon", [
     "#0d0c0c", "#181616", "#282727", "#282727", "#393836", "#c5c9c5", "#b4b8b4", "#a6a69c", "#737c73",
     "#8ba4b0", "#8ea4a2", "#2a3438", "#c4b28a", "#c4746e", "#3a2626", "#8ea4a2", "#8992a7",
     "#8ba4b0", "#b6927b", "#87a987", "#c4b28a", "#8ea4a2", "#a292a3", "#c4746e",
+  ]),
+  theme("kanagawa-wave", "Kanagawa Wave", [
+    "#16161d", "#1f1f28", "#2a2a37", "#2a2a37", "#363646", "#dcd7ba", "#c8c093", "#938aa9", "#727169",
+    "#7e9cd8", "#7fb4ca", "#223249", "#e6c384", "#e46876", "#43242b", "#7aa89f", "#957fb8",
+    "#7e9cd8", "#ffa066", "#98bb6c", "#c0a36e", "#7aa89f", "#957fb8", "#d27e99",
   ]),
   // github.com/antfu/vscode-theme-vitesse
   theme("vitesse-dark", "Vitesse Dark", [
@@ -128,7 +128,7 @@ export const themes: Theme[] = [
 ];
 
 /** The theme the page starts with when none is chosen. */
-export const defaultTheme = "kanagawa-wave";
+export const defaultTheme = "kanagawa-dragon";
 
 const storageKey = "moonwell-editor.theme";
 

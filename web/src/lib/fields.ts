@@ -286,12 +286,12 @@ export function emptyText(
 ): string {
   if (field.type === "int") return "0";
   if (field.type === "float") return "0.000";
-  if (field.type === "bool") return "False";
+  if (field.type === "bool") return t("value.false");
   if (field.type === "choice") {
     const list = field.choice ? choices?.[field.choice] : undefined;
-    return list?.flags ? "" : "None";
+    return list?.flags ? "" : t("value.none");
   }
-  return noneTypes.has(field.meta ?? "") ? "None" : "";
+  return noneTypes.has(field.meta ?? "") ? t("value.none") : "";
 }
 
 /**
@@ -331,8 +331,8 @@ export function shownValue(
       .join(", ");
   }
   if (field.type === "bool") {
-    if (field.value === "1") return "True";
-    if (field.value === "0") return "False";
+    if (field.value === "1") return t("value.true");
+    if (field.value === "0") return t("value.false");
   }
   if (field.type === "float") return realText(field.value);
   return field.value;
@@ -363,7 +363,7 @@ function choiceText(list: ChoiceList, value: string): string {
     const set = list.entries.filter(
       (entry) => !entry.hidden && (number & Number(entry.value)) !== 0,
     );
-    return set.length === 0 ? "None" : set.map((entry) => entry.label).join(", ");
+    return set.length === 0 ? t("value.none") : set.map((entry) => entry.label).join(", ");
   }
   return listIds(value).map(label).join(", ");
 }

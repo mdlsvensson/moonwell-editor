@@ -41,6 +41,8 @@ type Props = {
   initial?: string | null;
   /** True when the field is the one selected: its boxes show their border, not only on hover. */
   selected?: boolean;
+  /** True when the field ids are shown (Ctrl D): an object list's chips show their objects' ids. */
+  showIds?: boolean;
 };
 
 let {
@@ -53,6 +55,7 @@ let {
   error = $bindable(),
   initial = null,
   selected = false,
+  showIds = false,
 }: Props = $props();
 
 // What the user typed and has not sent yet (or that was refused); null shows the field's value.
@@ -237,10 +240,15 @@ function oninput(event: Event): void {
 
 <span class="block min-w-0 {compact ? '' : 'max-w-full'}" {title}>
   {#if editor === "toggle"}
-    <!-- The word alone, no checkbox; a click turns it (Sven, 2026-10-29). -->
+    <!-- The word alone, with no checkbox and no box; a click turns it (Sven, 2026-10-29). -->
     <button
       type="button"
-      class="inline-grid cursor-pointer rounded border px-1.5 py-[3px] text-left font-mono text-[12.5px] outline-none focus:border-solid focus:border-accent {quiet}"
+      class="inline-grid cursor-pointer rounded border border-transparent px-1.5 py-[3px] text-left font-mono text-[12.5px] outline-none focus-visible:border-accent {error ||
+      field.warning
+        ? 'text-warn'
+        : field.changed
+          ? 'text-changed'
+          : 'text-fg'}"
       aria-pressed={field.value === "1"}
       aria-label={field.label}
       data-field="{field.id}:{field.level}"
@@ -259,13 +267,14 @@ function oninput(event: Event): void {
       label={field.label}
       tone={quiet}
       {compact}
+      snug
       field="{field.id}:{field.level}"
       onpick={(value) => send(value)}
     />
   {:else if editor === "flags" && list}
     <FlagsEditor {field} {list} {shown} {compact} tone={quiet} onset={send} />
   {:else if editor === "ids"}
-    <IdsEditor {field} {lookup} {compact} onset={send} {onopen} />
+    <IdsEditor {field} {lookup} {compact} {showIds} onset={send} {onopen} />
   {:else if editor === "number"}
     <span class="group/number relative inline-flex max-w-full align-top {compact ? 'w-full' : ''}">
     <input
@@ -314,8 +323,9 @@ function oninput(event: Event): void {
     </span>
   {:else if multiline}
     <textarea
-      class="{boxClass} block min-h-[4.5em] w-full resize-y px-1.5"
+      class="{boxClass} block min-h-[4.5em] w-full resize-none px-1.5"
       rows="3"
+      maxlength={field.maxLength ?? undefined}
       value={draft ?? field.value}
       {placeholder}
       data-field="{field.id}:{field.level}"
@@ -334,6 +344,7 @@ function oninput(event: Event): void {
         ? Math.max(4, Math.min(24, Math.max((draft ?? boxValue).length, placeholder.length) + 1))
         : undefined}
       spellcheck={editor === "text"}
+      maxlength={editor === "text" ? (field.maxLength ?? undefined) : undefined}
       data-field="{field.id}:{field.level}"
       aria-label={field.label}
       aria-invalid={!!error}

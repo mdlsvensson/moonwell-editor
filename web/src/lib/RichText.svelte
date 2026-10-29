@@ -5,7 +5,7 @@
  * stands for. Enter breaks the line (not in a one-line text), Ctrl Z and Ctrl Y undo and redo in the text, and every
  * change is sent on as markup. Copying gives the game's markup and a paste is read as markup (Agent's call), so
  * colours and placeholders survive both. The editor's toolbar colours the selection and puts placeholders in at the
- * cursor through `color` and `insert`.
+ * cursor through `color` and `insert`. A text takes no more markup than its field's limit.
  */
 import { Editor, Extension, Mark, Node } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
@@ -13,6 +13,7 @@ import HardBreak from "@tiptap/extension-hard-break";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions/undo-redo";
+import { Plugin } from "@tiptap/pm/state";
 import { onMount, untrack } from "svelte";
 import {
   colorMark,
@@ -41,6 +42,8 @@ type Props = {
   onfocus?: () => void;
   /** The name for screen readers. */
   label: string;
+  /** The most characters of markup the text takes, as World Editor's box does; null for no limit. */
+  limit?: number | null;
   class?: string;
 };
 
@@ -51,6 +54,7 @@ let {
   onchange,
   onfocus,
   label,
+  limit = null,
   class: extra = "",
 }: Props = $props();
 
@@ -115,11 +119,30 @@ const Keys = Extension.create({
   },
 });
 
+// No change makes the markup longer than `limit` (Sven, 2026-10-29: World Editor's box stops there too); a text
+// already longer can still be shortened.
+const Limit = Extension.create({
+  name: "tooltipLimit",
+  addProseMirrorPlugins() {
+    const length = (doc: { toJSON(): unknown }) =>
+      markupOf(segmentsOfDoc([doc.toJSON() as DocNode]), newline).length;
+    return [
+      new Plugin({
+        filterTransaction: (transaction, state) => {
+          if (!limit || !transaction.docChanged) return true;
+          const after = length(transaction.doc);
+          return after <= limit || after <= length(state.doc);
+        },
+      }),
+    ];
+  },
+});
+
 onMount(() => {
   if (!root) return;
   editor = new Editor({
     element: root,
-    extensions: [OneParagraph, Paragraph, Text, HardBreak, UndoRedo, Color, Token, Keys],
+    extensions: [OneParagraph, Paragraph, Text, HardBreak, UndoRedo, Color, Token, Keys, Limit],
     content: docOf(segmentsOf(markup)),
     editorProps: {
       attributes: {

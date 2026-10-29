@@ -23,7 +23,7 @@ type Group = {
 };
 
 // The data names races in lower case (`nightelf`); the tree shows them as World Editor does.
-const groupNames: Record<string, string> = { nightelf: "Night Elf" };
+const groupNames: Record<string, string> = { nightelf: t("tree.nightElf") };
 
 /** A group's name to show: `nightelf` as Night Elf, any other with a capital letter. */
 export function groupName(name: string): string {

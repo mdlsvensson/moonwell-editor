@@ -3,34 +3,36 @@
  * team colour and hero glow take the colour of the player who owns the unit.
  */
 
+import { t } from "./text.ts";
+
 /** A player colour: its name as the game gives it and its sRGB hex code. */
 export type TeamColor = { name: string; hex: string };
 
 export const teamColors: readonly TeamColor[] = [
-  { name: "Red", hex: "#ff0303" },
-  { name: "Blue", hex: "#0042ff" },
-  { name: "Teal", hex: "#1ce6b9" },
-  { name: "Purple", hex: "#540081" },
-  { name: "Yellow", hex: "#fffc00" },
-  { name: "Orange", hex: "#fe8a0e" },
-  { name: "Green", hex: "#20c000" },
-  { name: "Pink", hex: "#e55bb0" },
-  { name: "Gray", hex: "#959697" },
-  { name: "Light Blue", hex: "#7ebff1" },
-  { name: "Dark Green", hex: "#106246" },
-  { name: "Brown", hex: "#4a2a04" },
-  { name: "Maroon", hex: "#9b0000" },
-  { name: "Navy", hex: "#0000c3" },
-  { name: "Turquoise", hex: "#00eaff" },
-  { name: "Violet", hex: "#be00fe" },
-  { name: "Wheat", hex: "#ebcd87" },
-  { name: "Peach", hex: "#f8a48b" },
-  { name: "Mint", hex: "#bfff80" },
-  { name: "Lavender", hex: "#dcb9eb" },
-  { name: "Coal", hex: "#282828" },
-  { name: "Snow", hex: "#ebf0ff" },
-  { name: "Emerald", hex: "#00781e" },
-  { name: "Peanut", hex: "#a46f33" },
+  { name: t("teamColour.red"), hex: "#ff0303" },
+  { name: t("teamColour.blue"), hex: "#0042ff" },
+  { name: t("teamColour.teal"), hex: "#1ce6b9" },
+  { name: t("teamColour.purple"), hex: "#540081" },
+  { name: t("teamColour.yellow"), hex: "#fffc00" },
+  { name: t("teamColour.orange"), hex: "#fe8a0e" },
+  { name: t("teamColour.green"), hex: "#20c000" },
+  { name: t("teamColour.pink"), hex: "#e55bb0" },
+  { name: t("teamColour.gray"), hex: "#959697" },
+  { name: t("teamColour.lightBlue"), hex: "#7ebff1" },
+  { name: t("teamColour.darkGreen"), hex: "#106246" },
+  { name: t("teamColour.brown"), hex: "#4a2a04" },
+  { name: t("teamColour.maroon"), hex: "#9b0000" },
+  { name: t("teamColour.navy"), hex: "#0000c3" },
+  { name: t("teamColour.turquoise"), hex: "#00eaff" },
+  { name: t("teamColour.violet"), hex: "#be00fe" },
+  { name: t("teamColour.wheat"), hex: "#ebcd87" },
+  { name: t("teamColour.peach"), hex: "#f8a48b" },
+  { name: t("teamColour.mint"), hex: "#bfff80" },
+  { name: t("teamColour.lavender"), hex: "#dcb9eb" },
+  { name: t("teamColour.coal"), hex: "#282828" },
+  { name: t("teamColour.snow"), hex: "#ebf0ff" },
+  { name: t("teamColour.emerald"), hex: "#00781e" },
+  { name: t("teamColour.peanut"), hex: "#a46f33" },
 ];
 
 /** The player index (0 for player 1) as a whole number from 0 to 23; anything else is player 1. */

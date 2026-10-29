@@ -96,6 +96,25 @@ public sealed class GameDataTests : IClassFixture<GameDataFixture>
     }
 
     [Fact]
+    public void Tooltips_take_world_editors_lengths()
+    {
+        if (Skipped(out var data))
+        {
+            return;
+        }
+
+        // World Editor's box takes 2048 characters of a tooltip and 8191 of an extended one (Sven, 2026-10-29).
+        var units = data.Kind(ObjectKind.Unit);
+        var abilities = data.Kind(ObjectKind.Ability);
+        Assert.Equal(2048, units.Field("utip")!.MaxLength);
+        Assert.Equal(2048, units.Field("utpr")!.MaxLength);
+        Assert.Equal(8191, units.Field("utub")!.MaxLength);
+        Assert.Equal(2048, abilities.Field("aut1")!.MaxLength);
+        Assert.Equal(8191, abilities.Field("arut")!.MaxLength);
+        Assert.Null(units.Field("ides")!.MaxLength);
+    }
+
+    [Fact]
     public void Hero_fields_only_on_heroes()
     {
         if (Skipped(out var data))

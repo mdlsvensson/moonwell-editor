@@ -120,6 +120,8 @@ export type FieldView = {
   meta?: string | null;
   /** An ability's data field letter as a number (`DataA` is 1), which its tooltips name it by; 0 or absent for others. */
   data?: number;
+  /** The most characters World Editor's box takes for the text (a tooltip's 2048); absent or null for none. */
+  maxLength?: number | null;
 };
 
 /** One object with every field that applies to it. */

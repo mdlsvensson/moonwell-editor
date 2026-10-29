@@ -129,7 +129,7 @@ async function reset(): Promise<void> {
       />
     {/if}
     {#if editable}
-      <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} {selected} bind:error /></span>
+      <span class="min-w-0 {multiline ? 'flex-1' : ''}"><FieldEditor {field} {choices} {lookup} {onset} {onopen} {selected} {showIds} bind:error /></span>
       {#if pair && onpair}
         {@const both = pair}
         <CommandCard pair={both} onpick={(x, y) => onpair(both, x, y)} />
