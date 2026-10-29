@@ -1,6 +1,16 @@
 import { vec3, vec4 } from "gl-matrix";
 import { describe, expect, it } from "vitest";
-import { matrices, panned, ray, turned, type View, zoomed } from "./camera.ts";
+import {
+  framed,
+  matrices,
+  numpadView,
+  orbited,
+  panned,
+  ray,
+  turned,
+  type View,
+  zoomed,
+} from "./camera.ts";
 
 const down: View = { x: 100, y: 200, z: 0, distance: 1000, yaw: 0, pitch: Math.PI / 2 };
 
@@ -51,9 +61,54 @@ describe("moving the camera", () => {
     expect(zoomed(down, -1000).distance).toBeLessThanOrEqual(20000);
   });
 
-  it("turns and keeps the pitch between level and straight down", () => {
+  it("turns and keeps the pitch between straight up and straight down", () => {
     expect(turned(down, 1, 0).yaw).toBeCloseTo(1, 6);
     expect(turned(down, 0, 5).pitch).toBeLessThanOrEqual(Math.PI / 2);
-    expect(turned(down, 0, -5).pitch).toBeGreaterThan(0);
+    expect(turned(down, 0, -5).pitch).toBeGreaterThan(-Math.PI / 2);
+  });
+});
+
+describe("Blender's keys and mouse", () => {
+  const view: View = { x: 0, y: 0, z: 0, distance: 1000, yaw: 0.3, pitch: 0.7 };
+  const deg = (d: number) => (d * Math.PI) / 180;
+
+  it("numpad 1, 3 and 7 look from the front, the right and the top; Ctrl from the opposite side", () => {
+    expect(numpadView(view, "Numpad1", false)).toMatchObject({ yaw: 0, pitch: 0 });
+    expect(numpadView(view, "Numpad1", true)).toMatchObject({ yaw: Math.PI, pitch: 0 });
+    expect(numpadView(view, "Numpad3", false)).toMatchObject({ yaw: -Math.PI / 2, pitch: 0 });
+    expect(numpadView(view, "Numpad3", true)).toMatchObject({ yaw: Math.PI / 2, pitch: 0 });
+    expect(numpadView(view, "Numpad7", false)?.pitch).toBeCloseTo(Math.PI / 2, 6);
+    expect(numpadView(view, "Numpad7", true)?.pitch ?? 0).toBeLessThan(-1.5);
+  });
+
+  it("numpad 4, 6, 8 and 2 orbit by 15 degrees, 9 turns to the other side, Ctrl with them pans", () => {
+    expect(numpadView(view, "Numpad4", false)?.yaw).toBeCloseTo(0.3 - deg(15), 6);
+    expect(numpadView(view, "Numpad6", false)?.yaw).toBeCloseTo(0.3 + deg(15), 6);
+    expect(numpadView(view, "Numpad8", false)?.pitch).toBeCloseTo(0.7 + deg(15), 6);
+    expect(numpadView(view, "Numpad2", false)?.pitch).toBeCloseTo(0.7 - deg(15), 6);
+    expect(numpadView(view, "Numpad9", false)?.yaw).toBeCloseTo(0.3 + Math.PI, 6);
+    const panned = numpadView(view, "Numpad6", true);
+    expect(panned?.yaw).toBe(0.3);
+    expect(panned?.x ?? 0).toBeGreaterThan(0);
+  });
+
+  it("numpad + and - zoom; other keys do nothing", () => {
+    expect(numpadView(view, "NumpadAdd", false)?.distance ?? 0).toBeLessThan(1000);
+    expect(numpadView(view, "NumpadSubtract", false)?.distance ?? 0).toBeGreaterThan(1000);
+    expect(numpadView(view, "KeyA", false)).toBeNull();
+  });
+
+  it("a middle drag orbits: right turns the view one way, down tilts it toward the top", () => {
+    const moved = orbited(view, 100, 50);
+    expect(moved.yaw).toBeLessThan(view.yaw);
+    expect(moved.pitch).toBeGreaterThan(view.pitch);
+  });
+
+  it("Home frames a rectangle: its middle, from far enough to see it all", () => {
+    const all = framed(view, -1000, -500, 3000, 1500);
+    expect([all.x, all.y]).toEqual([1000, 500]);
+    // A 4000-wide area under a 60-degree field of view needs the camera at least 3464 away.
+    expect(all.distance).toBeGreaterThan(3464);
+    expect([all.yaw, all.pitch]).toEqual([view.yaw, view.pitch]);
   });
 });

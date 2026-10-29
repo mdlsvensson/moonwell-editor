@@ -1,16 +1,18 @@
 <script lang="ts">
 /**
  * The map view (the Terrain Editor button): the whole map drawn with WebGL2, read only. It asks the app for the scene
- * each time it opens, so it shows the session's current objects (Review Focus 4). The wheel zooms, a middle or right
- * drag pans, Ctrl with a right drag turns, the arrow keys pan (plan's call, to be matched to World Editor's). The
- * camera starts over player 1's start location, else the map's middle.
+ * each time it opens, so it shows the session's current objects (Review Focus 4). The mouse and keys are Blender's
+ * (Sven, 2026-10-29): a middle drag orbits, Shift with it pans, Ctrl with it zooms, the wheel zooms; the numpad's 1, 3
+ * and 7 look from the front, right and top (Ctrl the opposite side), 2, 4, 6 and 8 orbit (Ctrl pans), 9 turns round,
+ * + and - zoom; Home frames the map, the numpad's . the selection. The camera starts over player 1's start location,
+ * else the map's middle.
  *
  * Hovering highlights what is under the mouse and a click selects it; the line at the bottom names it, with the name
  * triggers use for it. In pick mode (`pickOnMap`, for the trigger editor) a click on the asked kind answers, Esc
  * cancels.
  */
 import { fileUrl, mapScene, terrainUrl } from "./api.ts";
-import { panned, ray, turned, type View, zoomed } from "./map/camera.ts";
+import { framed, numpadView, orbited, panned, ray, type View, zoomed } from "./map/camera.ts";
 import { GlHost } from "./map/gl/host.ts";
 import { allLayers, type Layers, MapRenderer } from "./map/gl/renderer.ts";
 import { groundPoint } from "./map/groundRay.ts";
@@ -48,7 +50,8 @@ let terrain: Terrain | null = null;
 let renderer: MapRenderer | null = null;
 let frame = 0;
 let hoverFrame = 0;
-let drag: { x: number; y: number; turn: boolean; moved: boolean } | null = null;
+/** A middle drag: what it does, chosen when it starts (Blender's: Shift pans, Ctrl zooms, else it orbits). */
+let drag: { x: number; y: number; does: "orbit" | "pan" | "zoom" } | null = null;
 let press: { x: number; y: number } | null = null;
 
 /** The kinds a layer switch shows or hides. */
@@ -247,14 +250,13 @@ function onpointerdown(event: PointerEvent): void {
     press = { x: event.clientX, y: event.clientY };
     return;
   }
-  if (event.button !== 1 && event.button !== 2) return;
+  if (event.button !== 1) return;
   event.preventDefault();
   canvas?.setPointerCapture(event.pointerId);
   drag = {
     x: event.clientX,
     y: event.clientY,
-    turn: event.button === 2 && event.ctrlKey,
-    moved: false,
+    does: event.shiftKey ? "pan" : event.ctrlKey ? "zoom" : "orbit",
   };
 }
 
@@ -262,9 +264,10 @@ function onpointermove(event: PointerEvent): void {
   if (drag) {
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
-    drag = { ...drag, x: event.clientX, y: event.clientY, moved: true };
-    if (drag.turn) move(turned(view, dx * 0.005, dy * 0.005));
-    else move(panned(view, -dx * perPixel(), dy * perPixel()));
+    drag = { ...drag, x: event.clientX, y: event.clientY };
+    if (drag.does === "orbit") move(orbited(view, dx, dy));
+    else if (drag.does === "pan") move(panned(view, -dx * perPixel(), dy * perPixel()));
+    else move(zoomed(view, -dy / 40));
     return;
   }
   // What is under the mouse, once a frame.
@@ -304,17 +307,23 @@ function onkeydown(event: KeyboardEvent): void {
     else selected = null;
     return;
   }
-  const step = view.distance * 0.08;
-  const by: Record<string, [number, number]> = {
-    ArrowLeft: [-step, 0],
-    ArrowRight: [step, 0],
-    ArrowUp: [0, step],
-    ArrowDown: [0, -step],
-  };
-  const pan = by[event.key];
-  if (!pan) return;
+  if (event.code === "Home" && terrain) {
+    event.preventDefault();
+    const right = terrain.left + (terrain.columns - 1) * 128;
+    const top = terrain.bottom + (terrain.rows - 1) * 128;
+    move(framed(view, terrain.left, terrain.bottom, right, top));
+    return;
+  }
+  if (event.code === "NumpadDecimal") {
+    event.preventDefault();
+    const at = selected ?? hovered;
+    if (at) move({ ...view, x: at.x, y: at.y, distance: Math.min(view.distance, 900) });
+    return;
+  }
+  const next = numpadView(view, event.code, event.ctrlKey);
+  if (!next) return;
   event.preventDefault();
-  move(panned(view, pan[0], pan[1]));
+  move(next);
 }
 
 // Esc cancels pick mode from anywhere in the window, not only the canvas.

@@ -20,8 +20,8 @@ const near = 16;
 const far = 60000;
 const closest = 200;
 const furthest = 20000;
-/** The pitch stays between nearly level and straight down. */
-const flattest = 0.1;
+/** The pitch stays between straight up and straight down, as Blender's does, short of the poles. */
+const steepest = Math.PI / 2 - 0.001;
 
 /** The direction the camera looks in, and its up. */
 function axes(view: View): { forward: vec3; up: vec3 } {
@@ -110,6 +110,58 @@ export function turned(view: View, yaw: number, pitch: number): View {
   return {
     ...view,
     yaw: view.yaw + yaw,
-    pitch: Math.min(Math.max(view.pitch + pitch, flattest), Math.PI / 2),
+    pitch: Math.min(Math.max(view.pitch + pitch, -steepest), Math.PI / 2),
+  };
+}
+
+/** A middle drag of `dx`, `dy` pixels, as Blender orbits: right turns the view, down tilts it toward the top. */
+export function orbited(view: View, dx: number, dy: number): View {
+  return turned(view, -dx * 0.005, dy * 0.005);
+}
+
+/** Blender's numpad step: 15 degrees an orbit. */
+const step = (15 * Math.PI) / 180;
+
+/**
+ * The view after a numpad key (`event.code`), as Blender's: 1, 3 and 7 look from the front (north), the right and the
+ * top, with Ctrl from the opposite side; 4, 6, 8 and 2 orbit by 15 degrees, with Ctrl pan; 9 turns to the other side;
+ * + and - zoom. Null for any other key.
+ */
+export function numpadView(view: View, code: string, ctrl: boolean): View | null {
+  const pan = view.distance * 0.1;
+  switch (code) {
+    case "Numpad1":
+      return { ...view, yaw: ctrl ? Math.PI : 0, pitch: 0 };
+    case "Numpad3":
+      return { ...view, yaw: ctrl ? Math.PI / 2 : -Math.PI / 2, pitch: 0 };
+    case "Numpad7":
+      return { ...view, pitch: ctrl ? -steepest : Math.PI / 2 };
+    case "Numpad4":
+      return ctrl ? panned(view, -pan, 0) : turned(view, -step, 0);
+    case "Numpad6":
+      return ctrl ? panned(view, pan, 0) : turned(view, step, 0);
+    case "Numpad8":
+      return ctrl ? panned(view, 0, pan) : turned(view, 0, step);
+    case "Numpad2":
+      return ctrl ? panned(view, 0, -pan) : turned(view, 0, -step);
+    case "Numpad9":
+      return { ...view, yaw: view.yaw + Math.PI };
+    case "NumpadAdd":
+      return zoomed(view, 1);
+    case "NumpadSubtract":
+      return zoomed(view, -1);
+    default:
+      return null;
+  }
+}
+
+/** The view looking at the middle of a rectangle from far enough to see all of it, its angles kept (Blender's Home). */
+export function framed(view: View, left: number, bottom: number, right: number, top: number): View {
+  const size = Math.max(right - left, top - bottom);
+  return {
+    ...view,
+    x: (left + right) / 2,
+    y: (bottom + top) / 2,
+    distance: Math.min((size / 2 / Math.tan(fieldOfView / 2)) * 1.1, 60000),
   };
 }
