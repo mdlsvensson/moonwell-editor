@@ -22,6 +22,9 @@ describe("readTerrain", () => {
     expect(Number.isNaN(terrain.water[1])).toBe(true);
     expect(Array.from(terrain.layers.subarray(0, 4))).toEqual([3, 19, 255, 255]);
     expect(Array.from(terrain.tiles)).toEqual([1, 1]);
+    expect(terrain.shadows.length).toBe(2 * 16);
+    expect(terrain.shadows[0]).toBe(255);
+    expect(terrain.shadows[1]).toBe(0);
   });
 
   it("refuses bytes of another size", () => {

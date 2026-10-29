@@ -4,12 +4,18 @@
  * drawn whole, the layers after it in their pieces' alpha over it. A tile under a cliff model is not drawn; one outside
  * the playable area is dimmed. WebGL2 cannot pick one of several samplers by a tile's texture, so each sheet keeps its
  * own texture: an array of its pieces (see cutPieces), compressed as the game's file has it, so a tile never samples
- * its neighbouring pieces (the seams between tiles, Sven 2026-10-29). It is lit by the tileset's terrain light.
+ * its neighbouring pieces (the seams between tiles, Sven 2026-10-29). It is lit by the tileset's terrain light; in
+ * Classic, the shadows World Editor baked into the map (war3map.shd) darken it, softened between quarter tiles (*claim*:
+ * how dark the game draws them is not measured).
  */
 import type { mat4 } from "gl-matrix";
 import type { Terrain, TerrainTexture } from "../scene.ts";
 import { type Lighting, lightingUniforms, litGlsl, setLighting } from "./lighting.ts";
-import { byteTexture, floatTexture, program } from "./program.ts";
+import { byteTexture, floatTexture, maskTexture, program } from "./program.ts";
+
+/** How much of the light a baked Classic shadow takes away (the view's call). */
+const bakedShadow = 0.45;
+
 import { plainArray } from "./textures.ts";
 
 const vertex = `#version 300 es
@@ -52,6 +58,7 @@ void main() {
 
 const fragment = `#version 300 es
 precision highp float;
+precision highp int;
 precision highp sampler2DArray;
 in vec2 uv;
 in vec3 normal;
@@ -60,11 +67,16 @@ flat in float layer;
 flat in float whole;
 flat in float dim;
 uniform sampler2DArray sheet;
+uniform sampler2D baked;
+uniform vec2 origin;
+uniform ivec2 size;
 out vec4 color;
 ${litGlsl}
 void main() {
   vec4 texel = texture(sheet, vec3(uv, layer));
-  color = vec4(lit(texel.rgb, normal, world) * dim, whole > 0.5 ? 1.0 : texel.a);
+  float shade = pbr ? 1.0
+    : 1.0 - texture(baked, (world.xy - origin) / (128.0 * vec2(size - 1))).r * ${bakedShadow};
+  color = vec4(lit(texel.rgb, normal, world) * dim * shade, whole > 0.5 ? 1.0 : texel.a);
 }`;
 
 /** One texture's pass: its sheet and the tiles that use it, two numbers each (the tile, its piece and wholeness). */
@@ -76,6 +88,8 @@ export class GroundLayer {
   private readonly corners: WebGLBuffer;
   private readonly heights: WebGLTexture;
   private readonly flags: WebGLTexture;
+  /** The baked Classic shadows, a texel a quarter tile. */
+  private readonly baked: WebGLTexture;
   private readonly passes: Pass[];
   private readonly uniforms: Record<string, WebGLUniformLocation | null>;
 
@@ -86,14 +100,22 @@ export class GroundLayer {
   ) {
     this.program = program(gl, vertex, fragment);
     this.uniforms = Object.fromEntries(
-      ["viewProjection", "heights", "flags", "size", "origin", "sheet", ...lightingUniforms].map(
-        (name) => [name, gl.getUniformLocation(this.program, name)],
-      ),
+      [
+        "viewProjection",
+        "heights",
+        "flags",
+        "size",
+        "origin",
+        "sheet",
+        "baked",
+        ...lightingUniforms,
+      ].map((name) => [name, gl.getUniformLocation(this.program, name)]),
     );
     const across = Math.max(terrain.columns - 1, 0);
     const down = Math.max(terrain.rows - 1, 0);
     this.heights = floatTexture(gl, terrain.columns, terrain.rows, terrain.ground);
     this.flags = byteTexture(gl, across, down, 1, terrain.tiles);
+    this.baked = maskTexture(gl, Math.max(across * 4, 1), Math.max(down * 4, 1), terrain.shadows);
     this.vao = gl.createVertexArray();
     gl.bindVertexArray(this.vao);
     this.corners = gl.createBuffer();
@@ -149,6 +171,9 @@ export class GroundLayer {
     gl.bindTexture(gl.TEXTURE_2D, this.flags);
     gl.uniform1i(this.uniforms.flags ?? null, 1);
     gl.uniform1i(this.uniforms.sheet ?? null, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, this.baked);
+    gl.uniform1i(this.uniforms.baked ?? null, 3);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthFunc(gl.LEQUAL);
@@ -177,6 +202,7 @@ export class GroundLayer {
     gl.deleteBuffer(this.corners);
     gl.deleteTexture(this.heights);
     gl.deleteTexture(this.flags);
+    gl.deleteTexture(this.baked);
     gl.deleteVertexArray(this.vao);
     gl.deleteProgram(this.program);
   }

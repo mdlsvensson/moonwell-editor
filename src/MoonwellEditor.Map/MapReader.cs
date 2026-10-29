@@ -16,6 +16,9 @@ namespace MoonwellEditor.Map;
 /// <param name="Regions">The regions, <c>war3map.w3r</c>.</param>
 /// <param name="Cameras">The cameras, <c>war3map.w3c</c>.</param>
 /// <param name="Info">The map's info, <c>war3map.w3i</c>: its bounds, players and water tint.</param>
+/// <param name="Shadows">
+/// The shadows World Editor bakes for Classic, <c>war3map.shd</c>, as they are: a byte a quarter tile, 255 in shadow.
+/// </param>
 /// <param name="Problems">The files that could not be read, each with its reason.</param>
 public sealed record MapFiles(
     MapEnvironment? Terrain,
@@ -24,12 +27,13 @@ public sealed record MapFiles(
     MapRegions? Regions,
     MapCameras? Cameras,
     MapInfo? Info,
+    byte[]? Shadows,
     IReadOnlyList<string> Problems);
 
 /// <summary>Reads the map's files for the map view. It only reads: nothing here writes to the map.</summary>
 public static class MapReader
 {
-    /// <summary>Reads the terrain, doodad, unit, region, camera and info files of <paramref name="store"/>.</summary>
+    /// <summary>Reads the terrain, doodad, unit, region, camera, info and shadow files of <paramref name="store"/>.</summary>
     public static MapFiles Read(IMapStore store)
     {
         var problems = new List<string>();
@@ -40,6 +44,7 @@ public static class MapReader
             Read(store, MapRegions.FileName, problems, reader => reader.ReadMapRegions()),
             Read(store, MapCameras.FileName, problems, reader => reader.ReadMapCameras()),
             Read(store, MapInfo.FileName, problems, reader => reader.ReadMapInfo()),
+            Read(store, "war3map.shd", problems, reader => reader.ReadBytes((int)reader.BaseStream.Length)),
             problems);
     }
 

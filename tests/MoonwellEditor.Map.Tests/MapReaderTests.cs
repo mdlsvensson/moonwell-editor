@@ -21,6 +21,8 @@ public sealed class MapReaderTests(ITestOutputHelper output)
         Assert.NotNull(files.Doodads);
         Assert.NotNull(files.Units);
         Assert.NotNull(files.Info);
+        Assert.Equal(160 * 4 * 160 * 4, files.Shadows!.Length); // a byte a quarter tile
+        Assert.Contains(files.Shadows, value => value == 255);
         Assert.Empty(files.Problems);
     }
 

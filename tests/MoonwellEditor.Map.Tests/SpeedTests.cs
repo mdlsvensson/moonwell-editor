@@ -75,7 +75,7 @@ public sealed class SpeedTests(ITestOutputHelper output)
 
         output.WriteLine($"481 by 481: {clock.ElapsedMilliseconds} ms, {view.Cliffs.Count} cliff pieces, {bytes.Length / 1024} KB");
         Assert.Equal(481, view.Columns);
-        Assert.Equal(8 + (481 * 481 * 12) + (480 * 480 * 9), bytes.Length);
+        Assert.Equal(8 + (481 * 481 * 12) + (480 * 480 * 9) + (480 * 480 * 16), bytes.Length);
         Assert.InRange(clock.ElapsedMilliseconds, 0, 30000);
     }
 }

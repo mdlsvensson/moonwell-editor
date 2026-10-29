@@ -4,18 +4,19 @@ namespace MoonwellEditor.Map;
 /// The terrain as the page draws it, little-endian: int32 columns, int32 rows; float32 ground, relief and water a
 /// corner (water NaN where there is none); then a tile its four layers as texture, piece byte pairs (255, 255 for an
 /// unused one); then a tile one byte of flags (bit 0 the ground is drawn, bit 1 outside the playable area, bit 2
-/// boundary, each by the tile's bottom-left corner, *claim*, HiveWE). Corners and tiles run row by row from the bottom
-/// left.
+/// boundary, each by the tile's bottom-left corner, *claim*, HiveWE); then a quarter tile (a tile is four by four) one
+/// byte of the shadow World Editor bakes for Classic (<c>war3map.shd</c> as it is, 255 in shadow; 0 everywhere without
+/// the file or with one of another size). Corners and tiles run row by row from the bottom left.
 /// </summary>
 public static class TerrainBytes
 {
-    /// <summary>The bytes of a terrain.</summary>
-    public static byte[] Write(TerrainGrid grid, TileLayers layers, CliffTiles cliffs)
+    /// <summary>The bytes of a terrain, with its baked shadows (<c>war3map.shd</c>) when the map has them.</summary>
+    public static byte[] Write(TerrainGrid grid, TileLayers layers, CliffTiles cliffs, byte[]? shadows)
     {
         var columns = grid.Columns;
         var rows = grid.Rows;
         var tiles = (columns - 1) * (rows - 1);
-        using var stream = new MemoryStream(8 + (columns * rows * 12) + (tiles * 9));
+        using var stream = new MemoryStream(8 + (columns * rows * 12) + (tiles * 25));
         using var writer = new BinaryWriter(stream);
         writer.Write(columns);
         writer.Write(rows);
@@ -45,6 +46,7 @@ public static class TerrainBytes
             }
         }
 
+        writer.Write(shadows?.Length == tiles * 16 ? shadows : new byte[tiles * 16]);
         writer.Flush();
         return stream.ToArray();
     }

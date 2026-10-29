@@ -27,7 +27,11 @@ public sealed class MapSceneTests(ITestOutputHelper output)
             []);
         var layers = TileLayers.From(terrain, textures, cliffs);
 
-        var bytes = TerrainBytes.Write(grid, layers, cliffs);
+        var shadows = new byte[2 * 4 * 2 * 4];
+        shadows[0] = 255; // the bottom left quarter tile
+        shadows[^1] = 255;
+
+        var bytes = TerrainBytes.Write(grid, layers, cliffs, shadows);
 
         using var reader = new BinaryReader(new MemoryStream(bytes));
         Assert.Equal(3, reader.ReadInt32());
@@ -37,7 +41,13 @@ public sealed class MapSceneTests(ITestOutputHelper output)
         var water = Floats(reader, 9);
         var layerBytes = reader.ReadBytes(4 * 8);
         var tileBytes = reader.ReadBytes(4);
+        var shadowBytes = reader.ReadBytes(64);
         Assert.Equal(bytes.Length, reader.BaseStream.Position);
+        Assert.Equal(255, shadowBytes[0]);
+        Assert.Equal(0, shadowBytes[1]);
+        Assert.Equal(255, shadowBytes[63]);
+        Assert.All(TerrainBytes.Write(grid, layers, cliffs, null)[^64..], value => Assert.Equal(0, value));
+        Assert.All(TerrainBytes.Write(grid, layers, cliffs, [1, 2, 3])[^64..], value => Assert.Equal(0, value));
         Assert.Equal(64f, ground[4]);
         Assert.Equal(128f, ground[8]);
         Assert.Equal(64f, relief[4]);
@@ -133,7 +143,7 @@ public sealed class MapSceneTests(ITestOutputHelper output)
 
         Assert.Equal(161, view.Columns);
         Assert.Single(view.Tileset); // Lost Temple's is I
-        Assert.Equal((8 + (161 * 161 * 12)) + (160 * 160 * 9), terrain.Length);
+        Assert.Equal((8 + (161 * 161 * 12)) + (160 * 160 * 9) + (160 * 160 * 16), terrain.Length);
         Assert.NotEmpty(view.Cliffs);
         Assert.NotEmpty(view.Things);
         Assert.Equal(@"ReplaceableTextures\Water\Water", view.Water.Texture);

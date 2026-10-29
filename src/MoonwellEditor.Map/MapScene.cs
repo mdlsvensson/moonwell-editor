@@ -93,7 +93,7 @@ public static class MapScene
             regions,
             cameras,
             problems);
-        return (view, TerrainBytes.Write(grid, layers, tiles));
+        return (view, TerrainBytes.Write(grid, layers, tiles, read.Shadows));
     }
 
     // The water's texture, frames and four colours; tinted by the map's water colour when its flag says so.

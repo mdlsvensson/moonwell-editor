@@ -105,7 +105,8 @@ export type MapScene = {
 /**
  * The terrain's corners and tiles: the ground's height, the height without cliff levels (`relief`, what a cliff model
  * stands on), the water's surface (NaN for none); a tile's four layers as texture, piece pairs (255 for none) and its
- * flags (bit 0 the ground is drawn, bit 1 outside the playable area, bit 2 boundary).
+ * flags (bit 0 the ground is drawn, bit 1 outside the playable area, bit 2 boundary); and a quarter tile's baked
+ * Classic shadow (war3map.shd, 255 in shadow), four by four a tile.
  */
 export type Terrain = {
   columns: number;
@@ -117,6 +118,7 @@ export type Terrain = {
   water: Float32Array;
   layers: Uint8Array;
   tiles: Uint8Array;
+  shadows: Uint8Array;
 };
 
 /** Reads the terrain bytes; `left` and `bottom` come from the scene. Throws when the bytes are not of their size. */
@@ -127,7 +129,7 @@ export function readTerrain(buffer: ArrayBuffer, left: number, bottom: number): 
   const rows = head.getInt32(4, true);
   const corners = columns * rows;
   const tiles = Math.max(columns - 1, 0) * Math.max(rows - 1, 0);
-  if (columns < 0 || rows < 0 || buffer.byteLength !== 8 + corners * 12 + tiles * 9) {
+  if (columns < 0 || rows < 0 || buffer.byteLength !== 8 + corners * 12 + tiles * 25) {
     throw new Error("The terrain is not of its size.");
   }
   // Float32Array reads the machine's order, which is little-endian on every machine WebView2 runs on.
@@ -141,6 +143,7 @@ export function readTerrain(buffer: ArrayBuffer, left: number, bottom: number): 
     water: new Float32Array(buffer, 8 + corners * 8, corners),
     layers: new Uint8Array(buffer, 8 + corners * 12, tiles * 8),
     tiles: new Uint8Array(buffer, 8 + corners * 12 + tiles * 8, tiles),
+    shadows: new Uint8Array(buffer, 8 + corners * 12 + tiles * 9, tiles * 16),
   };
 }
 

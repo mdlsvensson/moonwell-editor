@@ -43,6 +43,24 @@ export function floatTexture(
   return texture;
 }
 
+/** A one-channel texture of bytes read as 0 to 1 and blended between texels (a soft mask). */
+export function maskTexture(
+  gl: WebGL2RenderingContext,
+  width: number,
+  height: number,
+  values: Uint8Array,
+): WebGLTexture {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, values);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return texture;
+}
+
 /** A texture of whole numbers, `channels` bytes a texel (1 or 4), read with texelFetch. */
 export function byteTexture(
   gl: WebGL2RenderingContext,
