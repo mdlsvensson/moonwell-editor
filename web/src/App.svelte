@@ -1,9 +1,15 @@
 <script lang="ts">
+import AudioLines from "@lucide/svelte/icons/audio-lines";
+import BookOpen from "@lucide/svelte/icons/book-open";
+import Bot from "@lucide/svelte/icons/bot";
 import Columns3 from "@lucide/svelte/icons/columns-3";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import Menu from "@lucide/svelte/icons/menu";
+import MountainSnow from "@lucide/svelte/icons/mountain-snow";
+import Package from "@lucide/svelte/icons/package";
 import Table2 from "@lucide/svelte/icons/table-2";
+import Workflow from "@lucide/svelte/icons/workflow";
 import { onMount, tick } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
 import AlphaNotice from "./lib/AlphaNotice.svelte";
@@ -1189,6 +1195,21 @@ onMount(() => {
       >
         <GitCompareArrows size={17} />
       </button>
+    </div>
+    <span class="h-5 w-px shrink-0 bg-line" aria-hidden="true"></span>
+    <!-- World Editor's other editors, shown before they exist (Sven, 2026-10-29). -->
+    <div class="flex shrink-0 gap-0.5" role="group" aria-label={t("header.editors")}>
+      {#each [{ name: t("header.terrainEditor"), Icon: MountainSnow }, { name: t("header.triggerEditor"), Icon: Workflow }, { name: t("header.soundEditor"), Icon: AudioLines }, { name: t("header.campaignEditor"), Icon: BookOpen }, { name: t("header.aiEditor"), Icon: Bot }, { name: t("header.assetManager"), Icon: Package }] as each (each.name)}
+        <button
+          type="button"
+          class="rounded-[5px] p-1.5 text-muted opacity-50"
+          disabled
+          title={t("header.comingSoon", { name: each.name })}
+          aria-label={each.name}
+        >
+          <each.Icon size={17} />
+        </button>
+      {/each}
     </div>
     <button
       type="button"
