@@ -2,6 +2,15 @@
 
 Checks a person made by hand, newest first. Each names the game version and what was looked at.
 
+## 2026-10-31: the card layout survives a save in World Editor
+
+Game and World Editor 3.0.1.24371. Object Editor branch `trigger-tree-drag` at fa1d0db.
+
+A fresh copy of Lost Temple got `Card Check` and a moved card in the window, whose save names
+`war3map.triggerlayout.json` in `war3map.imp` with flag 13. Sven opened it in World Editor, which lists the file in its
+Import Manager, then saved and closed it. The file came back with the same text and the import with the same flag. The
+window shows the cards at their places, and a card moved after that saves. **Passed.**
+
 ## 2026-10-31: a trigger save from the window opens in World Editor, whose save drops the card layout
 
 Game and World Editor 3.0.1.24371. Object Editor branch `trigger-tree-drag` at f4635c4.
