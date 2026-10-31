@@ -2,6 +2,19 @@
 
 Checks a person made by hand, newest first. Each names the game version and what was looked at.
 
+## 2026-10-31: the app's trigger save opens right in World Editor
+
+Game and World Editor 3.0.1.24371. Object Editor branch `triggers`, War3Net `6.1.2-moonwell.4`.
+
+A copy of Lost Temple (`Maps/FrozenThrone/(4)LostTemple.w3x` of the install) got a category with a variable, two triggers,
+a comment and a custom script through the session's trigger edits and save, from a small program, not the window: the code
+the window calls. Only `war3map.wtg`, `war3map.wct` and `war3map.j` were written.
+
+Sven opened it in World Editor: it opens with no error, the new category holds all five items, `Moonwell Tick` reads as made
+with its If block and loop, and `Melee Initialization` is as it was. **Passed.**
+
+The game running the triggers is the next check.
+
 ## 2026-10-26: the app's archive save opens right in World Editor (milestone 4)
 
 Game and World Editor 3.0.1.24371. Object Editor branch `archives`, War3Net `6.1.2-moonwell.4` (MPQ code from
