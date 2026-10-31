@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MoonwellEditor.Files\MoonwellEditor.Files.csproj" />
     <ProjectReference Include="..\MoonwellEditor.GameData\MoonwellEditor.GameData.csproj" />
+    <ProjectReference Include="..\MoonwellEditor.Triggers\MoonwellEditor.Triggers.csproj" />
   </ItemGroup>
 
 </Project>

@@ -103,6 +103,7 @@ public sealed partial class Session
 
         _kinds = loaded.Kinds;
         _strings = loaded.Strings;
+        _triggers = null;
         ReadOptions();
         _problems = loaded.Problems;
         _baseline = loaded.Baseline;
@@ -281,6 +282,7 @@ public sealed partial class Session
             AddChange(changes, StringsName, _strings?.ToBytes());
         }
 
+        AddTriggerChanges(changes);
         return changes;
     }
 

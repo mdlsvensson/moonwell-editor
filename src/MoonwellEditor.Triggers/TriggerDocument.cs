@@ -70,9 +70,11 @@ public sealed partial class TriggerDocument
 
     /// <summary>
     /// Reads a map's two files, either of which may be null when the map has none. It always gives a document: one that
-    /// could not be read has <see cref="Problem"/> set and is empty.
+    /// could not be read has <see cref="Problem"/> set and is empty. With <paramref name="writeProblem"/>, why the map
+    /// may not write these files, the document is read only.
     /// </summary>
-    public static TriggerDocument Read(byte[]? triggers, byte[]? customText, TriggerCatalog catalog)
+    public static TriggerDocument Read(
+        byte[]? triggers, byte[]? customText, TriggerCatalog catalog, string? writeProblem = null)
     {
         var problem = (string?)null;
         var parsedTriggers = Empty();
@@ -105,6 +107,8 @@ public sealed partial class TriggerDocument
         {
             problem = Texts.Get("app.triggers.oldFormat");
         }
+
+        problem ??= writeProblem;
 
         return problem == null ? document : new TriggerDocument(
             catalog, parsedTriggers, parsedCustom, triggers != null, customText != null, problem, true) { _code = document._code };
