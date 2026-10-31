@@ -73,7 +73,7 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
         using var reader = new BinaryReader(new MemoryStream(document.CustomTextBytes()!));
         var read = reader.ReadMapCustomTextTriggers();
         Assert.Equal(2, read.CustomTextTriggers.Count);
-        Assert.Equal("call DoNothing()", read.CustomTextTriggers[1].Code);
+        Assert.Equal("call DoNothing()\0", read.CustomTextTriggers[1].Code);
         Assert.Equal("call DoNothing()", document.CodeOf(script));
     }
 
@@ -370,6 +370,187 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Deleting_a_category_takes_every_trigger_in_it_even_one_that_names_another()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = document.Add("category", document.Tree()[0].Id);
+        var first = document.Add("trigger", category);
+        var second = document.Add("trigger", category);
+        var run = document.AddFunction(second, null, 0, 0, "action", "ConditionalTriggerExecute");
+        document.SetParameter(second, run + "/p0", new ParamInput("variable", "gg_trg_Untitled_Trigger_001"));
+
+        document.Delete(category);
+
+        Assert.DoesNotContain(document.Tree(), item => item.Id == first || item.Id == second);
+        Assert.DoesNotContain(Reread(document).TriggerItems, item => item.Id == first || item.Id == second);
+    }
+
+    [Fact]
+    public void Deleting_a_comment_clears_nothing_and_two_triggers_cannot_share_a_script_name()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var trigger = document.Add("trigger", category);
+        document.Rename(trigger, "A B");
+        Assert.Throws<TriggerEditException>(() => document.Rename(document.Add("trigger", category), "A_B"));
+        var other = document.Add("trigger", category);
+        var run = document.AddFunction(other, null, 0, 0, "action", "ConditionalTriggerExecute");
+        document.SetParameter(other, run + "/p0", new ParamInput("variable", "gg_trg_A_B"));
+        var comment = document.Add("comment", category);
+        document.Rename(comment, "A B");
+
+        document.Delete(comment);
+
+        Assert.Equal("variable", document.Trigger(other, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Parameter!.Kind);
+    }
+
+    [Fact]
+    public void Another_type_of_variable_clears_its_uses_and_an_array_gains_or_loses_its_index()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        var wait = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        var variable = document.AddVariable(new VariableInput("Delay", "real", false, 1, ""), category);
+        document.SetParameter(id, wait + "/p0", new ParamInput("variable", "Delay"));
+
+        document.SetVariable(variable, new VariableInput("Delay", "real", true, 4, ""));
+        Assert.Equal("Delay[0]", document.Trigger(id, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Text);
+
+        document.SetVariable(variable, new VariableInput("Delay", "real", false, 1, ""));
+        Assert.Equal("Delay", document.Trigger(id, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Text);
+
+        document.SetVariable(variable, new VariableInput("Delay", "integer", false, 1, ""));
+        Assert.Equal("none", document.Trigger(id, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Parameter!.Kind);
+    }
+
+    [Fact]
+    public void A_variables_first_value_is_checked_by_its_type()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        Assert.Throws<TriggerEditException>(() => document.AddVariable(new VariableInput("A", "integer", false, 1, "abc"), category));
+        Assert.Throws<TriggerEditException>(() => document.AddVariable(new VariableInput("B", "boolean", false, 1, "maybe"), category));
+        Assert.Throws<TriggerEditException>(() => document.AddVariable(new VariableInput("C", "unit", false, 1, "someone"), category));
+        document.AddVariable(new VariableInput("D", "integer", false, 1, "5"), category);
+        document.AddVariable(new VariableInput("E", "boolean", false, 1, "true"), category);
+        document.AddVariable(new VariableInput("F", "unitcode", false, 1, "hfoo"), category);
+        document.AddVariable(new VariableInput("G", "string", false, 1, "any text"), category);
+        document.AddVariable(new VariableInput("H", "player", false, 1, "Player00"), category);
+        Assert.Equal(5, document.Variables().Count);
+    }
+
+    [Fact]
+    public void Renaming_a_trigger_converted_to_text_renames_it_in_its_code()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open("Maps/FrozenThrone/Scenario/(6)BomberCommand.w3x");
+        if (catalog == null || store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = TriggerDocument.Read(
+            store.Read(TriggerDocument.TriggersFile), store.Read(TriggerDocument.CustomTextFile), catalog);
+        var custom = document.Tree().First(item => item.Kind == "custom");
+        var before = TriggerJass.Identifier(custom.Name);
+        Assert.Contains("InitTrig_" + before, document.CodeOf(custom.Id));
+
+        document.Rename(custom.Id, "Renamed Here");
+
+        Assert.Contains("InitTrig_Renamed_Here", document.CodeOf(custom.Id));
+        Assert.DoesNotContain("InitTrig_" + before, document.CodeOf(custom.Id));
+    }
+
+    [Fact]
+    public void The_end_of_a_custom_text_never_reaches_the_page_and_is_written_as_World_Editor_does()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open(InstallMaps.ForgottenHollow);
+        if (catalog == null || store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var bytes = store.Read(TriggerDocument.CustomTextFile)!;
+        var document = TriggerDocument.Read(store.Read(TriggerDocument.TriggersFile), bytes, catalog);
+        var script = document.Tree().First(item => item.Kind == "script");
+        var text = document.CodeOf(script.Id)!;
+        Assert.False(text.EndsWith('\0'));
+
+        document.SetCode(script.Id, text + "\0-- more");
+        document.SetCode(script.Id, text);
+
+        Assert.Equal(bytes, document.CustomTextBytes());
+    }
+
+    [Fact]
+    public void A_copy_stays_what_it_was_whatever_happens_to_the_trigger()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        var wait = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        document.CopyFunction(id, wait);
+        document.AddFunction(id, null, 0, 0, "event", "MapInitializationEvent");
+        document.AddFunction(id, null, 0, 0, "action", "DoNothing");
+        document.Delete(id);
+
+        var other = document.Add("trigger", category);
+        document.PasteFunction(other, null, 0, 0);
+
+        Assert.Equal("TriggerSleepAction", Assert.Single(document.Trigger(other, new Names()).Actions).Name);
+    }
+
+    [Fact]
+    public void A_trigger_tree_item_gives_the_name_a_parameter_holds()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        document.Rename(id, "Wave-1 Start");
+
+        Assert.Equal("gg_trg_Wave_1_Start", document.Tree().Single(item => item.Id == id).Ref);
+    }
+
+    [Fact]
     public void Names_are_checked()
     {
         var document = LostTemple();
@@ -424,7 +605,7 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
 
         var document = TriggerDocument.Read(null, null, catalog);
 
-        document.Add("trigger", -1);
+        document.Add("trigger", document.Tree()[0].Id);
         document.AddVariable(new VariableInput("Count", "integer", false, 1, ""), 0);
 
         var tree = document.Tree();

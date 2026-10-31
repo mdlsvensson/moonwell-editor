@@ -66,6 +66,8 @@ export type TreeItem = {
   name: string;
   enabled: boolean;
   expanded: boolean;
+  /** The name a parameter holds for a trigger (`gg_trg_Wave_1`); "" for the other kinds. */
+  ref: string;
 };
 
 export type Variable = {
@@ -99,6 +101,8 @@ export type ParameterView = {
   kind: ParameterKind;
   value: string;
   text: string;
+  /** A typed value as its box starts: not rounded, a strings-file text as its text. */
+  typed: string;
   function: FunctionView | null;
   index: ParameterView | null;
 };
@@ -217,13 +221,13 @@ export async function addFunction(
   return (await call<{ path: string }>("triggerFunctionAdd", { id, ...place, kind, name })).path;
 }
 
-export async function copyFunction(
-  from: number,
-  path: string,
-  id: number,
-  place: FunctionPlace,
-): Promise<string> {
-  return (await call<{ path: string }>("triggerFunctionCopy", { from, path, id, ...place })).path;
+/** Keeps a copy of a function in the app, for `pasteFunction`. */
+export async function copyFunction(id: number, path: string): Promise<void> {
+  await call<null>("triggerFunctionCopy", { id, path });
+}
+
+export async function pasteFunction(id: number, place: FunctionPlace): Promise<string> {
+  return (await call<{ path: string }>("triggerFunctionPaste", { id, ...place })).path;
 }
 
 export async function changeFunction(id: number, path: string, name: string): Promise<void> {

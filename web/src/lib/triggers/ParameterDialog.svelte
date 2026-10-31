@@ -71,10 +71,7 @@ const named = $derived.by(() => {
   if (type === "trigger") {
     for (const item of items) {
       if (item.kind === "trigger" || item.kind === "custom") {
-        list.push({
-          value: `gg_trg_${item.name.replaceAll(" ", "_")}`,
-          text: `${item.name} <gen>`,
-        });
+        list.push({ value: item.ref, text: `${item.name} <gen>` });
       }
     }
   }
@@ -112,7 +109,7 @@ $effect(() => {
     lastPath = parameter.path;
     chosen = null;
     filter = "";
-    text = parameter.kind === "value" ? parameter.text : "";
+    text = parameter.kind === "value" && !objectKind ? parameter.typed : "";
     hits = [];
   }
 });
@@ -137,6 +134,11 @@ async function set(kind: ParameterKind, value: string): Promise<void> {
   } catch (error) {
     problem = error instanceof Error ? error.message : String(error);
   }
+}
+
+// A box left as it opened changes nothing, as its text may be a string from the strings file.
+function sendValue(): void {
+  if (parameter.kind !== "value" || text !== parameter.typed) set("value", text);
 }
 
 async function pick(): Promise<void> {
@@ -227,10 +229,10 @@ function findObjects(): void {
         onkeydown={(event) => {
           if (event.key === "Enter" && !objectKind) {
             event.preventDefault();
-            set("value", text);
+            sendValue();
           }
         }}
-        onchange={() => !objectKind && set("value", text)}
+        onchange={() => !objectKind && sendValue()}
       />
       {#if objectKind}
         <div class="h-[260px] overflow-auto rounded-[5px] border border-line">

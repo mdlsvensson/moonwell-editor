@@ -183,9 +183,8 @@ public sealed partial class Commands
             Number(args, "index"),
             Text(args, "kind"),
             Text(args, "name")))),
-        "triggerFunctionCopy" => EditTriggers(document => new FunctionPlace(document.CopyFunction(
-            Number(args, "from"),
-            Text(args, "path"),
+        "triggerFunctionCopy" => CopyFunction(args),
+        "triggerFunctionPaste" => EditTriggers(document => new FunctionPlace(document.PasteFunction(
             Number(args, "id"),
             OptionalText(args, "parent"),
             Number(args, "branch"),
@@ -201,6 +200,12 @@ public sealed partial class Commands
             Number(args, "id"), Text(args, "path"), new ParamInput(Text(args, "kind"), Text(args, "value")))),
         _ => throw new UnknownCommandException(command),
     };
+
+    private object? CopyFunction(JsonElement args)
+    {
+        Map().Triggers(Catalog()).CopyFunction(Number(args, "id"), Text(args, "path"));
+        return null;
+    }
 
     private static VariableInput VariableOf(JsonElement args) => new(
         Text(args, "name"),

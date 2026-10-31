@@ -15,7 +15,8 @@ namespace MoonwellEditor.Triggers;
 /// <param name="Name">Its name.</param>
 /// <param name="Enabled">False for a trigger that is switched off.</param>
 /// <param name="Expanded">True for a category shown open.</param>
-public sealed record TriggerTreeItem(int Id, int Parent, string Kind, string Name, bool Enabled, bool Expanded);
+/// <param name="Ref">The name a parameter holds for a trigger (<c>gg_trg_Wave_1</c>); empty for the other kinds.</param>
+public sealed record TriggerTreeItem(int Id, int Parent, string Kind, string Name, bool Enabled, bool Expanded, string Ref);
 
 /// <summary>
 /// A map's triggers: <c>war3map.wtg</c> and <c>war3map.wct</c> as War3Net reads them, with the edits made to them. A
@@ -31,8 +32,11 @@ public sealed partial class TriggerDocument
     /// <summary>The custom text's file.</summary>
     public const string CustomTextFile = "war3map.wct";
 
-    // The id of the tree's root in a file that has none: an older format, shown read only.
+    // The id of the tree's root in a file that has none: an older format, shown read only, or a map with no trigger file.
     private const int NoRoot = -2;
+
+    // World Editor ends a custom text with this, and counts it in the text's length. The page never sees it.
+    private const char Terminator = '\0';
 
     private readonly TriggerCatalog _catalog;
     private readonly bool _hadTriggers;
@@ -129,7 +133,7 @@ public sealed partial class TriggerDocument
         var rooted = Live().Any(item => item.Type == TriggerItemType.RootCategory);
         if (!rooted)
         {
-            items.Add(new TriggerTreeItem(NoRoot, -1, "root", "", true, true));
+            items.Add(new TriggerTreeItem(NoRoot, -1, "root", "", true, true, ""));
         }
 
         foreach (var item in Live())
@@ -143,17 +147,18 @@ public sealed partial class TriggerDocument
                 _ => ("", false, false),
             };
             var parent = rooted || ids.Contains(item.ParentId) ? item.ParentId : NoRoot;
-            items.Add(new TriggerTreeItem(item.Id, parent, kind, item.Name, enabled, expanded));
+            var name = kind is "trigger" or "custom" ? ScriptName(item.Name) : "";
+            items.Add(new TriggerTreeItem(item.Id, parent, kind, item.Name, enabled, expanded, name));
         }
 
         return items;
     }
 
     /// <summary>The custom text of the trigger with this id; null when it has none.</summary>
-    public string? CodeOf(int id) => _code.GetValueOrDefault(id)?.Code;
+    public string? CodeOf(int id) => _code.GetValueOrDefault(id)?.Code?.TrimEnd(Terminator);
 
     /// <summary>The map's own script text, shown at the top of the tree.</summary>
-    public string HeaderCode => _customText.GlobalCustomScriptCode?.Code ?? "";
+    public string HeaderCode => _customText.GlobalCustomScriptCode?.Code?.TrimEnd(Terminator) ?? "";
 
     /// <summary>The comment shown with the map's own script text.</summary>
     public string HeaderComment => _customText.GlobalCustomScriptComment ?? "";

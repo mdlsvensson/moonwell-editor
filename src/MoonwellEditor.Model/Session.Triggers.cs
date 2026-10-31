@@ -3,6 +3,7 @@ using MoonwellEditor.Files;
 using MoonwellEditor.Triggers;
 using War3Net.Build.Extensions;
 using War3Net.Build.Info;
+using War3Net.Build.Widget;
 
 namespace MoonwellEditor.Model;
 
@@ -141,9 +142,28 @@ public sealed partial class Session : ITriggerNames
         return reader.ReadMapInfo();
     }
 
+    private MapUnits? ReadUnits()
+    {
+        try
+        {
+            if (_store.Read(MapUnits.FileName) is { } bytes)
+            {
+                using var reader = new BinaryReader(new MemoryStream(bytes));
+                return reader.ReadMapUnits();
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Without them a unit named for the first time cannot be found: the script is then left as it is, and says so.
+        }
+
+        return null;
+    }
+
     private void AddScript(List<(string Name, byte[] Bytes)> changes, MapInfo info)
     {
-        var name = _store.Read(ScriptName) != null ? ScriptName : ScriptNameInFolder;
+        // An archive may hold its script in a folder; a folder map keeps its files at the top.
+        var name = !_store.IsArchive || _store.Read(ScriptName) != null ? ScriptName : ScriptNameInFolder;
         if (_store.Read(name) is not { } bytes)
         {
             _scriptNote = Texts.Get("app.triggers.noScript");
@@ -161,7 +181,7 @@ public sealed partial class Session : ITriggerNames
             return;
         }
 
-        var written = TriggerScript.Write(script, _triggers!, info, out var problem);
+        var written = TriggerScript.Write(script, _triggers!, info, ReadUnits(), out var problem);
         if (written == null)
         {
             _scriptNote = problem ?? "";

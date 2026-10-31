@@ -53,6 +53,9 @@ public sealed partial class TriggerDocument
     // True once an edit was made, so a file the map did not have is written.
     private bool _touched;
 
+    // What CopyFunction kept.
+    private TriggerFunction? _clipboard;
+
     /// <summary>The state now, for undo.</summary>
     public TriggerSnapshot Snapshot() => new()
     {
@@ -132,6 +135,17 @@ public sealed partial class TriggerDocument
         var old = _triggers.Variables.FirstOrDefault(variable => variable.Id == id)
             ?? throw new ArgumentOutOfRangeException(nameof(id), id, "No such variable.");
         CheckVariable(input, old.Name);
+        if (old.Type != input.Type)
+        {
+            ClearUses(old.Name);
+        }
+        else if (old.IsArray != input.IsArray)
+        {
+            ChangeUses(old.Name, parameter => parameter.ArrayIndexer = input.IsArray
+                ? new TriggerFunctionParameter { Type = TriggerFunctionParameterType.String, Value = "0" }
+                : null);
+        }
+
         var copy = Fill(CloneVariable(old), input);
         _triggers.Variables[_triggers.Variables.IndexOf(old)] = copy;
         var index = _triggers.TriggerItems.FindIndex(item => item is TriggerVariableDefinition && item.Id == id);
@@ -165,10 +179,11 @@ public sealed partial class TriggerDocument
             throw new TriggerEditException(Texts.Get("app.triggers.emptyName"));
         }
 
+        // Two triggers may not end up with one name in the script: "A B" and "A_B" are the same there.
         if (old is TriggerDefinition { Type: not TriggerItemType.Comment } or TriggerCategoryDefinition)
         {
-            if (Live().Any(item => item.Id != id && item.GetType() == old.GetType()
-                && string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)))
+            if (Live().Any(item => item.Id != id && item.GetType() == old.GetType() && item.Type != TriggerItemType.Comment
+                && string.Equals(TriggerJass.Identifier(item.Name), TriggerJass.Identifier(name), StringComparison.OrdinalIgnoreCase)))
             {
                 throw new TriggerEditException(Texts.Get("app.triggers.nameTaken", ("name", name)));
             }
@@ -177,9 +192,13 @@ public sealed partial class TriggerDocument
         var copy = Copied(id);
         var before = copy.Name;
         copy.Name = name;
-        if (copy is TriggerDefinition)
+        if (copy is TriggerDefinition { Type: TriggerItemType.Gui } trigger)
         {
             RenameUses(ScriptName(before), ScriptName(name));
+            if (trigger.IsCustomTextTrigger && CodeOf(id) is { } code)
+            {
+                _code = _code.SetItem(id, Stored(RenamedInCode(code, before, name)));
+            }
         }
 
         _touched = true;
@@ -202,7 +221,7 @@ public sealed partial class TriggerDocument
     {
         Editable();
         _ = Item(id);
-        _code = _code.SetItem(id, new CustomTextTrigger { Code = code });
+        _code = _code.SetItem(id, Stored(code));
         _touched = true;
     }
 
@@ -211,7 +230,7 @@ public sealed partial class TriggerDocument
     {
         Editable();
         _customText.GlobalCustomScriptComment = comment;
-        _customText.GlobalCustomScriptCode = new CustomTextTrigger { Code = code };
+        _customText.GlobalCustomScriptCode = Stored(code);
         _touched = true;
     }
 
@@ -229,9 +248,10 @@ public sealed partial class TriggerDocument
         }
 
         var gone = Subtree(id).ToList();
+        var ids = gone.Select(each => each.Id).ToHashSet();
+        _triggers.TriggerItems.RemoveAll(each => each is not DeletedTriggerItem && ids.Contains(each.Id));
         foreach (var each in gone)
         {
-            _triggers.TriggerItems.Remove(each);
             _code = _code.Remove(each.Id);
             switch (each)
             {
@@ -239,7 +259,7 @@ public sealed partial class TriggerDocument
                     _triggers.Variables.RemoveAll(definition => definition.Id == variable.Id);
                     ClearUses(variable.Name);
                     break;
-                case TriggerDefinition:
+                case TriggerDefinition { Type: TriggerItemType.Gui }:
                     ClearUses(ScriptName(each.Name));
                     break;
             }
@@ -295,13 +315,25 @@ public sealed partial class TriggerDocument
         return Place(copy, parentPath, branch, index, function);
     }
 
-    /// <summary>Copies the function at <paramref name="path"/> of one trigger to a place as in <see cref="AddFunction"/>.</summary>
-    public string CopyFunction(int fromId, string path, int id, string? parentPath, int branch, int index)
+    /// <summary>
+    /// Keeps a copy of the function at <paramref name="path"/> for <see cref="PasteFunction"/>; what happens to the
+    /// trigger afterwards does not change it. It is no edit.
+    /// </summary>
+    public void CopyFunction(int id, string path) =>
+        _clipboard = Clone(Walk((TriggerDefinition)Item(id), path).Function);
+
+    /// <summary>Adds what <see cref="CopyFunction"/> kept at a place as in <see cref="AddFunction"/>. Returns its path.</summary>
+    public string PasteFunction(int id, string? parentPath, int branch, int index)
     {
         Editable();
-        var source = Clone(Walk((TriggerDefinition)Item(fromId), path).Function);
-        source.Branch = parentPath == null ? null : branch;
-        return Place((TriggerDefinition)Copied(id), parentPath, branch, index, source);
+        if (_clipboard == null)
+        {
+            throw new InvalidOperationException("Nothing was copied.");
+        }
+
+        var function = Clone(_clipboard);
+        function.Branch = parentPath == null ? null : branch;
+        return Place((TriggerDefinition)Copied(id), parentPath, branch, index, function);
     }
 
     /// <summary>
@@ -377,6 +409,13 @@ public sealed partial class TriggerDocument
         }
     }
 
+    /// <summary>The placed units, items and destructables the enabled triggers name.</summary>
+    internal IEnumerable<string> PlacedNames() => _triggers.TriggerItems
+        .OfType<TriggerDefinition>()
+        .Where(definition => definition.IsEnabled)
+        .SelectMany(definition => definition.Functions)
+        .SelectMany(Named);
+
     /// <summary>The name a trigger has in the script: <c>gg_trg_</c> and its name with spaces as underscores.</summary>
     internal static string ScriptName(string name) => "gg_trg_" + TriggerJass.Identifier(name);
 
@@ -404,6 +443,54 @@ public sealed partial class TriggerDocument
         "eventcall" => TriggerFunctionType.Event,
         _ => TriggerFunctionType.Call,
     };
+
+    private static IEnumerable<string> Named(TriggerFunction function)
+    {
+        if (!function.IsEnabled)
+        {
+            yield break;
+        }
+
+        foreach (var name in function.Parameters.SelectMany(Named).Concat(function.ChildFunctions.SelectMany(Named)))
+        {
+            yield return name;
+        }
+    }
+
+    private static IEnumerable<string> Named(TriggerFunctionParameter parameter)
+    {
+        if (parameter.Type == TriggerFunctionParameterType.Variable
+            && (parameter.Value.StartsWith("gg_unit_", StringComparison.Ordinal)
+                || parameter.Value.StartsWith("gg_item_", StringComparison.Ordinal)
+                || parameter.Value.StartsWith("gg_dest_", StringComparison.Ordinal)))
+        {
+            yield return parameter.Value;
+        }
+
+        foreach (var name in (parameter.Function == null ? [] : Named(parameter.Function))
+            .Concat(parameter.ArrayIndexer == null ? [] : Named(parameter.ArrayIndexer)))
+        {
+            yield return name;
+        }
+    }
+
+    private static CustomTextTrigger Stored(string code)
+    {
+        var text = code.Replace("\0", "", StringComparison.Ordinal);
+        return new CustomTextTrigger { Code = text.Length == 0 ? "" : text + Terminator };
+    }
+
+    // A trigger converted to text holds its own name: the script needs its InitTrig under the new name.
+    private static string RenamedInCode(string code, string from, string to)
+    {
+        var (oldName, newName) = (TriggerJass.Identifier(from), TriggerJass.Identifier(to));
+        foreach (var prefix in new[] { "InitTrig_", "gg_trg_", "Trig_" })
+        {
+            code = Regex.Replace(code, $@"\b{prefix}{Regex.Escape(oldName)}(?=\b|_)", prefix + newName.Replace("$", "$$", StringComparison.Ordinal));
+        }
+
+        return code;
+    }
 
     private static TriggerFunction Clone(TriggerFunction function)
     {
@@ -524,12 +611,14 @@ public sealed partial class TriggerDocument
 
     private int Category(int parent)
     {
-        if (parent != -1 && Item(parent) is not TriggerCategoryDefinition)
+        if (parent is -1 or NoRoot)
         {
-            throw new ArgumentOutOfRangeException(nameof(parent), parent, "Not a category.");
+            return 0;
         }
 
-        return parent == -1 ? 0 : parent;
+        return Item(parent) is TriggerCategoryDefinition
+            ? parent
+            : throw new ArgumentOutOfRangeException(nameof(parent), parent, "Not a category.");
     }
 
     // In World Editor's files only a category is directly under the root (every map of the install). For anything else,
@@ -669,9 +758,24 @@ public sealed partial class TriggerDocument
             throw new TriggerEditException(Texts.Get("app.triggers.nameTaken", ("name", input.Name)));
         }
 
-        if (_catalog.Type(input.Type) == null)
+        var type = _catalog.Type(input.Type)
+            ?? throw new ArgumentOutOfRangeException(nameof(input), input.Type, "No such type.");
+        var script = type.Base ?? type.Key;
+        if (input.Initial.Length == 0 || script == "string" || _catalog.Preset(input.Initial)?.Type == input.Type)
         {
-            throw new ArgumentOutOfRangeException(nameof(input), input.Type, "No such type.");
+            return;
+        }
+
+        CheckNumber(input.Initial, input.Type);
+        var fine = input.Type switch
+        {
+            "integer" or "real" => true,
+            "boolean" => input.Initial is "true" or "false",
+            _ => script == "integer" && input.Initial.Length == 4,
+        };
+        if (!fine)
+        {
+            throw new TriggerEditException(Texts.Get("app.triggers.badInitial", ("value", input.Initial), ("type", type.Title)));
         }
     }
 

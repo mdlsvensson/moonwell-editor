@@ -37,6 +37,7 @@ import {
   moveItem,
   type ParameterKind,
   type ParameterView,
+  pasteFunction,
   renameItem,
   setCode,
   setHeader,
@@ -57,6 +58,7 @@ import FunctionDialog from "./triggers/FunctionDialog.svelte";
 import FunctionRow from "./triggers/FunctionRow.svelte";
 import { findParameter, treeRows } from "./triggers/lists.ts";
 import ParameterDialog from "./triggers/ParameterDialog.svelte";
+import { typedBox } from "./triggers/typedBox.ts";
 import VariableForm from "./triggers/VariableForm.svelte";
 
 type Props = {
@@ -77,7 +79,8 @@ let selectedFunction = $state<string | null>(null);
 let filter = $state("");
 let toggled = $state<Record<number, boolean>>({});
 let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
-let clipboard = $state<{ id: number; path: string; kind: FunctionKind } | null>(null);
+// The kind of function copied: the app keeps the copy.
+let clipboard = $state<FunctionKind | null>(null);
 let adding = $state<{ title: string; kind: FunctionKind; place: FunctionPlace } | null>(null);
 let changing = $state<FunctionView | null>(null);
 // The parameters open, each inside the one before it.
@@ -203,7 +206,7 @@ function move(each: TreeItem, by: number): void {
     tree?.items.filter((other) => other.parent === each.parent && other.kind !== "root") ?? [];
   const to = siblings.findIndex((other) => other.id === each.id) + by;
   if (to >= 0 && to < siblings.length) {
-    edit(() => moveItem(each.id, each.parent, by > 0 ? to + 1 : to));
+    edit(() => moveItem(each.id, each.parent, to));
   }
 }
 
@@ -304,11 +307,11 @@ function functionMenu(function_: FunctionView, x: number, y: number): void {
       { separator: true },
       {
         label: t("triggers.copy"),
-        run: () => (clipboard = { id, path: function_.path, kind: function_.kind }),
+        run: () => copy(id, function_),
       },
       {
         label: t("triggers.paste"),
-        disabled: readOnly || clipboard === null || clipboard.kind !== function_.kind,
+        disabled: readOnly || clipboard !== function_.kind,
         run: () => paste(function_, at + 1),
       },
       { separator: true },
@@ -338,22 +341,29 @@ function functionMenu(function_: FunctionView, x: number, y: number): void {
   };
 }
 
+async function copy(id: number, function_: FunctionView): Promise<void> {
+  try {
+    await queued(() => copyFunction(id, function_.path));
+    clipboard = function_.kind;
+  } catch (error) {
+    onnotice(message(error), true);
+  }
+}
+
 function paste(near: FunctionView, index: number): void {
   const id = selected;
-  const from = clipboard;
-  if (id === null || !from) return;
+  if (id === null) return;
   const parts = near.path.split("/");
   const inBlock = parts.length > 1;
   const parent = inBlock ? parts.slice(0, -1).join("/") : null;
   const branch = near.branch ?? 0;
-  edit(() => copyFunction(from.id, from.path, id, { parent, branch, index }));
+  edit(() => pasteFunction(id, { parent, branch, index }));
 }
 
 function pasteInto(kind: FunctionKind, place: FunctionPlace): void {
   const id = selected;
-  const from = clipboard;
-  if (id === null || !from || from.kind !== kind) return;
-  edit(() => copyFunction(from.id, from.path, id, place));
+  if (id === null || clipboard !== kind) return;
+  edit(() => pasteFunction(id, place));
 }
 
 function blockMenu(parent: FunctionView, block: BlockView, x: number, y: number): void {
@@ -368,7 +378,7 @@ function blockMenu(parent: FunctionView, block: BlockView, x: number, y: number)
       },
       {
         label: t("triggers.paste"),
-        disabled: readOnly || clipboard === null || clipboard.kind !== block.kind,
+        disabled: readOnly || clipboard !== block.kind,
         run: () => pasteInto(block.kind, blockPlace(parent, block)),
       },
     ],
@@ -394,14 +404,12 @@ async function setPoint(path: string, x: number, y: number): Promise<void> {
   await refresh();
 }
 
-function options(change: TriggerOptions): void {
-  const id = selected;
-  if (id !== null) edit(() => setOptions(id, change));
+function options(id: number, change: TriggerOptions): void {
+  edit(() => setOptions(id, change));
 }
 
-function rename(name: string): void {
-  const id = selected;
-  if (id !== null && name !== item?.name) edit(() => renameItem(id, name));
+function rename(id: number, name: string): void {
+  if (name !== tree?.items.find((each) => each.id === id)?.name) edit(() => renameItem(id, name));
 }
 
 function inEvent(path: string): boolean {
@@ -555,51 +563,53 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
         <p class="m-0 mb-2 text-muted">{t("triggers.mapHeaderHint")}</p>
         <label class="mb-2">
           <span class="mb-1 block text-muted">{t("triggers.comment")}</span>
-          <textarea class="{box} h-[64px] resize-none" value={tree.headerComment} disabled={readOnly} onchange={(event) => { const comment = event.currentTarget.value; const header = tree?.headerCode ?? ""; edit(() => setHeader(comment, header)); }}></textarea>
+          <textarea class="{box} h-[64px] resize-none" value={tree.headerComment} disabled={readOnly} use:typedBox={(comment) => { const header = tree?.headerCode ?? ""; edit(() => setHeader(comment, header)); }}></textarea>
         </label>
         <label class="flex min-h-0 flex-1 flex-col">
           <span class="mb-1 block text-muted">{t("triggers.code")}</span>
-          <textarea class={code} spellcheck="false" value={tree.headerCode} disabled={readOnly} onchange={(event) => { const text = event.currentTarget.value; const comment = tree?.headerComment ?? ""; edit(() => setHeader(comment, text)); }}></textarea>
+          <textarea class={code} spellcheck="false" value={tree.headerCode} disabled={readOnly} use:typedBox={(text) => { const comment = tree?.headerComment ?? ""; edit(() => setHeader(comment, text)); }}></textarea>
         </label>
       {:else if item?.kind === "category"}
+        {@const id = item.id}
         <label class="max-w-[460px]">
           <span class="mb-1 block text-muted">{t("triggers.name")}</span>
-          <input class={box} value={item.name} disabled={readOnly} onchange={(event) => rename(event.currentTarget.value)} />
+          <input class={box} value={item.name} disabled={readOnly} use:typedBox={(name) => rename(id, name)} />
         </label>
       {:else if item?.kind === "variable" && variableInput && variable}
         {@const id = variable.id}
         <VariableForm {catalog} value={variableInput} {readOnly} onsave={(input) => edit(() => setVariable(id, input))} />
       {:else if view}
         {#key view.id}
+          {@const id = view.id}
           <div class="flex items-center gap-4">
-            <input class="{box} max-w-[460px] font-heading text-[15px] font-bold" aria-label={t("triggers.name")} value={view.name} disabled={readOnly} onchange={(event) => rename(event.currentTarget.value)} />
+            <input class="{box} max-w-[460px] font-heading text-[15px] font-bold" aria-label={t("triggers.name")} value={view.name} disabled={readOnly} use:typedBox={(name) => rename(id, name)} />
             {#if view.kind !== "comment"}
               <label class="flex items-center gap-1.5 whitespace-nowrap text-body">
-                <input type="checkbox" checked={view.enabled} disabled={readOnly} onchange={(event) => options({ enabled: event.currentTarget.checked })} />
+                <input type="checkbox" checked={view.enabled} disabled={readOnly} onchange={(event) => options(id, { enabled: event.currentTarget.checked })} />
                 {t("triggers.enabled")}
               </label>
             {/if}
             {#if view.kind === "trigger" || view.kind === "custom"}
               <label class="flex items-center gap-1.5 whitespace-nowrap text-body">
-                <input type="checkbox" checked={view.initiallyOn} disabled={readOnly} onchange={(event) => options({ initiallyOn: event.currentTarget.checked })} />
+                <input type="checkbox" checked={view.initiallyOn} disabled={readOnly} onchange={(event) => options(id, { initiallyOn: event.currentTarget.checked })} />
                 {t("triggers.initiallyOn")}
               </label>
             {/if}
             {#if view.kind === "custom"}
               <label class="flex items-center gap-1.5 whitespace-nowrap text-body">
-                <input type="checkbox" checked={view.runOnInit} disabled={readOnly} onchange={(event) => options({ runOnInit: event.currentTarget.checked })} />
+                <input type="checkbox" checked={view.runOnInit} disabled={readOnly} onchange={(event) => options(id, { runOnInit: event.currentTarget.checked })} />
                 {t("triggers.runOnInit")}
               </label>
             {/if}
           </div>
           <label class="mt-3">
             <span class="mb-1 block text-muted">{t("triggers.comment")}</span>
-            <textarea class="{box} {view.kind === 'comment' ? 'min-h-[320px]' : 'h-[58px]'} resize-none" value={view.description} disabled={readOnly} onchange={(event) => options({ description: event.currentTarget.value })}></textarea>
+            <textarea class="{box} {view.kind === 'comment' ? 'min-h-[320px]' : 'h-[58px]'} resize-none" value={view.description} disabled={readOnly} use:typedBox={(description) => options(id, { description })}></textarea>
           </label>
           {#if view.kind === "script" || view.kind === "custom"}
             <label class="mt-3 flex min-h-0 flex-1 flex-col">
               <span class="mb-1 block text-muted">{t("triggers.code")}</span>
-              <textarea class={code} spellcheck="false" value={view.code ?? ""} disabled={readOnly} onchange={(event) => { const text = event.currentTarget.value; const id = view?.id; if (id !== undefined) edit(() => setCode(id, text)); }}></textarea>
+              <textarea class={code} spellcheck="false" value={view.code ?? ""} disabled={readOnly} use:typedBox={(text) => edit(() => setCode(id, text))}></textarea>
             </label>
           {:else if view.kind === "trigger"}
             {@render section(t("triggers.events"), "event", view.events)}

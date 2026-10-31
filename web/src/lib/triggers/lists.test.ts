@@ -96,11 +96,11 @@ const variables: Variable[] = [
 
 describe("treeRows", () => {
   const items: TreeItem[] = [
-    { id: 0, parent: -1, kind: "root", name: "Map", enabled: true, expanded: true },
-    { id: 1, parent: 0, kind: "category", name: "Setup", enabled: true, expanded: true },
-    { id: 2, parent: 1, kind: "trigger", name: "Start", enabled: true, expanded: false },
-    { id: 3, parent: 0, kind: "category", name: "Later", enabled: true, expanded: false },
-    { id: 4, parent: 3, kind: "variable", name: "Score", enabled: true, expanded: false },
+    { id: 0, parent: -1, kind: "root", name: "Map", enabled: true, expanded: true, ref: "" },
+    { id: 1, parent: 0, kind: "category", name: "Setup", enabled: true, expanded: true, ref: "" },
+    { id: 2, parent: 1, kind: "trigger", name: "Start", enabled: true, expanded: false, ref: "" },
+    { id: 3, parent: 0, kind: "category", name: "Later", enabled: true, expanded: false, ref: "" },
+    { id: 4, parent: 3, kind: "variable", name: "Score", enabled: true, expanded: false, ref: "" },
   ];
 
   it("shows what is in an open category, one deeper", () => {
@@ -205,6 +205,7 @@ describe("findParameter", () => {
       kind: "none",
       value: "",
       text: "",
+      typed: "",
       function: null,
       index: null,
     } as const;
@@ -215,6 +216,7 @@ describe("findParameter", () => {
       kind: "function",
       value: "GetUnitLoc",
       text: "",
+      typed: "",
       function: {
         path: "0/c1/p0",
         name: "GetUnitLoc",

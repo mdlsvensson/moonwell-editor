@@ -1,10 +1,14 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using MoonwellEditor.Files;
 using War3Net.Build;
 using War3Net.Build.Extensions;
 using War3Net.Build.Info;
 using War3Net.Build.Script;
+using War3Net.Build.Widget;
 using War3Net.CodeAnalysis;
 using War3Net.CodeAnalysis.Jass.Extensions;
+using War3Net.Common.Extensions;
 
 namespace MoonwellEditor.Triggers;
 
@@ -20,27 +24,46 @@ public sealed class TriggerScript : MapScriptBuilder
     private const string Line = "//===========================================================================";
     private const string Banner = "//***************************************************************************";
 
+    // Banners World Editor writes after the custom script code. Code pasted there can hold banners of its own (blizzard.j's
+    // have this very shape), so a section ends only at one of these.
+    private static readonly HashSet<string> Sections =
+    [
+        "Random Groups", "Map Item Tables", "Items", "Unit Item Tables", "Destructable Item Tables", "Sound Assets",
+        "Sounds", "Destructable Objects", "Unit Creation", "Regions", "Cameras", "Custom Script Code", "Triggers",
+        "Upgrades", "TechTree", "Players", "Main Initialization", "Map Configuration",
+    ];
+
+    private static readonly Regex CreatedAt = new(@"'(?<id>.{4})', (?<x>-?\d+(?:\.\d+)?), (?<y>-?\d+(?:\.\d+)?)");
+
+    private static readonly Regex VJass = new(
+        @"^\s*(?:library|library_once|scope|struct|module|interface|globals)\b|^\s*//!",
+        RegexOptions.Multiline);
+
     private readonly TriggerDocument _document;
     private readonly Map _map;
+    private readonly MapUnits? _units;
 
-    // The trigger being written, for the problem when War3Net fails.
+    // The trigger being written, for the problem when one cannot be.
     private string _rendering = "";
 
-    private TriggerScript(TriggerDocument document, MapInfo info)
+    private TriggerScript(TriggerDocument document, MapInfo info, MapUnits? units)
         : base(document.Catalog.Data)
     {
         _document = document;
+        _units = units;
         _map = new Map { Info = info, Triggers = document.Triggers };
         SetDefaultOptionsForMap(_map);
     }
 
     /// <summary>
     /// The script <paramref name="script"/> with the triggers of <paramref name="document"/>; null, with the reason in
-    /// <paramref name="problem"/>, when the script is not cut as World Editor writes it. Line ends are the script's.
+    /// <paramref name="problem"/>, when it cannot be written: a script not cut as World Editor writes it, vJass, a
+    /// parameter with no value, a placed thing the script does not make. <paramref name="units"/> is the map's placed
+    /// units and items. Line ends are the script's.
     /// </summary>
-    public static string? Write(string script, TriggerDocument document, MapInfo info, out string? problem)
+    public static string? Write(string script, TriggerDocument document, MapInfo info, MapUnits? units, out string? problem)
     {
-        var builder = new TriggerScript(document, info);
+        var builder = new TriggerScript(document, info, units);
         var lineEnd = script.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         var lines = script.Replace("\r\n", "\n").Split('\n').ToList();
         try
@@ -49,7 +72,6 @@ public sealed class TriggerScript : MapScriptBuilder
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // War3Net cannot write this trigger (a loop it has no code for, a parameter with no value).
             problem = Texts.Get("app.triggers.scriptFailed", ("trigger", builder._rendering), ("reason", exception.Message));
         }
 
@@ -69,12 +91,40 @@ public sealed class TriggerScript : MapScriptBuilder
         return -1;
     }
 
-    // The line of a banner's title; -1 when the script has no such banner.
-    private static int BannerOf(List<string> lines, string title) => Find(lines, line => line == "//*  " + title);
+    // The title's line of a banner of five lines.
+    private static bool IsBanner(List<string> lines, int title) =>
+        title >= 2 && title + 2 < lines.Count
+        && lines[title - 2] == Banner && lines[title - 1] == "//*" && lines[title + 1] == "//*" && lines[title + 2] == Banner;
 
-    // Where the section after the banner at title ends: the next banner's first line.
-    private static int NextBanner(List<string> lines, int title) =>
-        Find(lines, line => line == Banner, title + 3);
+    private static string TitleAt(List<string> lines, int line) => lines[line]["//*  ".Length..];
+
+    // The title line of the banner called title, from a line on; -1 when there is none.
+    private static int BannerOf(List<string> lines, string title, int from = 0)
+    {
+        for (var i = from; i < lines.Count; i++)
+        {
+            if (lines[i] == "//*  " + title && IsBanner(lines, i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // Where a section ends: the first line of the next banner World Editor writes, from a line on; -1 when there is none.
+    private static int SectionEnd(List<string> lines, int from)
+    {
+        for (var i = from; i < lines.Count; i++)
+        {
+            if (lines[i].StartsWith("//*  ", StringComparison.Ordinal) && IsBanner(lines, i) && Sections.Contains(TitleAt(lines, i)))
+            {
+                return i - 2;
+            }
+        }
+
+        return -1;
+    }
 
     private static List<string> Text(Action<IndentedTextWriter> write)
     {
@@ -95,39 +145,39 @@ public sealed class TriggerScript : MapScriptBuilder
     private string? Splice(List<string> lines)
     {
         var problem = Texts.Get("app.triggers.scriptCut");
-        var globals = Find(lines, line => line == "globals");
-        var end = Find(lines, line => line == "endglobals");
-        if (globals < 0 || end < 0)
+        if (UsesVJass())
+        {
+            return Texts.Get("app.triggers.scriptVJass");
+        }
+
+        var globals = lines.IndexOf("globals");
+        var endGlobals = lines.IndexOf("endglobals");
+        var main = Find(lines, line => line.StartsWith("function main takes", StringComparison.Ordinal));
+
+        // Older World Editors wrote the custom script banner twice, the code under the second.
+        var custom = -1;
+        for (var at = BannerOf(lines, "Custom Script Code"); at >= 0; at = BannerOf(lines, "Custom Script Code", at + 1))
+        {
+            custom = at;
+        }
+
+        var triggers = custom < 0 ? -1 : BannerOf(lines, "Triggers", custom + 1);
+        if (globals < 0 || endGlobals < 0 || main < 0 || custom < 0 || triggers < 0)
         {
             return problem;
         }
 
         // From the last place to the first, so a place found stays right.
-        var triggers = BannerOf(lines, "Triggers");
-        // Older World Editors wrote this banner twice, the code under the second.
-        var custom = lines.LastIndexOf("//*  Custom Script Code");
-        if (triggers < 0 || custom < 0)
+        var firstFunction = Find(lines, line => line.StartsWith("function InitCustomTriggers takes", StringComparison.Ordinal), triggers);
+        var afterTriggers = SectionEnd(lines, firstFunction >= 0 ? firstFunction : triggers + 3);
+        var afterCustom = SectionEnd(lines, custom + 3);
+        if (afterTriggers < 0 || afterCustom < 0 || !ReplaceMainCalls(lines, main))
         {
             return problem;
         }
 
-        var main = Find(lines, line => line.StartsWith("function main takes", StringComparison.Ordinal));
-        if (main < 0)
-        {
-            return problem;
-        }
-
-        ReplaceMainCalls(lines, main);
-        var after = NextBanner(lines, triggers);
-        if (after < 0)
-        {
-            return problem;
-        }
-
-        lines.RemoveRange(triggers + 3, after - triggers - 3);
+        lines.RemoveRange(triggers + 3, afterTriggers - triggers - 3);
         lines.InsertRange(triggers + 3, TriggerSection());
-
-        var afterCustom = NextBanner(lines, custom);
         lines.RemoveRange(custom + 3, afterCustom - custom - 3);
         lines.InsertRange(custom + 3, CustomSection());
 
@@ -138,48 +188,66 @@ public sealed class TriggerScript : MapScriptBuilder
             lines.RemoveRange(initGlobals, close - initGlobals + 1);
             lines.InsertRange(initGlobals, Text(WriteInitGlobals));
         }
+        else if (NeedsInitGlobals())
+        {
+            lines.InsertRange(lines.IndexOf("endglobals") + 1, ["", .. Text(WriteInitGlobals)]);
+        }
 
-        ReplaceGlobals(lines, globals, end);
-        return null;
+        ReplaceGlobals(lines);
+        return AddPlaced(lines);
     }
 
-    private void ReplaceGlobals(List<string> lines, int globals, int end)
+    // vJass is turned into JASS by JassHelper when World Editor saves, and only its output is in the script.
+    private bool UsesVJass() => VJass.IsMatch(_document.HeaderCode)
+        || _document.Triggers.TriggerItems.OfType<TriggerDefinition>().Any(each => VJass.IsMatch(_document.CodeOf(each.Id) ?? ""));
+
+    private bool NeedsInitGlobals() => _document.Triggers.Variables.Count > 0;
+
+    private void ReplaceGlobals(List<string> lines)
     {
-        var triggerLines = lines
-            .Select((line, index) => (Line: line, Index: index))
-            .Where(each => each.Index > globals && each.Index < end)
-            .Where(each => each.Line.TrimStart().StartsWith("trigger", StringComparison.Ordinal)
-                && each.Line.Contains(" gg_trg_", StringComparison.Ordinal))
-            .Select(each => each.Index)
+        var globals = lines.IndexOf("globals");
+        var user = Find(lines, line => line.Trim() == "// User-defined", globals);
+        var generated = Find(lines, line => line.Trim() == "// Generated", globals);
+        var end = lines.IndexOf("endglobals");
+        user = user < end ? user : -1;
+        generated = generated < end ? generated : -1;
+        var userPlace = user >= 0 ? user : globals + 1;
+        if (user >= 0)
+        {
+            lines.RemoveRange(user, (generated > user ? generated : end) - user);
+        }
+
+        end = lines.IndexOf("endglobals");
+        generated = Find(lines, line => line.Trim() == "// Generated", globals);
+        generated = generated < end ? generated : -1;
+        var triggerLines = Enumerable.Range(globals + 1, end - globals - 1)
+            .Where(index => lines[index].TrimStart().StartsWith("trigger", StringComparison.Ordinal)
+                && lines[index].Contains(" gg_trg_", StringComparison.Ordinal))
             .ToList();
         var place = triggerLines.Count > 0
             ? triggerLines[0]
-            : Find(lines, line => IsAfterTriggers(line) || line == "endglobals", globals);
-        for (var i = triggerLines.Count - 1; i >= 0; i--)
+            : Find(lines, line => IsAfterTriggers(line) || line == "endglobals", globals + 1);
+        foreach (var line in Enumerable.Reverse(triggerLines))
         {
-            lines.RemoveAt(triggerLines[i]);
+            lines.RemoveAt(line);
+        }
+
+        var names = Definitions().ToList();
+        if (names.Count > 0 && generated < 0)
+        {
+            lines.Insert(place++, "    // Generated");
+            generated = place - 1;
         }
 
         lines.InsertRange(place, Text(writer =>
         {
             writer.Indent();
-            foreach (var definition in Definitions())
+            foreach (var definition in names)
             {
                 writer.WriteAlignedGlobal("trigger", "gg_trg_" + TriggerJass.Identifier(definition.Name), "null");
             }
         }));
-
-        var user = Find(lines, line => line.Trim() == "// User-defined", globals);
-        var generated = Find(lines, line => line.Trim() == "// Generated", globals);
-        end = Find(lines, line => line == "endglobals", globals);
-        if (user >= 0)
-        {
-            lines.RemoveRange(user, (generated >= 0 ? generated : end) - user);
-            generated = generated >= 0 ? user : -1;
-        }
-
-        var position = user >= 0 ? user : globals + 1;
-        var block = Text(writer =>
+        lines.InsertRange(userPlace, Text(writer =>
         {
             writer.Indent();
             if (ShouldGenerateUserDefinedVariables(_map))
@@ -191,9 +259,85 @@ public sealed class TriggerScript : MapScriptBuilder
                     writer.WriteLine();
                 }
             }
-        });
-        lines.InsertRange(position, block);
+        }));
     }
+
+    // World Editor makes a variable, and sets it where the thing is made, only for a placed thing a trigger names. A unit
+    // or item picked for the first time gets both here. A destructable named for the first time would have to change
+    // war3map.doo too: the game makes it from there unless that says not to, so the script would make a second one.
+    private string? AddPlaced(List<string> lines)
+    {
+        var end = lines.IndexOf("endglobals");
+        var declared = string.Join("\n", lines.Take(end));
+        foreach (var name in _document.PlacedNames().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
+        {
+            if (declared.Contains(" " + name + " ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (name.StartsWith("gg_dest_", StringComparison.Ordinal))
+            {
+                return Texts.Get("app.triggers.scriptDestructable", ("name", name));
+            }
+
+            var isItem = name.StartsWith("gg_item_", StringComparison.Ordinal);
+            if (!SetWhereMade(lines, name, isItem))
+            {
+                return Texts.Get("app.triggers.scriptPlaced", ("name", name));
+            }
+
+            lines.InsertRange(lines.IndexOf("endglobals"), Text(writer =>
+            {
+                writer.Indent();
+                writer.WriteAlignedGlobal(isItem ? "item" : "unit", name, "null");
+            }));
+        }
+
+        return null;
+    }
+
+    // Finds the line that makes a placed thing, by its type and place, and sets the thing's variable there.
+    private bool SetWhereMade(List<string> lines, string name, bool isItem)
+    {
+        var type = name.Substring("gg_unit_".Length, 4);
+        var number = int.Parse(name["gg_unit_0000_".Length..], CultureInfo.InvariantCulture);
+        var placed = _units?.Units.FirstOrDefault(each => each.CreationNumber == number && each.TypeId.ToRawcode() == type);
+        if (placed == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var match = CreatedAt.Match(lines[i]);
+            if (!match.Success
+                || match.Groups["id"].Value != type
+                || !Near(match.Groups["x"].Value, placed.Position.X)
+                || !Near(match.Groups["y"].Value, placed.Position.Y))
+            {
+                continue;
+            }
+
+            var trimmed = lines[i].TrimStart();
+            if (isItem && trimmed.StartsWith("call ", StringComparison.Ordinal))
+            {
+                lines[i] = $"    set {name} = {trimmed["call ".Length..]}";
+                return true;
+            }
+
+            if (!isItem && trimmed.StartsWith("set u = ", StringComparison.Ordinal))
+            {
+                lines.Insert(i + 1, $"    set {name} = u");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Near(string text, float value) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && Math.Abs(number - value) < 0.06;
 
     // InitGlobals as World Editor writes it. A value goes by its type, so an object's id has its quotes.
     private void WriteInitGlobals(IndentedTextWriter writer)
@@ -281,28 +425,45 @@ public sealed class TriggerScript : MapScriptBuilder
         }
     }
 
-    private static bool IsAfterTriggers(string line)
-    {
-        var trimmed = line.TrimStart();
-        return trimmed.StartsWith("unit ", StringComparison.Ordinal)
-            || trimmed.StartsWith("destructable ", StringComparison.Ordinal);
-    }
+    // A line World Editor writes after the trigger variables.
+    private static bool IsAfterTriggers(string line) =>
+        line.Contains(" gg_unit_", StringComparison.Ordinal)
+        || line.Contains(" gg_item_", StringComparison.Ordinal)
+        || line.Contains(" gg_dest_", StringComparison.Ordinal)
+        || line.Contains(" gg_rg_", StringComparison.Ordinal);
 
-    private void ReplaceMainCalls(List<string> lines, int main)
+    // The calls of main that depend on the triggers. False when main is not as World Editor writes it.
+    private bool ReplaceMainCalls(List<string> lines, int main)
     {
         var close = Find(lines, line => line == "endfunction", main);
+        if (close < 0)
+        {
+            return false;
+        }
+
         foreach (var call in new[] { "    call InitCustomTriggers(  )", "    call RunInitializationTriggers(  )" })
         {
-            var at = Find(lines, line => line == call, main);
-            if (at >= 0 && at < close)
+            var at = lines.IndexOf(call, main, close - main);
+            if (at >= 0)
             {
                 lines.RemoveAt(at);
                 close--;
             }
         }
 
-        var initGlobals = Find(lines, line => line == "    call InitGlobals(  )", main);
-        var blizzard = Find(lines, line => line == "    call InitBlizzard(  )", main);
+        var blizzard = lines.IndexOf("    call InitBlizzard(  )", main, close - main);
+        var initGlobals = lines.IndexOf("    call InitGlobals(  )", main, close - main);
+        if (blizzard < 0 && initGlobals < 0)
+        {
+            return false;
+        }
+
+        if (initGlobals < 0 && NeedsInitGlobals())
+        {
+            initGlobals = blizzard + 1;
+            lines.Insert(initGlobals, "    call InitGlobals(  )");
+        }
+
         var place = (initGlobals >= 0 ? initGlobals : blizzard) + 1;
         var enabled = Definitions().Where(each => each.IsEnabled).ToList();
         if (enabled.Any(RunsAtStart))
@@ -314,6 +475,8 @@ public sealed class TriggerScript : MapScriptBuilder
         {
             lines.Insert(place, "    call InitCustomTriggers(  )");
         }
+
+        return true;
     }
 
     private List<string> CustomSection()

@@ -25,6 +25,7 @@ public sealed record TextPart(string Text, ParameterView? Parameter = null);
 /// <param name="Kind"><c>preset</c>, <c>variable</c>, <c>function</c>, <c>value</c>, or <c>none</c> when it has no value.</param>
 /// <param name="Value">The value the map's file holds.</param>
 /// <param name="Text">The value as shown.</param>
+/// <param name="Typed">A typed value as its box starts: not rounded, a <c>TRIGSTR_n</c> as its text; empty for the other kinds.</param>
 /// <param name="Function">A function's own sentence and parameters; null for the other kinds.</param>
 /// <param name="Index">An array variable's index; null for the other kinds.</param>
 public sealed record ParameterView(
@@ -34,6 +35,7 @@ public sealed record ParameterView(
     string Kind,
     string Value,
     string Text,
+    string Typed,
     FunctionView? Function,
     ParameterView? Index);
 
@@ -228,6 +230,7 @@ public sealed partial class TriggerDocument
                 TriggerFunctionParameterType.String => Literal(type, parameter.Value, names),
                 _ => name,
             },
+            parameter.Type == TriggerFunctionParameterType.String ? names.Text(parameter.Value) : "",
             inner,
             index);
     }
