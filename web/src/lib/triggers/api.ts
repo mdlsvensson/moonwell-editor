@@ -119,6 +119,7 @@ export type BlockView = {
 export type FunctionView = {
   path: string;
   name: string;
+  title: string;
   kind: FunctionKind;
   category: string;
   enabled: boolean;
@@ -242,9 +243,48 @@ export async function enableFunction(id: number, path: string, enabled: boolean)
   await call<null>("triggerFunctionEnable", { id, path, enabled });
 }
 
-/** Moves a function to a place, counted with it taken out. */
-export async function moveFunction(id: number, path: string, place: FunctionPlace): Promise<void> {
-  await call<null>("triggerFunctionMove", { id, path, ...place });
+/** Moves a function to a place of the same or another trigger, counted with it taken out. */
+export async function moveFunction(
+  from: number,
+  path: string,
+  id: number,
+  place: FunctionPlace,
+): Promise<void> {
+  await call<null>("triggerFunctionMove", { from, path, id, ...place });
+}
+
+/** Where a card sits on its category's grid. */
+export type CardPlace = { x: number; y: number; folded: boolean };
+
+/** A card of a category's grid. */
+export type CardView = {
+  id: number;
+  kind: TreeKind;
+  name: string;
+  /** Where it was put; null for a card never moved. */
+  place: CardPlace | null;
+  /** A trigger, script or comment; null for the other kinds. */
+  trigger: TriggerView | null;
+  /** A variable; null for the other kinds. */
+  variable: Variable | null;
+  /** How many items a category holds; 0 for the other kinds. */
+  count: number;
+};
+
+/** A card put at a place. */
+export type CardMove = { id: number; x: number; y: number };
+
+export function triggerCards(parent: number): Promise<CardView[]> {
+  return call<CardView[]>("triggerCards", { parent });
+}
+
+export async function setPlaces(places: CardMove[]): Promise<void> {
+  await call<null>("triggerPlaces", { places });
+}
+
+/** Folds or unfolds a card, keeping `places` for the whole grid. */
+export async function setFolded(id: number, folded: boolean, places: CardMove[]): Promise<void> {
+  await call<null>("triggerFolded", { id, folded, places });
 }
 
 export async function setParameter(

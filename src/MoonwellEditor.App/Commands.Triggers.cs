@@ -195,10 +195,12 @@ public sealed partial class Commands
         "triggerFunctionEnable" => EditTriggers(document =>
             document.EnableFunction(Number(args, "id"), Text(args, "path"), Flag(args, "enabled"))),
         "triggerCards" => Map().Triggers(Catalog()).Cards(Number(args, "parent"), Map()),
-        "triggerPlaces" => EditTriggers(document => document.SetPlaces(ArrayOf(args, "places")
-            .Select(place => new CardMove(Number(place, "id"), Number(place, "x"), Number(place, "y")))
-            .ToList())),
-        "triggerFolded" => EditTriggers(document => document.SetFolded(Number(args, "id"), Flag(args, "folded"))),
+        "triggerPlaces" => EditTriggers(document => document.SetPlaces(Moves(args))),
+        "triggerFolded" => EditTriggers(document =>
+        {
+            document.SetPlaces(Moves(args));
+            document.SetFolded(Number(args, "id"), Flag(args, "folded"));
+        }),
         "triggerFunctionMove" => EditTriggers(document => document.MoveFunction(
             Number(args, "from"),
             Text(args, "path"),
@@ -216,6 +218,10 @@ public sealed partial class Commands
         Map().Triggers(Catalog()).CopyFunction(Number(args, "id"), Text(args, "path"));
         return null;
     }
+
+    private static List<CardMove> Moves(JsonElement args) => ArrayOf(args, "places")
+        .Select(place => new CardMove(Number(place, "id"), Number(place, "x"), Number(place, "y")))
+        .ToList();
 
     private static VariableInput VariableOf(JsonElement args) => new(
         Text(args, "name"),
