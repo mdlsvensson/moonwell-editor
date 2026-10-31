@@ -2,6 +2,21 @@
 
 Checks a person made by hand, newest first. Each names the game version and what was looked at.
 
+## 2026-10-31: a trigger save from the window opens in World Editor, whose save drops the card layout
+
+Game and World Editor 3.0.1.24371. Object Editor branch `trigger-tree-drag` at f4635c4.
+
+A copy of Lost Temple got a trigger, `Card Check`, with a Time Of Day event and a moved card, in the window with real mouse
+input, and was saved from there. Sven opened it in World Editor: it opens with no error, and `Card Check` is under
+Initialization with its event. **Passed.**
+
+Sven then saved it in World Editor. That save drops `war3map.triggerlayout.json`, which no `war3map.imp` entry names, so
+card places and folds are lost and the cards stand in columns again. It keeps the ids of the category and the triggers.
+Its script differs from the one the window wrote only in what is not triggers: `ChooseRandomItemExWithFilter` in the drop
+tables, `SetPlayerRaceSkin` and `SetHDWaterParamsEx`.
+
+Not seen in the game: this save. The one below was made by a small program, through the same code.
+
 ## 2026-10-31: the app's trigger save runs in the game
 
 Game 3.0.1.24371. The same map as the World Editor check below. `War3Log.txt` shows the game opening it.
