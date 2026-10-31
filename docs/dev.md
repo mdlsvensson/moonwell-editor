@@ -112,6 +112,30 @@ and attach Chrome's DevTools or a script to `http://127.0.0.1:9333`:
 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333" src/MoonwellEditor.App/bin/Release/net10.0-windows/win-x64/publish/MoonwellEditor.exe "C:\Maps\Arena.w3x"
 ```
 
+## The trigger editor
+
+The Trigger Editor button shows the map's triggers (design: wc3-cs `docs/plans/2026-10-31-trigger-editor-design.md`).
+`MoonwellEditor.Triggers` holds the logic: `TriggerCatalog` reads the game's `UI\TriggerData.txt` with World Editor's
+strings (War3Net's bundled copy lags the game, and its reader stops at lines the game's file has, so `Cleaned` drops or
+corrects them first); `TriggerDocument` is the map's `war3map.wtg` and `war3map.wct` with the edits and the views the page
+draws; `TriggerScript` and `TriggerJass` write the script. `Session.Triggers.cs` reads the document when the view first
+asks, makes each edit one undo step and adds the files to a save. The bridge commands are in `Commands.Triggers.cs` and
+the page in `web/src/lib/TriggerEditor.svelte` and `web/src/lib/triggers/`.
+
+An edit never changes an item in place: it copies the item, so a snapshot taken before stays as it was and an undo step
+costs a list of references. A file War3Net does not write back to the same bytes, an older format or a pair of files that
+do not match shows read only and is never written.
+
+A save of a JASS map keeps its `war3map.j` and replaces only what triggers decide (`TriggerScript.Splice`): the user's
+variables and `gg_trg_` lines in `globals`, `InitGlobals`, the custom script code, the trigger functions,
+`InitCustomTriggers` and `RunInitializationTriggers`, and the calls in `main`. War3Net's own builder is not used for
+this: it differs from World Editor outside the triggers, and its renderer has no multiple-action loops and drops the
+quotes of some values. `TriggerScriptTests` compares the result with World Editor's script on every JASS map of the
+install. A Lua map's script is left as it is, and the save says so.
+
+A function's place in a trigger is a path of steps split by `/`: a number is a function of the trigger, `cN` a function
+inside the one before it, `pN` a parameter, `i` an array's index (`3/c1/p2/p0`).
+
 ## Interface text
 
 Every text the page writes itself (buttons, tooltips, headings, dialogs, notices, errors) is in

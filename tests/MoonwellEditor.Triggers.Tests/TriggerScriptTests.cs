@@ -2,6 +2,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using War3Net.Build.Extensions;
 using War3Net.Build.Info;
+using War3Net.Build.Script;
+using War3Net.CodeAnalysis;
+using War3Net.CodeAnalysis.Jass;
 
 namespace MoonwellEditor.Triggers.Tests;
 
@@ -54,6 +57,81 @@ public sealed class TriggerScriptTests(ITestOutputHelper output)
             || !written.Contains("//*  Sound Assets", StringComparison.Ordinal));
         Assert.DoesNotContain("InitTrig_Untitled_Script", written);
         Assert.DoesNotContain("gg_trg_Untitled_Script", written);
+    }
+
+    [Fact]
+    public void Every_function_with_its_defaults_writes_jass_that_calls_only_what_the_game_has()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open(InstallMaps.LostTemple);
+        if (catalog == null || store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var known = new HashSet<string>(StringComparer.Ordinal) { "function", "if", "not", "and", "or" };
+        foreach (var file in new[] { @"Scripts\common.j", @"Scripts\Blizzard.j" })
+        {
+            var text = Encoding.UTF8.GetString(InstallMaps.ReadGame(file)!);
+            foreach (Match match in Regex.Matches(text, @"(?:native|function)\s+(\w+)\s+takes"))
+            {
+                known.Add(match.Groups[1].Value);
+            }
+        }
+
+        var document = Read(store, catalog);
+        var id = document.Add("trigger", document.Tree().First(item => item.Kind == "category").Id);
+        var missing = new SortedSet<string>(StringComparer.Ordinal);
+        var unparsed = new List<string>();
+        var written = 0;
+        var unset = 0;
+        foreach (var function in catalog.Functions.Where(each => each.Kind != "call"))
+        {
+            var before = document.Snapshot();
+            document.AddFunction(id, null, 0, 0, function.Kind, function.Name);
+            var definition = document.Triggers.TriggerItems.OfType<TriggerDefinition>().Single(each => each.Id == id);
+            string jass;
+            try
+            {
+                using var text = new StringWriter();
+                text.NewLine = "\n";
+                using var writer = new IndentedTextWriter(text);
+                new TriggerJass(writer, document).Write(definition);
+                writer.Flush();
+                jass = text.ToString();
+            }
+            catch (InvalidDataException)
+            {
+                unset++; // the game gives it no default for a parameter
+                document.Restore(before);
+                continue;
+            }
+
+            document.Restore(before);
+            written++;
+            if (!JassSyntaxFactory.TryParseCompilationUnit(jass, out _))
+            {
+                unparsed.Add(function.Name);
+            }
+
+            var strings = Regex.Replace(jass, "\"(?:[^\"\\\\]|\\\\.)*\"", "\"\"");
+            foreach (Match match in Regex.Matches(strings, @"\b([A-Za-z]\w*)\s*\("))
+            {
+                var name = match.Groups[1].Value;
+                if (!known.Contains(name) && !name.StartsWith("Trig_", StringComparison.Ordinal))
+                {
+                    missing.Add($"{function.Name} calls {name}");
+                }
+            }
+        }
+
+        output.WriteLine($"{written} written, {unset} need a value first");
+        output.WriteLine("not parsed: " + string.Join(", ", unparsed.Take(30)));
+        output.WriteLine("missing: " + string.Join("; ", missing.Take(40)));
+        Assert.True(written > 400);
+        Assert.Empty(unparsed);
+        Assert.Empty(missing);
     }
 
     [Fact]
