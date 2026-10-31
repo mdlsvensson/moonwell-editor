@@ -42,6 +42,10 @@ public sealed class TriggerSnapshot
     internal CustomTextTrigger? HeaderCode { get; init; }
 
     internal bool Touched { get; init; }
+
+    internal ImmutableDictionary<int, CardPlace> Places { get; init; } = ImmutableDictionary<int, CardPlace>.Empty;
+
+    internal bool LayoutTouched { get; init; }
 }
 
 /// <summary>The edits.</summary>
@@ -66,6 +70,8 @@ public sealed partial class TriggerDocument
         HeaderComment = _customText.GlobalCustomScriptComment,
         HeaderCode = _customText.GlobalCustomScriptCode,
         Touched = _touched,
+        Places = _places,
+        LayoutTouched = _layoutTouched,
     };
 
     /// <summary>Goes back or forward to a state.</summary>
@@ -85,6 +91,8 @@ public sealed partial class TriggerDocument
         _customText.GlobalCustomScriptComment = snapshot.HeaderComment;
         _customText.GlobalCustomScriptCode = snapshot.HeaderCode!;
         _touched = snapshot.Touched;
+        _places = snapshot.Places;
+        _layoutTouched = snapshot.LayoutTouched;
     }
 
     /// <summary>
@@ -253,6 +261,12 @@ public sealed partial class TriggerDocument
         foreach (var each in gone)
         {
             _code = _code.Remove(each.Id);
+            if (_places.ContainsKey(each.Id))
+            {
+                _places = _places.Remove(each.Id);
+                _layoutTouched = true;
+            }
+
             switch (each)
             {
                 case TriggerVariableDefinition variable:
@@ -367,24 +381,26 @@ public sealed partial class TriggerDocument
     }
 
     /// <summary>
-    /// Moves the function at <paramref name="path"/> to a trigger's list of its kind, or a block of the function at
-    /// <paramref name="parentPath"/>, to place <paramref name="index"/> there with it taken out. Refused for a block of
-    /// another kind, and for a place inside the function itself.
+    /// Moves the function at <paramref name="path"/> of the trigger <paramref name="fromId"/> to the list of its kind of
+    /// the trigger <paramref name="id"/>, or a block of the function at <paramref name="parentPath"/> there, to place
+    /// <paramref name="index"/> with it taken out. Refused for a block of another kind, and for a place inside the
+    /// function itself.
     /// </summary>
-    public void MoveFunction(int id, string path, string? parentPath, int branch, int index)
+    public void MoveFunction(int fromId, string path, int id, string? parentPath, int branch, int index)
     {
         Editable();
-        var copy = (TriggerDefinition)Copied(id);
-        var (list, at, function, _) = Walk(copy, path);
-        var target = copy.Functions;
+        var source = (TriggerDefinition)Copied(fromId);
+        var definition = fromId == id ? source : (TriggerDefinition)Copied(id);
+        var (list, at, function, _) = Walk(source, path);
+        var target = definition.Functions;
         if (parentPath != null)
         {
-            if (parentPath == path || parentPath.StartsWith(path + "/", StringComparison.Ordinal))
+            if (fromId == id && (parentPath == path || parentPath.StartsWith(path + "/", StringComparison.Ordinal)))
             {
                 throw new TriggerEditException(Texts.Get("app.triggers.moveIntoItself"));
             }
 
-            var parent = Walk(copy, parentPath).Function;
+            var parent = Walk(definition, parentPath).Function;
             var block = BlocksOf(parent.Name).FirstOrDefault(each => each.Branch == branch);
             if (block.Kind != KindOf(function.Type))
             {

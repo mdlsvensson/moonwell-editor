@@ -84,7 +84,7 @@ public sealed partial class TriggerDocument
     /// may not write these files, the document is read only.
     /// </summary>
     public static TriggerDocument Read(
-        byte[]? triggers, byte[]? customText, TriggerCatalog catalog, string? writeProblem = null)
+        byte[]? triggers, byte[]? customText, TriggerCatalog catalog, string? writeProblem = null, byte[]? layout = null)
     {
         var problem = (string?)null;
         var parsedTriggers = Empty();
@@ -121,8 +121,13 @@ public sealed partial class TriggerDocument
 
         problem ??= writeProblem;
 
+        document._places = ReadPlaces(layout);
         return problem == null ? document : new TriggerDocument(
-            catalog, parsedTriggers, parsedCustom, triggers != null, customText != null, problem, true) { _code = document._code };
+            catalog, parsedTriggers, parsedCustom, triggers != null, customText != null, problem, true)
+        {
+            _code = document._code,
+            _places = document._places,
+        };
     }
 
     /// <summary>The tree: the map, then every item in the file's order.</summary>

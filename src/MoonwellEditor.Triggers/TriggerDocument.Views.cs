@@ -49,6 +49,7 @@ public sealed record BlockView(int Branch, string Title, string Kind, IReadOnlyL
 /// <summary>A function in a trigger.</summary>
 /// <param name="Path">Where it is in the trigger.</param>
 /// <param name="Name">Its name.</param>
+/// <param name="Title">Its name in the editor's lists, for its card's title bar.</param>
 /// <param name="Kind"><c>event</c>, <c>condition</c>, <c>action</c> or <c>call</c>.</param>
 /// <param name="Category">Its category's key.</param>
 /// <param name="Enabled">False when it is turned off.</param>
@@ -59,6 +60,7 @@ public sealed record BlockView(int Branch, string Title, string Kind, IReadOnlyL
 public sealed record FunctionView(
     string Path,
     string Name,
+    string Title,
     string Kind,
     string Category,
     bool Enabled,
@@ -186,6 +188,7 @@ public sealed partial class TriggerDocument
         return new FunctionView(
             path,
             function.Name,
+            entry.Title,
             entry.Kind,
             entry.Category,
             function.IsEnabled,

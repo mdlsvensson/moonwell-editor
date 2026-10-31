@@ -201,7 +201,7 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
         document.AddFunction(id, null, 0, int.MaxValue, "action", "ReturnAction");
 
         var view = document.Trigger(id, new Names());
-        document.MoveFunction(id, view.Actions[1].Path, null, 0, 0);
+        document.MoveFunction(id, view.Actions[1].Path, id, null, 0, 0);
 
         view = document.Trigger(id, new Names());
         Assert.Equal(["ReturnAction", "DoNothing"], view.Actions.Select(action => action.Name));
@@ -223,14 +223,14 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
         var ifThen = document.AddFunction(id, null, 0, int.MaxValue, "action", "IfThenElseMultiple");
         document.AddFunction(id, ifThen, 2, 0, "action", "ReturnAction");
 
-        document.MoveFunction(id, first, ifThen, 1, 0);
+        document.MoveFunction(id, first, id, ifThen, 1, 0);
 
         var actions = document.Trigger(id, new Names()).Actions;
         var block = Assert.Single(actions).Blocks;
         Assert.Equal("DoNothing", Assert.Single(block[1].Functions).Name);
         Assert.Equal("ReturnAction", Assert.Single(block[2].Functions).Name);
 
-        document.MoveFunction(id, block[1].Functions[0].Path, null, 0, int.MaxValue);
+        document.MoveFunction(id, block[1].Functions[0].Path, id, null, 0, int.MaxValue);
 
         actions = document.Trigger(id, new Names()).Actions;
         Assert.Equal(["IfThenElseMultiple", "DoNothing"], actions.Select(action => action.Name));
@@ -254,10 +254,124 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
         var inner = document.AddFunction(id, outer, 1, 0, "action", "IfThenElseMultiple");
         var plain = document.AddFunction(id, null, 0, int.MaxValue, "action", "DoNothing");
 
-        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, inner, 1, 0));
-        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, outer, 1, 0));
-        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, plain, outer, 0, 0));
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, id, inner, 1, 0));
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, id, outer, 1, 0));
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, plain, id, outer, 0, 0));
         Assert.Equal(2, document.Trigger(id, new Names()).Actions.Count);
+    }
+
+    [Fact]
+    public void A_function_moves_to_another_trigger()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var from = document.Add("trigger", category);
+        var to = document.Add("trigger", category);
+        var wait = document.AddFunction(from, null, 0, 0, "action", "TriggerSleepAction");
+        document.AddFunction(to, null, 0, 0, "action", "DoNothing");
+
+        document.MoveFunction(from, wait, to, null, 0, 0);
+
+        Assert.Empty(document.Trigger(from, new Names()).Actions);
+        Assert.Equal(["TriggerSleepAction", "DoNothing"], document.Trigger(to, new Names()).Actions.Select(action => action.Name));
+    }
+
+    [Fact]
+    public void A_function_shows_its_title_for_its_card()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        document.AddFunction(id, null, 0, 0, "action", "CreateNUnitsAtLoc");
+
+        Assert.Equal("Create Units Facing Angle", document.Trigger(id, new Names()).Actions[0].Title);
+    }
+
+    [Fact]
+    public void A_category_gives_a_card_for_everything_directly_in_it()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var trigger = document.Add("trigger", category);
+        var comment = document.Add("comment", category);
+        var script = document.Add("script", category);
+        var variable = document.AddVariable(new VariableInput("Count", "integer", false, 1, ""), category);
+        var inner = document.Add("category", category);
+        document.Add("trigger", inner);
+
+        var cards = document.Cards(category, new Names());
+
+        Assert.Equal(["trigger", "trigger", "comment", "script", "variable", "category"], cards.Select(card => card.Kind));
+        Assert.NotNull(cards.Single(card => card.Id == trigger).Trigger);
+        Assert.NotNull(cards.Single(card => card.Id == comment).Trigger);
+        Assert.NotNull(cards.Single(card => card.Id == script).Trigger);
+        Assert.Equal("Count", cards.Single(card => card.Id == variable).Variable!.Name);
+        Assert.Equal(1, cards.Single(card => card.Id == inner).Count);
+    }
+
+    [Fact]
+    public void A_cards_place_is_kept_and_undone_and_goes_with_the_item()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        Assert.Null(document.LayoutBytes());
+        var before = document.Snapshot();
+
+        document.SetPlaces([new CardMove(id, 40, 80)]);
+        document.SetFolded(id, true);
+
+        var card = document.Cards(category, new Names()).Single(each => each.Id == id);
+        Assert.Equal(new CardPlace(40, 80, true), card.Place);
+        var again = TriggerDocument.Read(document.TriggerBytes(), document.CustomTextBytes(), document.Catalog, null, document.LayoutBytes());
+        Assert.Equal(new CardPlace(40, 80, true), again.Cards(category, new Names()).Single(each => each.Id == id).Place);
+
+        document.Restore(before);
+        Assert.Null(document.LayoutBytes());
+        Assert.Null(document.Cards(category, new Names()).Single(each => each.Id == id).Place);
+
+        document.SetPlaces([new CardMove(id, 40, 80)]);
+        document.Delete(id);
+        Assert.DoesNotContain("\"" + id + "\"", System.Text.Encoding.UTF8.GetString(document.LayoutBytes()!));
+    }
+
+    [Fact]
+    public void A_layout_file_that_cannot_be_read_is_ignored()
+    {
+        var catalog = InstallMaps.Catalog;
+        if (catalog == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = TriggerDocument.Read(null, null, catalog, null, "not json"u8.ToArray());
+
+        Assert.Null(document.Problem);
+        Assert.Null(document.LayoutBytes());
     }
 
     [Fact]

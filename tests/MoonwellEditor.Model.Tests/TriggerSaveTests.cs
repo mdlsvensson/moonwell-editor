@@ -127,6 +127,35 @@ public sealed class TriggerSaveTests(GameDataFixture game, ITestOutputHelper out
     }
 
     [Fact]
+    public void A_moved_card_saves_its_place_in_the_map_and_touches_nothing_else()
+    {
+        if (Copy(WarChasers) is not var (path, catalog))
+        {
+            return;
+        }
+
+        var session = Session.Open(MapStore.Open(path), game.Data!);
+        var id = session.Triggers(catalog).Tree().First(item => item.Kind == "trigger").Id;
+
+        session.EditTriggers(catalog, each =>
+        {
+            each.SetPlaces([new CardMove(id, 120, 60)]);
+            return 0;
+        });
+
+        Assert.True(session.Dirty);
+        var report = session.Save();
+        Assert.Equal([TriggerDocument.LayoutFile], report.Written);
+        Assert.False(session.Dirty);
+        var after = MapStore.Open(path);
+        Assert.NotNull(after.Read(TriggerDocument.LayoutFile));
+
+        var again = Session.Open(after, game.Data!);
+        var card = again.Triggers(catalog).Cards(again.Triggers(catalog).Tree().First(item => item.Id == id).Parent, again).Single(each => each.Id == id);
+        Assert.Equal(new CardPlace(120, 60, false), card.Place);
+    }
+
+    [Fact]
     public void A_map_whose_triggers_were_not_edited_saves_no_trigger_file()
     {
         if (Copy(WarChasers) is not var (path, catalog))
