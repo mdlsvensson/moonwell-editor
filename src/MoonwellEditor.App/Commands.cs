@@ -416,6 +416,7 @@ public sealed partial class Commands
         var session = Session.Open(store, data);
         _store = store;
         _terrain = null;
+        _mapReferences = null;
         Assets?.MapChanged();
         _session = session;
         try
@@ -436,6 +437,7 @@ public sealed partial class Commands
         RefuseUnsaved(discard, "app.error.unsavedReload");
         session.Reload();
         _terrain = null;
+        _mapReferences = null;
         Assets?.MapChanged();
         return Changed(Info(_store!, session));
     }

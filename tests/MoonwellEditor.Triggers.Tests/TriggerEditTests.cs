@@ -413,6 +413,27 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_trigger_added_to_the_map_itself_goes_in_a_category()
+    {
+        var catalog = InstallMaps.Catalog;
+        if (catalog == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = TriggerDocument.Read(null, null, catalog);
+
+        document.Add("trigger", -1);
+        document.AddVariable(new VariableInput("Count", "integer", false, 1, ""), 0);
+
+        var tree = document.Tree();
+        Assert.Equal(["root", "category", "trigger", "variable"], tree.Select(item => item.Kind));
+        Assert.Equal(tree[1].Id, tree[2].Parent);
+        Assert.Equal(tree[1].Id, tree[3].Parent);
+    }
+
+    [Fact]
     public void A_map_with_no_trigger_file_gets_one_with_a_root()
     {
         var catalog = InstallMaps.Catalog;

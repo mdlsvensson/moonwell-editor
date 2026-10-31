@@ -16,7 +16,7 @@ import { framed, numpadView, orbited, panned, ray, type View, zoomed } from "./m
 import { GlHost } from "./map/gl/host.ts";
 import { allLayers, type Layers, MapRenderer } from "./map/gl/renderer.ts";
 import { groundPoint } from "./map/groundRay.ts";
-import { answer, picking, pickOnMap } from "./map/pick.ts";
+import { answer, picking } from "./map/pick.ts";
 import { cameraAt, choose, type Pick, type PickKind, regionAt } from "./map/picking.ts";
 import { groundAt, type MapScene, readTerrain, type Terrain, type ThingKind } from "./map/scene.ts";
 import { type TextKey, t } from "./text.ts";
@@ -36,8 +36,6 @@ let software = $state(false);
 /** What the mouse is over, and what a click selected. */
 let hovered = $state<Pick | null>(null);
 let selected = $state<Pick | null>(null);
-/** The result of the last "Try pick mode", shown until the next. */
-let tried = $state("");
 let layers = $state<Layers>(allLayers);
 
 /** The game's own camera looks down 56 degrees from 1650 away (angle of attack 304). */
@@ -73,7 +71,6 @@ const kindNames: Record<PickKind, TextKey> = {
   camera: "mapView.kind.camera",
   point: "mapView.kind.point",
 };
-const pickKinds = Object.keys(kindNames) as PickKind[];
 
 /** The host made last, whatever the mode: when the view goes, its context goes back to the browser. */
 let lastHost: GlHost | null = null;
@@ -344,13 +341,6 @@ function toggle(kinds: ThingKind[]): void {
   layers = { ...layers, kinds: next };
 }
 
-/** Tries pick mode as the trigger editor will use it, and shows what it gave. */
-async function tryPick(kind: PickKind): Promise<void> {
-  tried = "";
-  const pick = await pickOnMap(kind);
-  tried = pick ? describe(pick) : t("mapView.pickCancelled");
-}
-
 /** A pick in words: its name, its type, its trigger name, or a point's place. */
 function describe(pick: Pick): string {
   if (pick.kind === "point") {
@@ -433,27 +423,6 @@ function ownerOf(pick: Pick): string {
         onclick={() => (layers = { ...layers, cameras: !layers.cameras })}>{t("mapView.layer.cameras")}</button
       >
     </div>
-    <!-- Until the trigger editor asks the map for its parameters, pick mode can be tried here (plan's call). -->
-    <label class="flex items-center gap-1 rounded border border-line bg-surface/90 px-2 py-0.5 text-muted">
-      {t("mapView.tryPick")}
-      <select
-        class="bg-transparent text-fg"
-        value=""
-        onchange={(event) => {
-          const kind = event.currentTarget.value as PickKind;
-          event.currentTarget.value = "";
-          if (kind) void tryPick(kind);
-        }}
-      >
-        <option value="">—</option>
-        {#each pickKinds as kind (kind)}
-          <option value={kind}>{t(kindNames[kind])}</option>
-        {/each}
-      </select>
-    </label>
-    {#if tried}
-      <p class="rounded bg-surface/90 px-2 py-0.5 text-fg">{tried}</p>
-    {/if}
   </div>
   {#if $picking.kind !== null}
     <p

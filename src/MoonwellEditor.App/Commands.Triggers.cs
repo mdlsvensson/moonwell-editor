@@ -3,6 +3,7 @@ using MoonwellEditor.Files;
 using MoonwellEditor.Map;
 using MoonwellEditor.Triggers;
 using War3Net.Build.Audio;
+using War3Net.Build.Environment;
 using War3Net.Build.Extensions;
 
 namespace MoonwellEditor.App;
@@ -55,6 +56,9 @@ public sealed partial class Commands
     // The catalog of the install it was read from; another install reads it again.
     private (string Folder, TriggerCatalog Catalog)? _triggerCatalog;
 
+    // The open map's regions, cameras and sounds; null until asked, and for another map.
+    private List<MapReference>? _mapReferences;
+
     private TriggerCatalog Catalog()
     {
         var assets = Assets ?? throw new CommandException("noAssets", Texts.Get("app.assets.none"));
@@ -87,39 +91,57 @@ public sealed partial class Commands
             References());
     }
 
-    // The regions, cameras and sounds of the map; a file that cannot be read adds nothing.
+    // The regions, cameras and sounds of the map, read once per map as nothing here changes them. They are only offered
+    // in lists, so a file that cannot be read adds nothing.
     private List<MapReference> References()
     {
+        if (_mapReferences != null)
+        {
+            return _mapReferences;
+        }
+
         var store = _store!;
-        var files = MapReader.Read(store);
         var references = new List<MapReference>();
-        foreach (var region in files.Regions?.Regions ?? [])
+        Read(store, MapRegions.FileName, reader =>
         {
-            references.Add(new MapReference("rect", TriggerNames.Region(region.Name), region.Name + " <gen>"));
-        }
-
-        foreach (var camera in files.Cameras?.Cameras ?? [])
+            foreach (var region in reader.ReadMapRegions().Regions)
+            {
+                references.Add(new MapReference("rect", TriggerNames.Region(region.Name), region.Name + " <gen>"));
+            }
+        });
+        Read(store, MapCameras.FileName, reader =>
         {
-            references.Add(new MapReference("camerasetup", TriggerNames.Camera(camera.Name), camera.Name + " <gen>"));
-        }
+            foreach (var camera in reader.ReadMapCameras().Cameras)
+            {
+                references.Add(new MapReference("camerasetup", TriggerNames.Camera(camera.Name), camera.Name + " <gen>"));
+            }
+        });
+        Read(store, MapSounds.FileName, reader =>
+        {
+            foreach (var sound in reader.ReadMapSounds().Sounds)
+            {
+                var name = sound.Name.Replace("gg_snd_", "", StringComparison.Ordinal);
+                references.Add(new MapReference("sound", sound.Name, name + " <gen>"));
+            }
+        });
+        _mapReferences = references;
+        return references;
+    }
 
+    private static void Read(IMapStore store, string name, Action<BinaryReader> read)
+    {
         try
         {
-            if (store.Read(MapSounds.FileName) is { } bytes)
+            if (store.Read(name) is { } bytes)
             {
                 using var reader = new BinaryReader(new MemoryStream(bytes));
-                foreach (var sound in reader.ReadMapSounds().Sounds)
-                {
-                    references.Add(new MapReference("sound", sound.Name, sound.Name.Replace("gg_snd_", "", StringComparison.Ordinal) + " <gen>"));
-                }
+                read(reader);
             }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // Sounds are only offered in a list; the rest of the editor does not need them.
+            // Left out of the lists; a parameter that names it still shows.
         }
-
-        return references;
     }
 
     private TriggerView TriggerOf(JsonElement args) => Map().Triggers(Catalog()).Trigger(Number(args, "id"), Map());

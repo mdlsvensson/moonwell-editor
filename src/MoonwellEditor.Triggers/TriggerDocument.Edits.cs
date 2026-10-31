@@ -92,17 +92,19 @@ public sealed partial class TriggerDocument
     {
         Editable();
         NeedRoot();
-        var name = FreeName(Texts.Get("app.triggers.new." + kind));
-        TriggerItem item = kind switch
+        var (item, name) = kind switch
         {
-            "category" => new TriggerCategoryDefinition { Id = NextId(TriggerItemType.Category), IsExpanded = true },
-            "trigger" => NewDefinition(TriggerItemType.Gui),
-            "script" => NewDefinition(TriggerItemType.Script),
-            "comment" => NewDefinition(TriggerItemType.Comment),
+            "category" => (
+                new TriggerCategoryDefinition { Id = NextId(TriggerItemType.Category), IsExpanded = true },
+                Texts.Get("app.triggers.new.category")),
+            "trigger" => ((TriggerItem)NewDefinition(TriggerItemType.Gui), Texts.Get("app.triggers.new.trigger")),
+            "script" => (NewDefinition(TriggerItemType.Script), Texts.Get("app.triggers.new.script")),
+            "comment" => (NewDefinition(TriggerItemType.Comment), Texts.Get("app.triggers.new.comment")),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No such kind."),
         };
-        item.Name = name;
-        item.ParentId = Category(parent);
+        parent = kind == "category" ? Category(parent) : InCategory(parent);
+        item.Name = FreeName(name);
+        item.ParentId = parent;
         Insert(item, parent, int.MaxValue);
         Recount();
         return item.Id;
@@ -114,8 +116,9 @@ public sealed partial class TriggerDocument
         Editable();
         NeedRoot();
         CheckVariable(input, null);
+        parent = InCategory(parent);
         var id = NextId(TriggerItemType.Variable);
-        var item = new TriggerVariableDefinition { Id = id, ParentId = Category(parent), Name = input.Name };
+        var item = new TriggerVariableDefinition { Id = id, ParentId = parent, Name = input.Name };
         _triggers.Variables.Add(Fill(new VariableDefinition { Unk = 1, Id = id, ParentId = item.ParentId }, input));
         Insert(item, parent, int.MaxValue);
         Recount();
@@ -527,6 +530,21 @@ public sealed partial class TriggerDocument
         }
 
         return parent == -1 ? 0 : parent;
+    }
+
+    // In World Editor's files only a category is directly under the root (every map of the install). For anything else,
+    // the root means the first category, made when the map has none.
+    private int InCategory(int parent)
+    {
+        var category = Category(parent);
+        if (category != 0)
+        {
+            return category;
+        }
+
+        var first = Live().OfType<TriggerCategoryDefinition>()
+            .FirstOrDefault(each => each.Type == TriggerItemType.Category);
+        return first?.Id ?? Add("category", 0);
     }
 
     private TriggerDefinition NewDefinition(TriggerItemType type) => new(type)
