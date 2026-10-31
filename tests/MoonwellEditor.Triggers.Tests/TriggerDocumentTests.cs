@@ -148,4 +148,66 @@ public sealed class TriggerDocumentTests(ITestOutputHelper output)
 
         Assert.False(string.IsNullOrEmpty(document.CodeOf(script.Id)));
     }
+
+    // World Editor's flag for a file at its own path in the archive.
+    private const byte OwnPath = 13;
+
+    private static byte[] Imports(params (byte Flags, string Path)[] files)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new BinaryWriter(stream))
+        {
+            writer.Write(1);
+            writer.Write(files.Length);
+            foreach (var (flags, path) in files)
+            {
+                writer.Write(flags);
+                writer.Write(System.Text.Encoding.UTF8.GetBytes(path));
+                writer.Write((byte)0);
+            }
+        }
+
+        return stream.ToArray();
+    }
+
+    [Fact]
+    public void A_map_with_no_imports_gets_them_with_the_layout_file()
+    {
+        var imports = TriggerDocument.ImportsWithLayout(null);
+
+        Assert.Equal(Imports((OwnPath, TriggerDocument.LayoutFile)), imports);
+    }
+
+    [Fact]
+    public void The_layout_file_goes_after_the_imports_a_map_has()
+    {
+        var imports = TriggerDocument.ImportsWithLayout(Imports((24, "Fire.mdx"), (29, @"UI\Hud.fdf")));
+
+        Assert.Equal(
+            Imports((24, "Fire.mdx"), (29, @"UI\Hud.fdf"), (OwnPath, TriggerDocument.LayoutFile)),
+            imports);
+    }
+
+    [Theory]
+    [InlineData(TriggerDocument.LayoutFile)]
+    [InlineData("War3Map.TriggerLayout.JSON")]
+    public void Imports_that_name_the_layout_file_stay_as_they_are(string path)
+    {
+        Assert.Null(TriggerDocument.ImportsWithLayout(Imports((24, "Fire.mdx"), (OwnPath, path))));
+    }
+
+    [Fact]
+    public void Imports_that_cannot_be_read_stay_as_they_are()
+    {
+        Assert.Null(TriggerDocument.ImportsWithLayout([9, 0, 0, 0, 1, 0, 0, 0]));
+        Assert.Null(TriggerDocument.ImportsWithLayout([1, 0, 0, 0, 5, 0, 0, 0]));
+    }
+
+    [Fact]
+    public void Imports_that_would_not_come_back_the_same_bytes_stay_as_they_are()
+    {
+        byte[] trailing = [.. Imports((24, "Fire.mdx")), 7, 7, 7];
+
+        Assert.Null(TriggerDocument.ImportsWithLayout(trailing));
+    }
 }

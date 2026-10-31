@@ -2,6 +2,7 @@ using System.Text;
 using MoonwellEditor.Files;
 using MoonwellEditor.Triggers;
 using War3Net.Build.Extensions;
+using War3Net.Build.Import;
 using War3Net.Build.Info;
 using War3Net.Build.Widget;
 
@@ -34,6 +35,7 @@ public sealed partial class Session : ITriggerNames
             _baseline[TriggerDocument.TriggersFile] = triggers;
             _baseline[TriggerDocument.CustomTextFile] = customText;
             _baseline[TriggerDocument.LayoutFile] = layout;
+            _baseline[ImportedFiles.MapFileName] = _store.Read(ImportedFiles.MapFileName);
             _triggers = TriggerDocument.Read(
                 triggers,
                 customText,
@@ -126,6 +128,14 @@ public sealed partial class Session : ITriggerNames
         AddChange(changes, TriggerDocument.TriggersFile, _triggers.TriggerBytes());
         AddChange(changes, TriggerDocument.CustomTextFile, _triggers.CustomTextBytes());
         AddChange(changes, TriggerDocument.LayoutFile, _triggers.LayoutBytes());
+        if (changes.Exists(change => change.Name == TriggerDocument.LayoutFile))
+        {
+            AddChange(
+                changes,
+                ImportedFiles.MapFileName,
+                TriggerDocument.ImportsWithLayout(_baseline.GetValueOrDefault(ImportedFiles.MapFileName)));
+        }
+
         if (!script)
         {
             return;

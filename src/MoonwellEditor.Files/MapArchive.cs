@@ -21,7 +21,7 @@ public sealed class MapArchive : IMapStore
         "war3map.mmp", "war3map.w3r", "war3map.w3c", "war3map.w3s", "war3map.wtg", "war3map.wct", "war3map.j",
         "scripts\\war3map.j", "war3map.lua", "war3map.imp", "war3mapMap.blp", "war3mapMap.tga", "war3mapPreview.tga",
         "war3mapPath.tga", "war3mapMisc.txt", "war3mapSkin.txt", "war3mapExtra.txt", "war3map.w3o",
-        "conversation.json", "(listfile)", "(attributes)", "(signature)",
+        "war3map.triggerlayout.json", "conversation.json", "(listfile)", "(attributes)", "(signature)",
     ];
 
     // The MPQ header's id, "MPQ\x1A", and its size; the header starts at a multiple of 512 bytes.

@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
+using War3Net.Build.Extensions;
+using War3Net.Build.Import;
 using War3Net.Build.Script;
 
 namespace MoonwellEditor.Triggers;
@@ -36,12 +38,15 @@ public sealed record CardView(
 
 /// <summary>
 /// The grid of a category. The map's trigger file holds no places, so a moved card's is kept in a file of its own in
-/// the map. Nothing else depends on that file: without it the cards are laid out anew.
+/// the map, listed in its imports. Nothing else depends on that file: without it the cards are laid out anew.
 /// </summary>
 public sealed partial class TriggerDocument
 {
     /// <summary>The file in the map that holds the cards' places.</summary>
     public const string LayoutFile = "war3map.triggerlayout.json";
+
+    // An import at its own path in the archive, not under war3mapImported: 13, as official maps have at the archive's top.
+    private const ImportedFileFlags OwnPath = ImportedFileFlags.UNK1 | ImportedFileFlags.UNK4 | ImportedFileFlags.UNK8;
 
     private ImmutableDictionary<int, CardPlace> _places = ImmutableDictionary<int, CardPlace>.Empty;
 
@@ -117,6 +122,49 @@ public sealed partial class TriggerDocument
 
             writer.WriteEndObject();
             writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    /// <summary>
+    /// The bytes of <c>war3map.imp</c> with the layout file named in it, as World Editor's save drops a file no import
+    /// names. Null when it is named already, or when <paramref name="imports"/> cannot be read and written back to the
+    /// same bytes: the map works without the places.
+    /// </summary>
+    public static byte[]? ImportsWithLayout(byte[]? imports)
+    {
+        var files = imports == null ? new ImportedFiles(ImportedFilesFormatVersion.v1) : ReadImports(imports);
+        if (files == null || files.Files.Exists(file => file.FullPath.Equals(LayoutFile, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        files.Files.Add(new ImportedFile { Flags = OwnPath, FullPath = LayoutFile });
+        return ImportBytes(files);
+    }
+
+    // Null for bytes that are not imports, or that would not come back the same.
+    private static ImportedFiles? ReadImports(byte[] bytes)
+    {
+        try
+        {
+            using var reader = new BinaryReader(new MemoryStream(bytes));
+            var files = reader.ReadImportedFiles();
+            return ImportBytes(files).AsSpan().SequenceEqual(bytes) ? files : null;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
+    private static byte[] ImportBytes(ImportedFiles files)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new BinaryWriter(stream))
+        {
+            writer.Write(files);
         }
 
         return stream.ToArray();

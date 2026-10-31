@@ -2,6 +2,8 @@ using System.Text;
 using Moonwell.GameData;
 using MoonwellEditor.Files;
 using MoonwellEditor.Triggers;
+using War3Net.Build.Extensions;
+using War3Net.Build.Import;
 using Xunit.Abstractions;
 
 namespace MoonwellEditor.Model.Tests;
@@ -40,6 +42,17 @@ public sealed class TriggerSaveTests(GameDataFixture game, ITestOutputHelper out
 
     private static int Category(TriggerDocument document) =>
         document.Tree().First(item => item.Kind == "category").Id;
+
+    private static List<string> ImportedPaths(byte[]? imports)
+    {
+        if (imports == null)
+        {
+            return [];
+        }
+
+        using var reader = new BinaryReader(new MemoryStream(imports));
+        return [.. reader.ReadImportedFiles().Files.Select(file => file.FullPath)];
+    }
 
     [Fact]
     public void An_edit_is_unsaved_until_it_is_undone()
@@ -127,14 +140,16 @@ public sealed class TriggerSaveTests(GameDataFixture game, ITestOutputHelper out
     }
 
     [Fact]
-    public void A_moved_card_saves_its_place_in_the_map_and_touches_nothing_else()
+    public void A_moved_card_saves_its_place_in_the_map_and_lists_the_file_in_the_imports()
     {
         if (Copy(WarChasers) is not var (path, catalog))
         {
             return;
         }
 
-        var session = Session.Open(MapStore.Open(path), game.Data!);
+        var before = MapStore.Open(path);
+        var imported = ImportedPaths(before.Read(ImportedFiles.MapFileName));
+        var session = Session.Open(before, game.Data!);
         var id = session.Triggers(catalog).Tree().First(item => item.Kind == "trigger").Id;
 
         session.EditTriggers(catalog, each =>
@@ -145,14 +160,70 @@ public sealed class TriggerSaveTests(GameDataFixture game, ITestOutputHelper out
 
         Assert.True(session.Dirty);
         var report = session.Save();
-        Assert.Equal([TriggerDocument.LayoutFile], report.Written);
+        Assert.Equal([TriggerDocument.LayoutFile, ImportedFiles.MapFileName], report.Written);
         Assert.False(session.Dirty);
         var after = MapStore.Open(path);
         Assert.NotNull(after.Read(TriggerDocument.LayoutFile));
+        Assert.Equal([.. imported, TriggerDocument.LayoutFile], ImportedPaths(after.Read(ImportedFiles.MapFileName)));
 
         var again = Session.Open(after, game.Data!);
         var card = again.Triggers(catalog).Cards(again.Triggers(catalog).Tree().First(item => item.Id == id).Parent, again).Single(each => each.Id == id);
         Assert.Equal(new CardPlace(120, 60, false), card.Place);
+    }
+
+    [Fact]
+    public void A_card_moved_again_writes_only_the_layout_file()
+    {
+        if (Copy(WarChasers) is not var (path, catalog))
+        {
+            return;
+        }
+
+        var session = Session.Open(MapStore.Open(path), game.Data!);
+        var id = session.Triggers(catalog).Tree().First(item => item.Kind == "trigger").Id;
+        session.EditTriggers(catalog, each =>
+        {
+            each.SetPlaces([new CardMove(id, 120, 60)]);
+            return 0;
+        });
+        session.Save();
+
+        session.EditTriggers(catalog, each =>
+        {
+            each.SetPlaces([new CardMove(id, 200, 80)]);
+            return 0;
+        });
+
+        Assert.Equal([TriggerDocument.LayoutFile], session.Save().Written);
+    }
+
+    [Fact]
+    public void A_later_session_lists_the_layout_file_only_once()
+    {
+        if (Copy(WarChasers) is not var (path, catalog))
+        {
+            return;
+        }
+
+        var first = Session.Open(MapStore.Open(path), game.Data!);
+        var id = first.Triggers(catalog).Tree().First(item => item.Kind == "trigger").Id;
+        first.EditTriggers(catalog, each =>
+        {
+            each.SetPlaces([new CardMove(id, 120, 60)]);
+            return 0;
+        });
+        first.Save();
+
+        var second = Session.Open(MapStore.Open(path), game.Data!);
+        second.EditTriggers(catalog, each =>
+        {
+            each.SetPlaces([new CardMove(id, 200, 80)]);
+            return 0;
+        });
+
+        Assert.Equal([TriggerDocument.LayoutFile], second.Save().Written);
+        var paths = ImportedPaths(MapStore.Open(path).Read(ImportedFiles.MapFileName));
+        Assert.Single(paths, each => each == TriggerDocument.LayoutFile);
     }
 
     [Fact]
