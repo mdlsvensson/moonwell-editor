@@ -131,7 +131,11 @@ variables and `gg_trg_` lines in `globals`, `InitGlobals`, the custom script cod
 `InitCustomTriggers` and `RunInitializationTriggers`, and the calls in `main`. War3Net's own builder is not used for
 this: it differs from World Editor outside the triggers, and its renderer has no multiple-action loops and drops the
 quotes of some values. `TriggerScriptTests` compares the result with World Editor's script on every JASS map of the
-install. A Lua map's script is left as it is, and the save says so.
+install. World Editor declares and sets a placed unit, item or destructable only when a trigger names it, so a unit or
+item picked for the first time gets its variable there (`AddPlaced`, found by its type and place). A destructable cannot:
+the game makes it from `war3map.doo` unless that says not to, so the script would make a second one, and the editor does
+not write that file yet. In that case, for a Lua map and for vJass (only JassHelper's output is in the script) the
+triggers are saved, the script is left as it is, and the save says so.
 
 A function's place in a trigger is a path of steps split by `/`: a number is a function of the trigger, `cN` a function
 inside the one before it, `pN` a parameter, `i` an array's index (`3/c1/p2/p0`).
