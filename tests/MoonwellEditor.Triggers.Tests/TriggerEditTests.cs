@@ -201,12 +201,84 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
         document.AddFunction(id, null, 0, int.MaxValue, "action", "ReturnAction");
 
         var view = document.Trigger(id, new Names());
-        var path = document.MoveFunction(id, view.Actions[1].Path, 0);
+        document.MoveFunction(id, view.Actions[1].Path, null, 0, 0);
 
         view = document.Trigger(id, new Names());
         Assert.Equal(["ReturnAction", "DoNothing"], view.Actions.Select(action => action.Name));
-        Assert.Equal(path, view.Actions[0].Path);
         Assert.Single(view.Events);
+    }
+
+    [Fact]
+    public void A_function_moves_into_a_block_and_out_of_it()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var first = document.AddFunction(id, null, 0, int.MaxValue, "action", "DoNothing");
+        var ifThen = document.AddFunction(id, null, 0, int.MaxValue, "action", "IfThenElseMultiple");
+        document.AddFunction(id, ifThen, 2, 0, "action", "ReturnAction");
+
+        document.MoveFunction(id, first, ifThen, 1, 0);
+
+        var actions = document.Trigger(id, new Names()).Actions;
+        var block = Assert.Single(actions).Blocks;
+        Assert.Equal("DoNothing", Assert.Single(block[1].Functions).Name);
+        Assert.Equal("ReturnAction", Assert.Single(block[2].Functions).Name);
+
+        document.MoveFunction(id, block[1].Functions[0].Path, null, 0, int.MaxValue);
+
+        actions = document.Trigger(id, new Names()).Actions;
+        Assert.Equal(["IfThenElseMultiple", "DoNothing"], actions.Select(action => action.Name));
+        Assert.Empty(actions[0].Blocks[1].Functions);
+        var read = Reread(document).TriggerItems.OfType<TriggerDefinition>().Single(each => each.Id == id);
+        Assert.Null(read.Functions[1].Branch);
+    }
+
+    [Fact]
+    public void A_function_cannot_move_into_itself_or_a_block_of_another_kind()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var outer = document.AddFunction(id, null, 0, int.MaxValue, "action", "IfThenElseMultiple");
+        var inner = document.AddFunction(id, outer, 1, 0, "action", "IfThenElseMultiple");
+        var plain = document.AddFunction(id, null, 0, int.MaxValue, "action", "DoNothing");
+
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, inner, 1, 0));
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, outer, outer, 1, 0));
+        Assert.Throws<TriggerEditException>(() => document.MoveFunction(id, plain, outer, 0, 0));
+        Assert.Equal(2, document.Trigger(id, new Names()).Actions.Count);
+    }
+
+    [Fact]
+    public void A_trigger_moved_to_the_map_itself_goes_in_a_category()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var root = document.Tree()[0].Id;
+        var other = document.Add("category", root);
+        var trigger = document.Add("trigger", other);
+
+        document.Move(trigger, root, 0);
+
+        var tree = document.Tree();
+        Assert.NotEqual(root, tree.Single(item => item.Id == trigger).Parent);
+        Assert.Equal("category", tree.Single(item => item.Id == tree.Single(each => each.Id == trigger).Parent).Kind);
     }
 
     [Fact]

@@ -51,6 +51,60 @@ export function treeRows(
   return rows;
 }
 
+/** Where on a tree row a drag points: above it, below it, or into a category. */
+export type DropPlace = "before" | "after" | "inside";
+
+/** Where a dragged item goes: a category, and its place there with the item taken out. */
+export type TreeDrop = { parent: number; index: number };
+
+/** What the height of a row a drag is at means: the middle of a category is inside it. */
+export function dropPlaceAt(y: number, height: number, container: boolean): DropPlace {
+  if (!container) return y < height / 2 ? "before" : "after";
+  if (y < height / 4) return "before";
+  return y > (height * 3) / 4 ? "after" : "inside";
+}
+
+/**
+ * Where dropping `dragged` at `place` on `target` puts it; null when it cannot go there: into itself, or anything but a
+ * category directly under the map, where World Editor's files have nothing else. Below an open category is its first
+ * place.
+ */
+export function treeDrop(
+  items: TreeItem[],
+  dragged: TreeItem,
+  target: TreeItem,
+  place: DropPlace,
+  isOpen: (item: TreeItem) => boolean,
+): TreeDrop | null {
+  if (dragged.kind === "root") return null;
+  for (let at: TreeItem | undefined = target; at; ) {
+    if (at.id === dragged.id) return null;
+    const parent: number = at.parent;
+    at = items.find((each) => each.id === parent);
+  }
+
+  const childrenOf = (parent: number): TreeItem[] =>
+    items.filter(
+      (each) => each.parent === parent && each.kind !== "root" && each.id !== dragged.id,
+    );
+  const atEnd = (parent: number): TreeDrop => ({ parent, index: childrenOf(parent).length });
+  const holds = target.kind === "category" || target.kind === "root";
+
+  if (target.kind === "root") return dragged.kind === "category" ? atEnd(target.id) : null;
+  if (place === "inside" && holds) return atEnd(target.id);
+  if (place === "after" && holds && isOpen(target) && childrenOf(target.id).length > 0) {
+    return { parent: target.id, index: 0 };
+  }
+
+  const root = items.find((each) => each.kind === "root");
+  if (target.parent === root?.id && dragged.kind !== "category") {
+    return holds ? atEnd(target.id) : null;
+  }
+
+  const index = childrenOf(target.parent).findIndex((each) => each.id === target.id);
+  return { parent: target.parent, index: place === "before" ? index : index + 1 };
+}
+
 /** The named values of a type. */
 export function presetsOf(catalog: Catalog, type: string): CatalogPreset[] {
   return catalog.presets.filter((preset) => preset.type === type);

@@ -194,8 +194,12 @@ public sealed partial class Commands
         "triggerFunctionDelete" => EditTriggers(document => document.DeleteFunction(Number(args, "id"), Text(args, "path"))),
         "triggerFunctionEnable" => EditTriggers(document =>
             document.EnableFunction(Number(args, "id"), Text(args, "path"), Flag(args, "enabled"))),
-        "triggerFunctionMove" => EditTriggers(document => new FunctionPlace(
-            document.MoveFunction(Number(args, "id"), Text(args, "path"), Number(args, "index")))),
+        "triggerFunctionMove" => EditTriggers(document => document.MoveFunction(
+            Number(args, "id"),
+            Text(args, "path"),
+            OptionalText(args, "parent"),
+            Number(args, "branch"),
+            Number(args, "index"))),
         "triggerParameter" => EditTriggers(document => document.SetParameter(
             Number(args, "id"), Text(args, "path"), new ParamInput(Text(args, "kind"), Text(args, "value")))),
         _ => throw new UnknownCommandException(command),

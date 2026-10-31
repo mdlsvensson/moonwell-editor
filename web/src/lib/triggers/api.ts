@@ -242,8 +242,9 @@ export async function enableFunction(id: number, path: string, enabled: boolean)
   await call<null>("triggerFunctionEnable", { id, path, enabled });
 }
 
-export async function moveFunction(id: number, path: string, index: number): Promise<string> {
-  return (await call<{ path: string }>("triggerFunctionMove", { id, path, index })).path;
+/** Moves a function to a place, counted with it taken out. */
+export async function moveFunction(id: number, path: string, place: FunctionPlace): Promise<void> {
+  await call<null>("triggerFunctionMove", { id, path, ...place });
 }
 
 export async function setParameter(

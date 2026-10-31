@@ -24,6 +24,13 @@ type Props = {
   onmenu: (function_: FunctionView, x: number, y: number) => void;
   onadd: (parent: FunctionView, block: BlockView) => void;
   onmenublock: (parent: FunctionView, block: BlockView, x: number, y: number) => void;
+  /** Where a drag would land: a function's path with `:before` or `:after`, or a parent's with `:block` and its branch. */
+  dropKey: string | null;
+  ondragfunction: (function_: FunctionView) => void;
+  onoverfunction: (event: DragEvent, function_: FunctionView) => void;
+  onoverblock: (event: DragEvent, parent: FunctionView, block: BlockView) => void;
+  ondropfunction: (event: DragEvent) => void;
+  ondragdone: () => void;
 };
 
 let {
@@ -39,6 +46,12 @@ let {
   onmenu,
   onadd,
   onmenublock,
+  dropKey,
+  ondragfunction,
+  onoverfunction,
+  onoverblock,
+  ondropfunction,
+  ondragdone,
 }: Props = $props();
 
 // Blocks start open, as World Editor shows them; the user closes one here.
@@ -55,10 +68,30 @@ const indent = $derived(`${depth * 18 + 6}px`);
     ? 'bg-accent-lo'
     : 'hover:bg-hover'}"
   style:padding-left={indent}
+  class:shadow-[inset_0_2px_0_var(--accent)]={dropKey === `${function_.path}:before`}
+  class:shadow-[inset_0_-2px_0_var(--accent)]={dropKey === `${function_.path}:after`}
   role="treeitem"
   aria-selected={selected === function_.path}
   tabindex="-1"
   data-function={function_.path}
+  draggable={!readOnly}
+  ondragstart={(event) => {
+    event.stopPropagation();
+    ondragfunction(function_);
+    if (event.dataTransfer) {
+      event.dataTransfer.setData("text/plain", function_.name);
+      event.dataTransfer.effectAllowed = "move";
+    }
+  }}
+  ondragover={(event) => {
+    event.stopPropagation();
+    onoverfunction(event, function_);
+  }}
+  ondrop={(event) => {
+    event.stopPropagation();
+    ondropfunction(event);
+  }}
+  ondragend={ondragdone}
   onclick={() => onselect(function_)}
   ondblclick={() => !readOnly && onchange(function_)}
   onkeydown={(event) => event.key === "Enter" && !readOnly && onchange(function_)}
@@ -92,8 +125,17 @@ const indent = $derived(`${depth * 18 + 6}px`);
 {#each function_.blocks as block (block.branch)}
   <div
     class="group flex items-center gap-1 py-[2px] pr-2 text-muted hover:bg-hover"
+    class:bg-accent-lo={dropKey === `${function_.path}:block${block.branch}`}
     style:padding-left={`${(depth + 1) * 18 + 6}px`}
     role="presentation"
+    ondragover={(event) => {
+      event.stopPropagation();
+      onoverblock(event, function_, block);
+    }}
+    ondrop={(event) => {
+      event.stopPropagation();
+      ondropfunction(event);
+    }}
     oncontextmenu={(event) => {
       event.preventDefault();
       onmenublock(function_, block, event.clientX, event.clientY);
@@ -135,6 +177,12 @@ const indent = $derived(`${depth * 18 + 6}px`);
         {onmenu}
         {onadd}
         {onmenublock}
+        {dropKey}
+        {ondragfunction}
+        {onoverfunction}
+        {onoverblock}
+        {ondropfunction}
+        {ondragdone}
       />
     {/each}
   {/if}

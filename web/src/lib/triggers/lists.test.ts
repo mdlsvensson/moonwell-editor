@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { Catalog, CatalogFunction, TreeItem, TriggerView, Variable } from "./api.ts";
 import {
   callsFor,
+  dropPlaceAt,
   findParameter,
   functionsOf,
   functionTitle,
   objectKindOf,
   pickKindOf,
   presetsOf,
+  treeDrop,
   treeRows,
   valueOffered,
   variablesFor,
@@ -118,6 +120,65 @@ describe("treeRows", () => {
   it("a filter finds what is in a closed category, with the categories around it", () => {
     const rows = treeRows(items, () => false, "scor");
     expect(rows.map((row) => row.item.id)).toEqual([0, 3, 4]);
+  });
+});
+
+describe("treeDrop", () => {
+  const item = (id: number, parent: number, kind: TreeItem["kind"]): TreeItem => ({
+    id,
+    parent,
+    kind,
+    name: String(id),
+    enabled: true,
+    expanded: false,
+    ref: "",
+  });
+  const items = [
+    item(0, -1, "root"),
+    item(1, 0, "category"),
+    item(2, 1, "trigger"),
+    item(3, 1, "trigger"),
+    item(4, 1, "category"),
+    item(5, 4, "trigger"),
+    item(6, 0, "category"),
+    item(7, 6, "variable"),
+  ];
+  const at = (id: number): TreeItem => items.find((each) => each.id === id) as TreeItem;
+  const closed = (): boolean => false;
+  const open = (): boolean => true;
+
+  it("puts an item before or after another, counted with it taken out", () => {
+    expect(treeDrop(items, at(2), at(3), "after", closed)).toEqual({ parent: 1, index: 1 });
+    expect(treeDrop(items, at(3), at(2), "before", closed)).toEqual({ parent: 1, index: 0 });
+  });
+
+  it("puts an item at the end of a category it is dropped into", () => {
+    expect(treeDrop(items, at(2), at(6), "inside", closed)).toEqual({ parent: 6, index: 1 });
+  });
+
+  it("below an open category is its first place", () => {
+    expect(treeDrop(items, at(7), at(4), "after", open)).toEqual({ parent: 4, index: 0 });
+  });
+
+  it("refuses an item on itself or inside itself", () => {
+    expect(treeDrop(items, at(1), at(1), "inside", closed)).toBeNull();
+    expect(treeDrop(items, at(1), at(5), "before", closed)).toBeNull();
+  });
+
+  it("keeps everything but categories out of the map itself", () => {
+    expect(treeDrop(items, at(2), at(0), "inside", closed)).toBeNull();
+    expect(treeDrop(items, at(2), at(6), "before", closed)).toEqual({ parent: 6, index: 1 });
+    expect(treeDrop(items, at(4), at(6), "before", closed)).toEqual({ parent: 0, index: 1 });
+  });
+});
+
+describe("dropPlaceAt", () => {
+  it("has a middle on a category and none on anything else", () => {
+    expect(dropPlaceAt(13, 26, true)).toBe("inside");
+    expect(dropPlaceAt(2, 26, true)).toBe("before");
+    expect(dropPlaceAt(24, 26, true)).toBe("after");
+    expect(dropPlaceAt(12, 26, false)).toBe("before");
+    expect(dropPlaceAt(14, 26, false)).toBe("after");
   });
 });
 

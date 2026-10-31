@@ -56,7 +56,13 @@ import {
 } from "./triggers/api.ts";
 import FunctionDialog from "./triggers/FunctionDialog.svelte";
 import FunctionRow from "./triggers/FunctionRow.svelte";
-import { findParameter, treeRows } from "./triggers/lists.ts";
+import {
+  type DropPlace,
+  dropPlaceAt,
+  findParameter,
+  treeDrop,
+  treeRows,
+} from "./triggers/lists.ts";
 import ParameterDialog from "./triggers/ParameterDialog.svelte";
 import { typedBox } from "./triggers/typedBox.ts";
 import VariableForm from "./triggers/VariableForm.svelte";
@@ -87,6 +93,19 @@ let changing = $state<FunctionView | null>(null);
 let parameters = $state<string[]>([]);
 let picking = $state(false);
 let deleting = $state<TreeItem | null>(null);
+// The tree item renamed in its row.
+let renaming = $state<number | null>(null);
+// The tree item dragged, and where it would land.
+let draggedItem = $state<TreeItem | null>(null);
+let dropAt = $state<{ id: number; place: DropPlace } | null>(null);
+// The function dragged, and where it would land: next to a function, or at a place of a block or a list.
+let draggedFunction = $state.raw<FunctionView | null>(null);
+let functionDrop = $state.raw<{
+  key: string;
+  target?: FunctionView;
+  after?: boolean;
+  place?: FunctionPlace;
+} | null>(null);
 
 const readOnly = $derived(tree?.readOnly ?? true);
 const item = $derived(tree?.items.find((each) => each.id === selected) ?? null);
@@ -201,13 +220,131 @@ function confirmDelete(): void {
   if (each) edit(() => deleteItem(each.id));
 }
 
-function move(each: TreeItem, by: number): void {
-  const siblings =
-    tree?.items.filter((other) => other.parent === each.parent && other.kind !== "root") ?? [];
-  const to = siblings.findIndex((other) => other.id === each.id) + by;
-  if (to >= 0 && to < siblings.length) {
-    edit(() => moveItem(each.id, each.parent, to));
+/** Starts renaming what is selected in its row (F2). */
+export function startRename(): void {
+  const shown = tree?.items.find((each) => each.id === selected);
+  if (shown && shown.kind !== "root" && !readOnly) renaming = shown.id;
+}
+
+// The rename box takes the cursor with its name selected; Enter or leaving it renames, Esc gives up.
+function focusRename(input: HTMLInputElement): void {
+  input.focus();
+  input.select();
+}
+
+function finishRename(each: TreeItem, name: string | null): void {
+  if (renaming !== each.id) return;
+  renaming = null;
+  const typed = name?.trim();
+  if (!typed || typed === each.name) return;
+  const variable = tree?.variables.find((other) => other.id === each.id);
+  if (each.kind === "variable" && variable) {
+    const { id, ...fields } = variable;
+    edit(() => setVariable(id, { ...fields, name: typed }));
+  } else {
+    edit(() => renameItem(each.id, typed));
   }
+}
+
+// How long a drag rests on a closed category before it opens.
+const openAfter = 600;
+let opening: ReturnType<typeof setTimeout> | undefined;
+
+function rowDragOver(event: DragEvent, row: TreeItem): void {
+  const dragged = draggedItem;
+  if (!dragged || !tree) return;
+  const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const holds = row.kind === "category" || row.kind === "root";
+  const place = dropPlaceAt(event.clientY - box.top, box.height, holds);
+  const found = treeDrop(tree.items, dragged, row, place, isOpen);
+  if (!found) {
+    dropAt = null;
+    return;
+  }
+
+  event.preventDefault();
+  if (dropAt?.id !== row.id || dropAt.place !== place) {
+    clearTimeout(opening);
+    if (place === "inside" && row.kind === "category" && !isOpen(row)) {
+      opening = setTimeout(() => (toggled[row.id] = true), openAfter);
+    }
+  }
+
+  dropAt = { id: row.id, place };
+}
+
+function rowDrop(event: DragEvent, row: TreeItem): void {
+  event.preventDefault();
+  const dragged = draggedItem;
+  const place = dropAt?.id === row.id ? dropAt.place : null;
+  endDrag();
+  if (!dragged || !tree || !place) return;
+  const found = treeDrop(tree.items, dragged, row, place, isOpen);
+  if (found) {
+    toggled[found.parent] = true;
+    edit(() => moveItem(dragged.id, found.parent, found.index));
+  }
+}
+
+function endDrag(): void {
+  clearTimeout(opening);
+  draggedItem = null;
+  dropAt = null;
+  draggedFunction = null;
+  functionDrop = null;
+}
+
+// True when a function being dragged may go next to or into `path`: not inside itself.
+function outsideDragged(path: string): boolean {
+  const dragged = draggedFunction;
+  return !!dragged && path !== dragged.path && !path.startsWith(`${dragged.path}/`);
+}
+
+function overFunction(event: DragEvent, target: FunctionView): void {
+  if (draggedFunction?.kind !== target.kind || !outsideDragged(target.path)) return;
+  event.preventDefault();
+  const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const after = event.clientY - box.top > box.height / 2;
+  functionDrop = { key: `${target.path}:${after ? "after" : "before"}`, target, after };
+}
+
+function overBlock(event: DragEvent, parent: FunctionView, block: BlockView): void {
+  if (draggedFunction?.kind !== block.kind || !outsideDragged(parent.path)) return;
+  event.preventDefault();
+  functionDrop = { key: `${parent.path}:block${block.branch}`, place: blockPlace(parent, block) };
+}
+
+function overSection(event: DragEvent, kind: FunctionKind): void {
+  if (draggedFunction?.kind !== kind) return;
+  event.preventDefault();
+  functionDrop = { key: `section:${kind}`, place: { parent: null, branch: 0, index: atEnd } };
+}
+
+function dropFunction(event: DragEvent): void {
+  event.preventDefault();
+  const dragged = draggedFunction;
+  const at = functionDrop;
+  const id = selected;
+  endDrag();
+  if (!dragged || !at || id === null) return;
+  let place = at.place;
+  if (at.target) {
+    const target = at.target;
+    const siblings = siblingsOf(target).filter((each) => each.path !== dragged.path);
+    const index = siblings.findIndex((each) => each.path === target.path) + (at.after ? 1 : 0);
+    place = { parent: parentOf(target), branch: target.branch ?? 0, index };
+  }
+
+  if (place) {
+    const to = place;
+    edit(() => moveFunction(id, dragged.path, to));
+  }
+}
+
+// The path of the function a function is in; null for one in a trigger's own list.
+function parentOf(function_: FunctionView): string | null {
+  const parts = function_.path.split("/");
+  return parts.length > 1 ? parts.slice(0, -1).join("/") : null;
 }
 
 function itemMenu(each: TreeItem, x: number, y: number): void {
@@ -228,9 +365,12 @@ function itemMenu(each: TreeItem, x: number, y: number): void {
         : [
             ...creating,
             { separator: true },
-            { label: t("triggers.moveUp"), disabled: readOnly, run: () => move(each, -1) },
-            { label: t("triggers.moveDown"), disabled: readOnly, run: () => move(each, 1) },
-            { separator: true },
+            {
+              label: t("menu.rename"),
+              shortcut: "F2",
+              disabled: readOnly,
+              run: () => (renaming = each.id),
+            },
             {
               label: t("triggers.delete"),
               danger: true,
@@ -320,16 +460,6 @@ function functionMenu(function_: FunctionView, x: number, y: number): void {
         disabled: readOnly,
         run: () => edit(() => enableFunction(id, function_.path, !function_.enabled)),
       },
-      {
-        label: t("triggers.moveUp"),
-        disabled: readOnly || at <= 0,
-        run: () => edit(() => moveFunction(id, function_.path, at - 1)),
-      },
-      {
-        label: t("triggers.moveDown"),
-        disabled: readOnly || at < 0 || at >= siblings.length - 1,
-        run: () => edit(() => moveFunction(id, function_.path, at + 1)),
-      },
       { separator: true },
       {
         label: t("triggers.delete"),
@@ -353,9 +483,7 @@ async function copy(id: number, function_: FunctionView): Promise<void> {
 function paste(near: FunctionView, index: number): void {
   const id = selected;
   if (id === null) return;
-  const parts = near.path.split("/");
-  const inBlock = parts.length > 1;
-  const parent = inBlock ? parts.slice(0, -1).join("/") : null;
+  const parent = parentOf(near);
   const branch = near.branch ?? 0;
   edit(() => pasteFunction(id, { parent, branch, index }));
 }
@@ -448,8 +576,8 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
 </script>
 
 {#snippet section(title: string, kind: FunctionKind, functions: FunctionView[])}
-  <section class="mt-3">
-    <div class="group flex items-center gap-1 border-b border-line pb-1">
+  <section class="mt-3" aria-label={title} ondragover={(event) => overSection(event, kind)} ondrop={dropFunction}>
+    <div class="group flex items-center gap-1 border-b {functionDrop?.key === `section:${kind}` ? 'border-accent' : 'border-line'} pb-1">
       <h3 class="m-0 font-heading text-[13.5px] font-bold text-fg">{title}</h3>
       {#if !readOnly}
         <button
@@ -479,6 +607,12 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
             onmenu={functionMenu}
             onadd={(parent, block) => addTo(block.kind, blockPlace(parent, block))}
             onmenublock={blockMenu}
+            dropKey={functionDrop?.key ?? null}
+            ondragfunction={(each) => (draggedFunction = each)}
+            onoverfunction={overFunction}
+            onoverblock={overBlock}
+            ondropfunction={dropFunction}
+            ondragdone={endDrag}
           />
         {:else}
           <p class="m-0 px-1.5 py-1 text-faint">{t("triggers.empty")}</p>
@@ -514,18 +648,35 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
       {#each rows as row (row.item.id)}
         {@const Icon = iconOf[row.item.kind]}
         <div
-          class="flex h-[26px] items-center gap-1 pr-2 {selected === row.item.id ? 'bg-accent-lo text-fg' : 'text-body hover:bg-hover'}"
+          class="flex h-[26px] items-center gap-1 pr-2 {dropAt?.id === row.item.id && dropAt.place === 'inside' ? 'bg-accent-lo text-fg outline-1 -outline-offset-1 outline-accent' : selected === row.item.id ? 'bg-accent-lo text-fg' : 'text-body hover:bg-hover'}"
+          class:shadow-[inset_0_2px_0_var(--accent)]={dropAt?.id === row.item.id && dropAt.place === "before"}
+          class:shadow-[inset_0_-2px_0_var(--accent)]={dropAt?.id === row.item.id && dropAt.place === "after"}
           style:padding-left={`${row.depth * 16 + 4}px`}
           role="treeitem"
           aria-selected={selected === row.item.id}
           aria-expanded={row.children ? isOpen(row.item) : undefined}
           tabindex="-1"
+          draggable={!readOnly && row.item.kind !== "root" && renaming !== row.item.id}
           onclick={() => select(row.item.id)}
-          onkeydown={(event) => event.key === "Enter" && select(row.item.id)}
+          onkeydown={(event) => event.key === "Enter" && renaming !== row.item.id && select(row.item.id)}
           oncontextmenu={(event) => {
             event.preventDefault();
             itemMenu(row.item, event.clientX, event.clientY);
           }}
+          ondragstart={(event) => {
+            draggedItem = row.item;
+            if (event.dataTransfer) {
+              event.dataTransfer.setData("text/plain", row.item.name);
+              event.dataTransfer.effectAllowed = "move";
+            }
+          }}
+          ondragover={(event) => rowDragOver(event, row.item)}
+          ondragleave={() => {
+            clearTimeout(opening);
+            dropAt = null;
+          }}
+          ondrop={(event) => rowDrop(event, row.item)}
+          ondragend={endDrag}
         >
           {#if row.children && row.item.kind !== "root"}
             <button
@@ -543,7 +694,24 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
             <span class="w-[14px] shrink-0"></span>
           {/if}
           <Icon size={15} class="shrink-0 {row.item.enabled ? 'text-muted' : 'text-faint'}" />
-          <span class="truncate {row.item.enabled ? '' : 'text-faint'}">{row.item.kind === "root" ? t("triggers.mapHeader") : row.item.name}</span>
+          {#if renaming === row.item.id}
+            <input
+              class="min-w-0 flex-1 rounded-[3px] border border-accent bg-bg px-1 py-0 text-fg outline-none"
+              value={row.item.name}
+              aria-label={t("triggers.name")}
+              spellcheck="false"
+              {@attach focusRename}
+              onclick={(event) => event.stopPropagation()}
+              onkeydown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") finishRename(row.item, event.currentTarget.value);
+                else if (event.key === "Escape") finishRename(row.item, null);
+              }}
+              onblur={(event) => finishRename(row.item, event.currentTarget.value)}
+            />
+          {:else}
+            <span class="truncate {row.item.enabled ? '' : 'text-faint'}">{row.item.kind === "root" ? t("triggers.mapHeader") : row.item.name}</span>
+          {/if}
         </div>
       {/each}
     </div>
