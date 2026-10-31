@@ -38,7 +38,8 @@ export type ErrorCode =
   | "failed"
   | "gameDataMissing"
   | "gameDataLoading"
-  | "gameDataFailed";
+  | "gameDataFailed"
+  | "triggerEdit";
 
 /** The map that was opened or reloaded. */
 export type MapInfo = {

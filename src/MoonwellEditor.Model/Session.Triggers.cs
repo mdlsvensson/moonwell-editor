@@ -1,4 +1,8 @@
+using System.Text;
+using MoonwellEditor.Files;
 using MoonwellEditor.Triggers;
+using War3Net.Build.Extensions;
+using War3Net.Build.Info;
 
 namespace MoonwellEditor.Model;
 
@@ -9,8 +13,14 @@ namespace MoonwellEditor.Model;
 /// </summary>
 public sealed partial class Session : ITriggerNames
 {
+    private const string ScriptName = "war3map.j";
+    private const string ScriptNameInFolder = @"scripts\war3map.j";
+
     // The triggers as edited; null until the trigger editor asks, and after a reload.
     private TriggerDocument? _triggers;
+
+    // Why the last Changes left the script as it is; "" when it did not.
+    private string _scriptNote = "";
 
     /// <summary>The map's triggers, read with <paramref name="catalog"/> the first time.</summary>
     public TriggerDocument Triggers(TriggerCatalog catalog)
@@ -93,15 +103,72 @@ public sealed partial class Session : ITriggerNames
     private bool Differs(string name, byte[]? bytes) =>
         bytes != null && !SameBytes(bytes, _baseline.GetValueOrDefault(name));
 
-    // The trigger files, added to what a save writes.
+    // The trigger files, added to what a save writes, and the script when they changed. Why a script could not be
+    // written is the save's note: the triggers are saved all the same, as World Editor saves a map with script errors.
     private void AddTriggerChanges(List<(string Name, byte[] Bytes)> changes)
     {
-        if (_triggers == null)
+        _scriptNote = "";
+        if (_triggers == null || !TriggersChanged())
         {
             return;
         }
 
         AddChange(changes, TriggerDocument.TriggersFile, _triggers.TriggerBytes());
         AddChange(changes, TriggerDocument.CustomTextFile, _triggers.CustomTextBytes());
+        var info = ReadInfo();
+        if (info == null)
+        {
+            _scriptNote = Texts.Get("app.triggers.noInfo");
+        }
+        else if (info.ScriptLanguage == ScriptLanguage.Lua)
+        {
+            _scriptNote = Texts.Get("app.triggers.luaScript");
+        }
+        else
+        {
+            AddScript(changes, info);
+        }
+    }
+
+    private MapInfo? ReadInfo()
+    {
+        if (_store.Read(MapInfo.FileName) is not { } bytes)
+        {
+            return null;
+        }
+
+        using var reader = new BinaryReader(new MemoryStream(bytes));
+        return reader.ReadMapInfo();
+    }
+
+    private void AddScript(List<(string Name, byte[] Bytes)> changes, MapInfo info)
+    {
+        var name = _store.Read(ScriptName) != null ? ScriptName : ScriptNameInFolder;
+        if (_store.Read(name) is not { } bytes)
+        {
+            _scriptNote = Texts.Get("app.triggers.noScript");
+            return;
+        }
+
+        string script;
+        try
+        {
+            script = StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            _scriptNote = Texts.Get("app.triggers.scriptEncoding");
+            return;
+        }
+
+        var written = TriggerScript.Write(script, _triggers!, info, out var problem);
+        if (written == null)
+        {
+            _scriptNote = problem ?? "";
+            return;
+        }
+
+        _baseline[name] = bytes;
+        AddChange(changes, name, StrictUtf8.GetBytes(written));
     }
 }

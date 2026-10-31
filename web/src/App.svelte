@@ -78,6 +78,7 @@ import TableView, { type EditResult } from "./lib/TableView.svelte";
 import TitleBar, { type Visit } from "./lib/TitleBar.svelte";
 import TooltipEditor from "./lib/TooltipEditor.svelte";
 import Tree from "./lib/Tree.svelte";
+import TriggerEditor from "./lib/TriggerEditor.svelte";
 import { newTableState, type TableState } from "./lib/table.ts";
 import { t, tCount, tParts } from "./lib/text.ts";
 import { applyTheme, savedTheme, saveTheme, type Theme } from "./lib/themes.ts";
@@ -170,9 +171,10 @@ let choiceLists = $state.raw<Record<string, ChoiceList> | null>(null);
 
 // Which view the middle of the window shows: the selected object's details, the kind's table, or the map (the
 // Terrain Editor button; read only for now).
-let page = $state<"details" | "table" | "map">("details");
+let page = $state<"details" | "table" | "map" | "triggers">("details");
+let triggerEditor: { refresh(): Promise<void> } | undefined = $state();
 // While something asks the map for a pick (the trigger editor), the map shows; then the page it came from again.
-let beforePick: "details" | "table" | null = null;
+let beforePick = $state<"details" | "table" | "triggers" | null>(null);
 $effect(() => {
   if ($picking.kind !== null && page !== "map" && map) {
     beforePick = page;
@@ -509,7 +511,7 @@ async function undoOrRedo(again: boolean): Promise<void> {
       return;
     }
     say(again ? t("notice.redone") : t("notice.undone"));
-    await Promise.all([refreshTrees(), refreshObject()]);
+    await Promise.all([refreshTrees(), refreshObject(), triggerEditor?.refresh()]);
   } catch (error) {
     say(message(error), { warn: true });
   }
@@ -1229,7 +1231,20 @@ onMount(() => {
       >
         <MountainSnow size={17} />
       </button>
-      {#each [{ name: t("header.triggerEditor"), Icon: Workflow }, { name: t("header.soundEditor"), Icon: AudioLines }, { name: t("header.campaignEditor"), Icon: BookOpen }, { name: t("header.aiEditor"), Icon: Bot }, { name: t("header.assetManager"), Icon: Package }] as each (each.name)}
+      <button
+        type="button"
+        class="rounded-[5px] p-1.5 {page === 'triggers'
+          ? 'bg-accent-lo text-accent-hi'
+          : 'text-muted hover:bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted'}"
+        title={t("header.triggerEditor")}
+        aria-label={t("header.triggerEditor")}
+        aria-pressed={page === "triggers"}
+        disabled={!map}
+        onclick={() => (page = "triggers")}
+      >
+        <Workflow size={17} />
+      </button>
+      {#each [{ name: t("header.soundEditor"), Icon: AudioLines }, { name: t("header.campaignEditor"), Icon: BookOpen }, { name: t("header.aiEditor"), Icon: Bot }, { name: t("header.assetManager"), Icon: Package }] as each (each.name)}
         <button
           type="button"
           class="rounded-[5px] p-1.5 text-muted opacity-50"
@@ -1306,6 +1321,19 @@ onMount(() => {
         <!-- A map opened or reloaded is a new object: the view is made again and reads it. -->
         {#key map}
           <MapView mode={graphics.mode} />
+        {/key}
+      </main>
+    {/if}
+    <!-- The trigger editor stays in the page while the map shows for a pick, so its dialogs and place come back. -->
+    {#if page === "triggers" || beforePick === "triggers"}
+      <main class="min-h-0 {page === 'triggers' ? '' : 'hidden'}" aria-label={t("main.triggers")}>
+        {#key map}
+          <TriggerEditor
+            bind:this={triggerEditor}
+            mode={graphics.mode}
+            {queued}
+            onnotice={(text, warn) => say(text, { warn })}
+          />
         {/key}
       </main>
     {/if}

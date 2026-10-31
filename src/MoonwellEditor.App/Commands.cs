@@ -2,6 +2,7 @@ using System.Text.Json;
 using MoonwellEditor.Files;
 using MoonwellEditor.Map;
 using MoonwellEditor.Model;
+using MoonwellEditor.Triggers;
 using ChoiceList = MoonwellEditor.GameData.ChoiceList;
 using Data = MoonwellEditor.GameData.GameData;
 
@@ -108,7 +109,7 @@ public sealed record CellsChanged(int Changed);
 /// without a window.
 /// The window runs one command at a time; the map's commands rely on that.
 /// </summary>
-public sealed class Commands
+public sealed partial class Commands
 {
     private readonly Settings _settings;
     private readonly Func<string, string?> _askFolder;
@@ -308,6 +309,10 @@ public sealed class Commands
         {
             throw new CommandException(exception.Code, exception.Message);
         }
+        catch (TriggerEditException exception)
+        {
+            throw new CommandException("triggerEdit", exception.Message);
+        }
         catch (ChangedOnDiskException exception)
         {
             throw new CommandException("changedOnDisk", exception.Message);
@@ -357,6 +362,7 @@ public sealed class Commands
             "uiScale" => UiScale(Number(args, "percent")),
             "assetList" => AssetsOf(Text(args, "kind"), OptionalText(args, "mode") ?? "de"),
             "mapScene" => MapSceneOf(OptionalText(args, "mode") ?? "de"),
+            _ when command.StartsWith("trigger", StringComparison.Ordinal) => RunTrigger(command, args),
             _ => throw new UnknownCommandException(command),
         };
 

@@ -79,7 +79,7 @@ public sealed partial class Session
         var (written, backup, note) = _store.IsArchive ? SaveArchive(changes) : SaveFolder(changes, previous);
         _history.Saved();
         _savedObjects = Describe();
-        return new SaveReport(written, backup, note);
+        return new SaveReport(written, backup, note.Length > 0 ? note : _scriptNote);
     }
 
     /// <summary>

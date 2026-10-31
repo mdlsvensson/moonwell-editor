@@ -83,6 +83,9 @@ public sealed class GameAssets : IDisposable, IMapGameFiles
     /// </summary>
     public byte[]? File(string path, string mode = "de") => FromMap(path) ?? _files?.Read(path, mode);
 
+    /// <summary>A file of the game itself in a graphics mode, whatever the map holds by that name; null when it has none.</summary>
+    public byte[]? GameFile(string path, string mode = "sd") => _files?.Read(path, mode);
+
     /// <summary>An icon (any texture) as PNG, in a graphics mode; null when there is none or it cannot be decoded.</summary>
     public byte[]? Icon(string path, string mode = "de")
     {
