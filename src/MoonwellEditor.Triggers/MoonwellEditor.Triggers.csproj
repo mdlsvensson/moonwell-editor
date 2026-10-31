@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MoonwellEditor.Model.Tests" />
+    <InternalsVisibleTo Include="MoonwellEditor.Triggers.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Sven's War3Net fork: its trigger renderer writes the script's trigger functions. -->
+    <PackageReference Include="Moonwell.War3Net.Build" Version="6.1.2-moonwell.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MoonwellEditor.Files\MoonwellEditor.Files.csproj" />
+  </ItemGroup>
+
+</Project>

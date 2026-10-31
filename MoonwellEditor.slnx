@@ -6,6 +6,7 @@
     <Project Path="src/MoonwellEditor.GameData/MoonwellEditor.GameData.csproj" />
     <Project Path="src/MoonwellEditor.Map/MoonwellEditor.Map.csproj" />
     <Project Path="src/MoonwellEditor.Model/MoonwellEditor.Model.csproj" />
+    <Project Path="src/MoonwellEditor.Triggers/MoonwellEditor.Triggers.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MoonwellEditor.App.Tests/MoonwellEditor.App.Tests.csproj" />
@@ -14,5 +15,6 @@
     <Project Path="tests/MoonwellEditor.GameData.Tests/MoonwellEditor.GameData.Tests.csproj" />
     <Project Path="tests/MoonwellEditor.Map.Tests/MoonwellEditor.Map.Tests.csproj" />
     <Project Path="tests/MoonwellEditor.Model.Tests/MoonwellEditor.Model.Tests.csproj" />
+    <Project Path="tests/MoonwellEditor.Triggers.Tests/MoonwellEditor.Triggers.Tests.csproj" />
   </Folder>
 </Solution>
