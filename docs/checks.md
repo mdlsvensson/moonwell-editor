@@ -2,6 +2,18 @@
 
 Checks a person made by hand, newest first. Each names the game version and what was looked at.
 
+## 2026-10-31: the app's trigger save runs in the game
+
+Game 3.0.1.24371. The same map as the World Editor check below. `War3Log.txt` shows the game opening it.
+
+Sven played it. The game loads the spliced `war3map.j`, and about a second in shows the name of a placed unit no trigger had
+named before (`Ice Troll Berserker`, from `gg_unit_nits_0047`, set after the line that makes it) and `Custom script ran`,
+from a custom script item called from a Custom Script action. Every 5 seconds it shows `Moonwell trigger ran`, then `Else
+block` the first time and `Then block, loop` twice each time after: a variable, an If with conditions and both blocks and
+a multiple-action loop. **Passed.**
+
+Single player only. Not seen in the game: a script from a save in the window itself, and a map larger than this one.
+
 ## 2026-10-31: the app's trigger save opens right in World Editor
 
 Game and World Editor 3.0.1.24371. Object Editor branch `triggers`, War3Net `6.1.2-moonwell.4`.
@@ -12,8 +24,6 @@ the window calls. Only `war3map.wtg`, `war3map.wct` and `war3map.j` were written
 
 Sven opened it in World Editor: it opens with no error, the new category holds all five items, `Moonwell Tick` reads as made
 with its If block and loop, and `Melee Initialization` is as it was. **Passed.**
-
-The game running the triggers is the next check.
 
 ## 2026-10-26: the app's archive save opens right in World Editor (milestone 4)
 
