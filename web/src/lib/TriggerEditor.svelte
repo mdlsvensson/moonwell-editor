@@ -17,6 +17,7 @@ import SquareFunction from "@lucide/svelte/icons/square-function";
 import Workflow from "@lucide/svelte/icons/workflow";
 import { onMount, tick, untrack } from "svelte";
 import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
+import Dialog from "./Dialog.svelte";
 import { t } from "./text.ts";
 import {
   addFunction,
@@ -82,6 +83,7 @@ let changing = $state<FunctionView | null>(null);
 // The parameters open, each inside the one before it.
 let parameters = $state<string[]>([]);
 let picking = $state(false);
+let deleting = $state<TreeItem | null>(null);
 
 const readOnly = $derived(tree?.readOnly ?? true);
 const item = $derived(tree?.items.find((each) => each.id === selected) ?? null);
@@ -128,7 +130,7 @@ export async function refresh(): Promise<void> {
 async function showSelected(): Promise<void> {
   const shown = selected === null ? undefined : tree?.items.find((each) => each.id === selected);
   const id = selected;
-  if (id !== null && shown && ["trigger", "script", "comment"].includes(shown.kind)) {
+  if (id !== null && shown && ["trigger", "custom", "script", "comment"].includes(shown.kind)) {
     view = await queued(() => triggerOf(id));
   } else {
     view = null;
@@ -190,12 +192,10 @@ async function addNewVariable(): Promise<void> {
   }
 }
 
-function askDelete(each: TreeItem): void {
-  const text =
-    each.kind === "category"
-      ? t("triggers.deleteAskCategory", { name: each.name })
-      : t("triggers.deleteAsk", { name: each.name });
-  if (confirm(text)) edit(() => deleteItem(each.id));
+function confirmDelete(): void {
+  const each = deleting;
+  deleting = null;
+  if (each) edit(() => deleteItem(each.id));
 }
 
 function move(each: TreeItem, by: number): void {
@@ -232,11 +232,14 @@ function itemMenu(each: TreeItem, x: number, y: number): void {
               label: t("triggers.delete"),
               danger: true,
               disabled: readOnly,
-              run: () => askDelete(each),
+              run: () => (deleting = each),
             },
           ],
   };
 }
+
+// A place after everything in a list.
+const atEnd = 2147483647;
 
 function addTo(kind: FunctionKind, place: FunctionPlace): void {
   const title =
@@ -249,11 +252,11 @@ function addTo(kind: FunctionKind, place: FunctionPlace): void {
 }
 
 function addToTrigger(kind: FunctionKind): void {
-  addTo(kind, { parent: null, branch: 0, index: Number.MAX_SAFE_INTEGER > 0 ? 2147483647 : 0 });
+  addTo(kind, { parent: null, branch: 0, index: atEnd });
 }
 
 function blockPlace(parent: FunctionView, block: BlockView): FunctionPlace {
-  return { parent: parent.path, branch: block.branch, index: 2147483647 };
+  return { parent: parent.path, branch: block.branch, index: atEnd };
 }
 
 async function pickedFunction(name: string): Promise<void> {
@@ -342,7 +345,7 @@ function paste(near: FunctionView, index: number): void {
   const parts = near.path.split("/");
   const inBlock = parts.length > 1;
   const parent = inBlock ? parts.slice(0, -1).join("/") : null;
-  const branch = 0;
+  const branch = near.branch ?? 0;
   edit(() => copyFunction(from.id, from.path, id, { parent, branch, index }));
 }
 
@@ -421,9 +424,10 @@ onMount(() => {
 });
 
 const iconOf: Record<TreeKind, typeof Folder> = {
-  root: Workflow,
+  root: FileCode,
   category: Folder,
   trigger: Workflow,
+  custom: FileCode,
   script: FileCode,
   comment: MessageSquare,
   variable: Braces,
@@ -574,12 +578,14 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
                 <input type="checkbox" checked={view.enabled} disabled={readOnly} onchange={(event) => options({ enabled: event.currentTarget.checked })} />
                 {t("triggers.enabled")}
               </label>
+            {/if}
+            {#if view.kind === "trigger" || view.kind === "custom"}
               <label class="flex items-center gap-1.5 whitespace-nowrap text-body">
                 <input type="checkbox" checked={view.initiallyOn} disabled={readOnly} onchange={(event) => options({ initiallyOn: event.currentTarget.checked })} />
                 {t("triggers.initiallyOn")}
               </label>
             {/if}
-            {#if view.kind === "script"}
+            {#if view.kind === "custom"}
               <label class="flex items-center gap-1.5 whitespace-nowrap text-body">
                 <input type="checkbox" checked={view.runOnInit} disabled={readOnly} onchange={(event) => options({ runOnInit: event.currentTarget.checked })} />
                 {t("triggers.runOnInit")}
@@ -590,7 +596,7 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
             <span class="mb-1 block text-muted">{t("triggers.comment")}</span>
             <textarea class="{box} {view.kind === 'comment' ? 'min-h-[320px]' : 'h-[58px]'} resize-none" value={view.description} disabled={readOnly} onchange={(event) => options({ description: event.currentTarget.value })}></textarea>
           </label>
-          {#if view.kind === "script"}
+          {#if view.kind === "script" || view.kind === "custom"}
             <label class="mt-3 flex min-h-0 flex-1 flex-col">
               <span class="mb-1 block text-muted">{t("triggers.code")}</span>
               <textarea class={code} spellcheck="false" value={view.code ?? ""} disabled={readOnly} onchange={(event) => { const text = event.currentTarget.value; const id = view?.id; if (id !== undefined) edit(() => setCode(id, text)); }}></textarea>
@@ -608,6 +614,21 @@ const code = `${box} min-h-[320px] flex-1 resize-none font-mono text-[12.5px] le
   </div>
 </div>
 
+{#if deleting}
+  <Dialog title={t("triggers.delete")} oncancel={() => (deleting = null)}>
+    {deleting.kind === "category"
+      ? t("triggers.deleteAskCategory", { name: deleting.name })
+      : t("triggers.deleteAsk", { name: deleting.name })}
+    {#snippet actions()}
+      <button type="button" class="rounded-md border border-line bg-raised px-3 py-1.5 text-fg hover:bg-hover" onclick={() => (deleting = null)}>
+        {t("triggers.close")}
+      </button>
+      <button type="button" data-primary class="rounded-md border border-accent bg-raised px-3 py-1.5 text-fg hover:bg-hover" onclick={confirmDelete}>
+        {t("triggers.delete")}
+      </button>
+    {/snippet}
+  </Dialog>
+{/if}
 {#if menu}
   <ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
 {/if}

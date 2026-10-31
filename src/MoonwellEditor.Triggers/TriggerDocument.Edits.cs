@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using MoonwellEditor.Files;
 using War3Net.Build.Script;
@@ -360,10 +361,17 @@ public sealed partial class TriggerDocument
 
         var type = path.EndsWith("/i", StringComparison.Ordinal) ? "integer" : TypeOfParameter(function, parameter);
         var made = Made(input, type);
+        var isVariableOfSet = function.Name == "SetVariable" && function.Parameters[0] == parameter;
         parameter.Type = made.Type;
         parameter.Value = made.Value;
         parameter.Function = made.Function;
         parameter.ArrayIndexer = made.ArrayIndexer;
+
+        // Set Variable's value has the variable's type, so another type of variable leaves it without one.
+        if (isVariableOfSet && TypeOfVariable(made.Value) != type)
+        {
+            function.Parameters[1] = new TriggerFunctionParameter { Type = TriggerFunctionParameterType.Undefined, Value = "" };
+        }
     }
 
     /// <summary>The name a trigger has in the script: <c>gg_trg_</c> and its name with spaces as underscores.</summary>
@@ -769,6 +777,7 @@ public sealed partial class TriggerDocument
                     ? new TriggerFunctionParameter { Type = TriggerFunctionParameterType.Preset, Value = input.Value }
                     : throw new ArgumentOutOfRangeException(nameof(input), input.Value, "No such preset.");
             case "value":
+                CheckNumber(input.Value, type);
                 return new TriggerFunctionParameter { Type = TriggerFunctionParameterType.String, Value = input.Value };
             case "function":
                 var kind = TypeForArgument(type);
@@ -788,6 +797,20 @@ public sealed partial class TriggerDocument
                 };
             default:
                 throw new ArgumentOutOfRangeException(nameof(input), input.Kind, "No such kind of value.");
+        }
+    }
+
+    private static void CheckNumber(string value, string type)
+    {
+        var fine = type switch
+        {
+            "integer" => int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _),
+            "real" => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _),
+            _ => true,
+        };
+        if (!fine)
+        {
+            throw new TriggerEditException(Texts.Get("app.triggers.notNumber", ("value", value)));
         }
     }
 

@@ -2,6 +2,7 @@ using System.Text;
 using Moonwell.GameData;
 using MoonwellEditor.Files;
 using MoonwellEditor.Triggers;
+using Xunit.Abstractions;
 
 namespace MoonwellEditor.Model.Tests;
 

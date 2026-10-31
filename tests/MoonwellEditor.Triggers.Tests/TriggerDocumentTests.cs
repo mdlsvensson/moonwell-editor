@@ -1,3 +1,6 @@
+using War3Net.Build.Extensions;
+using War3Net.Build.Script;
+
 namespace MoonwellEditor.Triggers.Tests;
 
 public sealed class TriggerDocumentTests(ITestOutputHelper output)
@@ -93,6 +96,39 @@ public sealed class TriggerDocumentTests(ITestOutputHelper output)
         var trigger = Assert.Single(tree, item => item.Kind == "trigger");
         Assert.Equal("Melee Initialization", trigger.Name);
         Assert.Equal(tree[1].Id, trigger.Parent);
+    }
+
+    [Fact]
+    public void An_older_format_shows_under_a_root_and_is_read_only()
+    {
+        var catalog = InstallMaps.Catalog;
+        if (catalog == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var old = new MapTriggers(MapTriggersFormatVersion.v7, null) { GameVersion = 2 };
+        old.TriggerItems.Add(new TriggerCategoryDefinition { Id = 5, Name = "Setup" });
+        foreach (var name in new[] { "One", "Two" })
+        {
+            old.TriggerItems.Add(new TriggerDefinition { Name = name, Description = "", ParentId = 5, IsEnabled = true });
+        }
+
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write(old);
+        writer.Flush();
+
+        var document = TriggerDocument.Read(stream.ToArray(), null, catalog);
+
+        Assert.True(document.ReadOnly);
+        Assert.NotNull(document.Problem);
+        var tree = document.Tree();
+        Assert.Equal(["root", "category", "trigger", "trigger"], tree.Select(item => item.Kind));
+        Assert.Equal(tree[0].Id, tree[1].Parent);
+        Assert.Equal(4, tree.Select(item => item.Id).Distinct().Count());
+        Assert.Null(document.TriggerBytes());
     }
 
     [Fact]

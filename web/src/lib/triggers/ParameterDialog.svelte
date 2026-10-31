@@ -70,7 +70,7 @@ const named = $derived.by(() => {
   }
   if (type === "trigger") {
     for (const item of items) {
-      if (item.kind === "trigger" || item.kind === "script") {
+      if (item.kind === "trigger" || item.kind === "custom") {
         list.push({
           value: `gg_trg_${item.name.replaceAll(" ", "_")}`,
           text: `${item.name} <gen>`,

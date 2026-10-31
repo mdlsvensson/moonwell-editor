@@ -337,6 +337,39 @@ public sealed class TriggerEditTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_number_is_checked_and_another_kind_of_variable_clears_the_value_set()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        var wait = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        document.AddVariable(new VariableInput("Delay", "real", false, 1, ""), category);
+        document.AddVariable(new VariableInput("Pause", "real", false, 1, ""), category);
+        document.AddVariable(new VariableInput("Count", "integer", false, 1, ""), category);
+
+        Assert.Throws<TriggerEditException>(() => document.SetParameter(id, wait + "/p0", new ParamInput("value", "soon")));
+
+        var set = document.AddFunction(id, null, 0, 0, "action", "SetVariable");
+        document.SetParameter(id, set + "/p0", new ParamInput("variable", "Delay"));
+        document.SetParameter(id, set + "/p1", new ParamInput("value", "1.5"));
+        document.SetParameter(id, set + "/p0", new ParamInput("variable", "Pause"));
+
+        var parts = document.Trigger(id, new Names()).Actions[0].Sentence.Where(part => part.Parameter != null).ToList();
+        Assert.Equal("value", parts[1].Parameter!.Kind);
+
+        document.SetParameter(id, set + "/p0", new ParamInput("variable", "Count"));
+
+        parts = document.Trigger(id, new Names()).Actions[0].Sentence.Where(part => part.Parameter != null).ToList();
+        Assert.Equal("none", parts[1].Parameter!.Kind);
+    }
+
+    [Fact]
     public void Names_are_checked()
     {
         var document = LostTemple();

@@ -50,6 +50,7 @@ public sealed record BlockView(int Branch, string Title, string Kind, IReadOnlyL
 /// <param name="Kind"><c>event</c>, <c>condition</c>, <c>action</c> or <c>call</c>.</param>
 /// <param name="Category">Its category's key.</param>
 /// <param name="Enabled">False when it is turned off.</param>
+/// <param name="Branch">The block it is in; null for one in a trigger's own list or a parameter.</param>
 /// <param name="Prefix">The category's name when World Editor shows it before the sentence; empty for none.</param>
 /// <param name="Sentence">Its sentence.</param>
 /// <param name="Blocks">Its blocks, for a function that holds others.</param>
@@ -59,6 +60,7 @@ public sealed record FunctionView(
     string Kind,
     string Category,
     bool Enabled,
+    int? Branch,
     string Prefix,
     IReadOnlyList<TextPart> Sentence,
     IReadOnlyList<BlockView> Blocks);
@@ -123,7 +125,7 @@ public sealed partial class TriggerDocument
             Of(TriggerFunctionType.Event),
             Of(TriggerFunctionType.Condition),
             Of(TriggerFunctionType.Action),
-            definition.IsCustomTextTrigger ? CodeOf(id) ?? "" : null);
+            definition.IsCustomTextTrigger || definition.Type == TriggerItemType.Script ? CodeOf(id) ?? "" : null);
 
         List<FunctionView> Of(TriggerFunctionType type) =>
             functions.Where(each => each.Function.Type == type).Select(each => each.View).ToList();
@@ -185,6 +187,7 @@ public sealed partial class TriggerDocument
             entry.Kind,
             entry.Category,
             function.IsEnabled,
+            function.Branch,
             category is { Shown: true } ? category.Title : "",
             parts,
             blocks.ToList());

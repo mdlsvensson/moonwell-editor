@@ -50,7 +50,14 @@ export type Catalog = {
   functions: CatalogFunction[];
 };
 
-export type TreeKind = "root" | "category" | "trigger" | "script" | "comment" | "variable";
+export type TreeKind =
+  | "root"
+  | "category"
+  | "trigger"
+  | "custom"
+  | "script"
+  | "comment"
+  | "variable";
 
 export type TreeItem = {
   id: number;
@@ -111,6 +118,8 @@ export type FunctionView = {
   kind: FunctionKind;
   category: string;
   enabled: boolean;
+  /** The block it is in; null in a trigger's own list. */
+  branch: number | null;
   prefix: string;
   sentence: TextPart[];
   blocks: BlockView[];

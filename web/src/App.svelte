@@ -1017,6 +1017,8 @@ function onkeydown(event: KeyboardEvent): void {
   // The keys of the keymap, which the settings change (Sven, 2026-10-27).
   const action = actionOf(event, keymap);
   if (!action) return;
+  // The object editor's keys do nothing in the trigger editor.
+  if (page === "triggers" && !["save", "settings", "undo", "redo"].includes(action)) return;
   switch (action) {
     case "save":
       event.preventDefault();

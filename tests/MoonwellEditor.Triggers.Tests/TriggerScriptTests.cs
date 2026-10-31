@@ -30,6 +30,55 @@ public sealed class TriggerScriptTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_custom_script_goes_with_the_maps_own_and_has_no_trigger_function()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open(InstallMaps.WarChasers);
+        if (catalog == null || store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = Read(store, catalog);
+        var category = document.Tree().First(item => item.Kind == "category").Id;
+        var script = document.Add("script", category);
+        document.SetCode(script, "function Hello takes nothing returns nothing\nendfunction");
+        document.SetHeader("", "function Top takes nothing returns nothing\nendfunction");
+
+        var written = TriggerScript.Write(Encoding.UTF8.GetString(store.Read("war3map.j")!), document, Info(store), out var problem);
+
+        Assert.Null(problem);
+        Assert.True(written!.IndexOf("function Top", StringComparison.Ordinal) < written.IndexOf("function Hello", StringComparison.Ordinal));
+        Assert.True(written.IndexOf("function Hello", StringComparison.Ordinal) < written.IndexOf("//*  Sound Assets", StringComparison.Ordinal)
+            || !written.Contains("//*  Sound Assets", StringComparison.Ordinal));
+        Assert.DoesNotContain("InitTrig_Untitled_Script", written);
+        Assert.DoesNotContain("gg_trg_Untitled_Script", written);
+    }
+
+    [Fact]
+    public void A_parameter_with_no_value_is_a_problem_that_names_its_trigger()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open(InstallMaps.WarChasers);
+        if (catalog == null || store == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = Read(store, catalog);
+        var category = document.Tree().First(item => item.Kind == "category").Id;
+        var id = document.Add("trigger", category);
+        document.AddFunction(id, null, 0, 0, "action", "SetVariable");
+
+        var written = TriggerScript.Write(Encoding.UTF8.GetString(store.Read("war3map.j")!), document, Info(store), out var problem);
+
+        Assert.Null(written);
+        Assert.Contains("Untitled Trigger 001", problem);
+    }
+
+    [Fact]
     public void A_map_that_was_not_edited_gets_its_own_script_back()
     {
         var catalog = InstallMaps.Catalog;

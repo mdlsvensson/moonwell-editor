@@ -318,14 +318,26 @@ public sealed class TriggerScript : MapScriptBuilder
 
     private List<string> CustomSection()
     {
-        var code = _document.HeaderCode.Replace("\r\n", "\n").Trim('\0');
         var lines = new List<string>();
-        if (code.Length > 0)
+        var scripts = _document.Triggers.TriggerItems
+            .OfType<TriggerDefinition>()
+            .Where(definition => definition.Type == TriggerItemType.Script && definition.IsEnabled)
+            .Select(definition => _document.CodeOf(definition.Id) ?? "");
+        foreach (var each in scripts.Prepend(_document.HeaderCode))
         {
-            lines.AddRange(code.TrimEnd('\n').Split('\n'));
+            var code = each.Replace("\r\n", "\n").Trim('\0').TrimEnd('\n');
+            if (code.Length > 0)
+            {
+                lines.AddRange(code.Split('\n'));
+                lines.Add("");
+            }
         }
 
-        lines.Add("");
+        if (lines.Count == 0)
+        {
+            lines.Add("");
+        }
+
         return lines;
     }
 
@@ -392,10 +404,10 @@ public sealed class TriggerScript : MapScriptBuilder
             : definition.Functions.Any(function => function is
                 { Type: TriggerFunctionType.Event, IsEnabled: true, Name: "MapInitializationEvent" }));
 
-    // The triggers that are in the script.
+    // The triggers of the script. A custom script item is free code that goes with the map's own, so it has no function.
     private IEnumerable<TriggerDefinition> Definitions() => _document.Triggers.TriggerItems
         .OfType<TriggerDefinition>()
-        .Where(definition => definition.Type != TriggerItemType.Comment && !definition.IsComment);
+        .Where(definition => definition.Type == TriggerItemType.Gui && !definition.IsComment);
 
     private List<string> CustomTrigger(TriggerDefinition definition)
     {

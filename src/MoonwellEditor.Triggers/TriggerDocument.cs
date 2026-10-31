@@ -8,7 +8,10 @@ namespace MoonwellEditor.Triggers;
 /// <summary>One line of the trigger tree.</summary>
 /// <param name="Id">The item's id; a list of items is in tree order among the items of one parent.</param>
 /// <param name="Parent">The id of the category it is in; -1 for the map itself.</param>
-/// <param name="Kind"><c>root</c>, <c>category</c>, <c>trigger</c>, <c>script</c>, <c>comment</c> or <c>variable</c>.</param>
+/// <param name="Kind">
+/// <c>root</c>, <c>category</c>, <c>trigger</c>, <c>custom</c> (a trigger converted to text), <c>script</c> (free code
+/// with the map's own), <c>comment</c> or <c>variable</c>.
+/// </param>
 /// <param name="Name">Its name.</param>
 /// <param name="Enabled">False for a trigger that is switched off.</param>
 /// <param name="Expanded">True for a category shown open.</param>
@@ -27,6 +30,9 @@ public sealed partial class TriggerDocument
 
     /// <summary>The custom text's file.</summary>
     public const string CustomTextFile = "war3map.wct";
+
+    // The id of the tree's root in a file that has none: an older format, shown read only.
+    private const int NoRoot = -2;
 
     private readonly TriggerCatalog _catalog;
     private readonly bool _hadTriggers;
@@ -106,6 +112,7 @@ public sealed partial class TriggerDocument
         if (problem == null && parsedTriggers.SubVersion == null && triggers != null)
         {
             problem = Texts.Get("app.triggers.oldFormat");
+            document.NumberItems();
         }
 
         problem ??= writeProblem;
@@ -118,6 +125,13 @@ public sealed partial class TriggerDocument
     public IReadOnlyList<TriggerTreeItem> Tree()
     {
         var items = new List<TriggerTreeItem>();
+        var ids = Live().Select(item => item.Id).ToHashSet();
+        var rooted = Live().Any(item => item.Type == TriggerItemType.RootCategory);
+        if (!rooted)
+        {
+            items.Add(new TriggerTreeItem(NoRoot, -1, "root", "", true, true));
+        }
+
         foreach (var item in Live())
         {
             var (kind, enabled, expanded) = item switch
@@ -128,7 +142,8 @@ public sealed partial class TriggerDocument
                 TriggerDefinition definition => (KindOf(definition), definition.IsEnabled, false),
                 _ => ("", false, false),
             };
-            items.Add(new TriggerTreeItem(item.Id, item.ParentId, kind, item.Name, enabled, expanded));
+            var parent = rooted || ids.Contains(item.ParentId) ? item.ParentId : NoRoot;
+            items.Add(new TriggerTreeItem(item.Id, parent, kind, item.Name, enabled, expanded));
         }
 
         return items;
@@ -182,6 +197,16 @@ public sealed partial class TriggerDocument
         return stream.ToArray();
     }
 
+    // An older format gives only categories an id: the view needs one on every item, and this document is never written.
+    private void NumberItems()
+    {
+        var number = 0;
+        foreach (var definition in _triggers.TriggerItems.OfType<TriggerDefinition>())
+        {
+            definition.Id = ((int)TriggerItemTypeId.Gui << 24) | number++;
+        }
+    }
+
     private static MapTriggers Empty()
     {
         var triggers = new MapTriggers(MapTriggersFormatVersion.v7, MapTriggersSubVersion.v4) { GameVersion = 2 };
@@ -203,7 +228,8 @@ public sealed partial class TriggerDocument
     private static string KindOf(TriggerDefinition definition) => definition switch
     {
         { Type: TriggerItemType.Comment } => "comment",
-        { IsCustomTextTrigger: true } => "script",
+        { Type: TriggerItemType.Script } => "script",
+        { IsCustomTextTrigger: true } => "custom",
         _ => "trigger",
     };
 
