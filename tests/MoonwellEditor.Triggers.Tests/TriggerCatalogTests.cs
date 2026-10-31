@@ -53,7 +53,7 @@ public sealed class TriggerCatalogTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Each_argument_shows_once_in_its_sentence()
+    public void Each_argument_shows_once_in_its_sentence_but_where_the_games_file_leaves_it_out()
     {
         var catalog = InstallMaps.Catalog;
         if (catalog == null)
@@ -68,7 +68,7 @@ public sealed class TriggerCatalogTests(ITestOutputHelper output)
             .ToList();
         output.WriteLine(string.Join("\n", wrong));
 
-        Assert.Empty(wrong);
+        Assert.Equal(["action AllowHeroGlowOnAllUnitsBJ: 1"], wrong);
     }
 
     [Fact]

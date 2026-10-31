@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.RegularExpressions;
 using War3Net.Build.Extensions;
 using War3Net.Build.Script;
 
@@ -67,7 +68,7 @@ public sealed record CatalogFunction(
 /// The game's list of trigger functions, read from its <c>UI\TriggerData.txt</c>, with their text from World Editor's
 /// strings. The map's triggers can only be read with it: the file gives how many arguments each function has.
 /// </summary>
-public sealed class TriggerCatalog
+public sealed partial class TriggerCatalog
 {
     private const string None = "_";
 
@@ -422,62 +423,43 @@ public sealed class TriggerCatalog
     private static IReadOnlyList<string> Defaults(ImmutableArray<string>? defaults) =>
         defaults == null ? [] : Defaults(defaults.Value);
 
-    // A sentence's pieces, split at the commas outside quotes. A piece that starts with ~ is an argument; the rest is
-    // text. A few sentences still start with the function's name, as the old file's did: that piece is not shown.
+    // A sentence: arguments start with ~, and what lies between them is text in quotes. The game's file drops quotes and
+    // commas here and there, so an argument is found first and the text is what is left. A few sentences still start
+    // with the function's name, as the old file's did: that piece is not shown.
     private List<SentencePart> Sentence(string? text, string? title)
     {
         var parts = new List<SentencePart>();
-        var pieces = Pieces(text ?? "");
-        var shownTitle = Title(title);
+        text ??= "";
+        var position = 0;
         var argument = 0;
-        for (var i = 0; i < pieces.Count; i++)
+        var first = true;
+        foreach (Match match in ArgumentPattern().Matches(text))
         {
-            var piece = pieces[i];
-
-            // PingMinimapLocForForceEx has no comma after a text: "... color ("~Red
-            var joined = piece.LastIndexOf("\"~", StringComparison.Ordinal);
-            if (joined > 0)
-            {
-                parts.Add(new SentencePart(Unquoted(piece[..(joined + 1)])));
-                piece = piece[(joined + 1)..];
-            }
-
-            if (piece.StartsWith('~'))
-            {
-                parts.Add(new SentencePart(piece[1..], argument++));
-            }
-            else if (i > 0 || pieces.Count == 1 || Unquoted(piece) != shownTitle)
-            {
-                parts.Add(new SentencePart(Unquoted(piece)));
-            }
+            AddText(text[position..match.Index]);
+            parts.Add(new SentencePart(match.Value[1..], argument++));
+            position = match.Index + match.Length;
         }
 
+        AddText(text[position..]);
         return parts;
+
+        void AddText(string gap)
+        {
+            var pieces = gap.Trim(',', '`').Split("\",\"");
+            for (var i = 0; i < pieces.Length; i++)
+            {
+                var piece = Unquoted(pieces[i].TrimStart('"')).TrimEnd('"');
+                var titleFirst = first && i == 0 && pieces.Length + argument > 1 && piece == Title(title);
+                if (piece.Length > 0 && !titleFirst)
+                {
+                    parts.Add(new SentencePart(piece));
+                }
+            }
+
+            first = false;
+        }
     }
 
-    private static List<string> Pieces(string text)
-    {
-        var pieces = new List<string>();
-        var quoted = false;
-        var start = 0;
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '"')
-            {
-                quoted = !quoted;
-            }
-            else if (text[i] == ',' && !quoted)
-            {
-                pieces.Add(text[start..i]);
-                start = i + 1;
-            }
-        }
-
-        if (start < text.Length)
-        {
-            pieces.Add(text[start..]);
-        }
-
-        return pieces;
-    }
+    [GeneratedRegex("""~[^,"`]+""")]
+    private static partial Regex ArgumentPattern();
 }
