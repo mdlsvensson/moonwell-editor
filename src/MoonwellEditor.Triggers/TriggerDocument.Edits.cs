@@ -367,7 +367,7 @@ public sealed partial class TriggerDocument
     }
 
     /// <summary>The name a trigger has in the script: <c>gg_trg_</c> and its name with spaces as underscores.</summary>
-    internal static string ScriptName(string name) => "gg_trg_" + name.Replace(' ', '_');
+    internal static string ScriptName(string name) => "gg_trg_" + TriggerJass.Identifier(name);
 
     /// <summary>
     /// Whether a type of a new variable's name is fine: a letter, then letters, digits and underscores, not ending in
@@ -879,6 +879,9 @@ public sealed partial class TriggerDocument
 
         return type;
     }
+
+    /// <summary>The type of a variable of the map or a generated one; null for neither.</summary>
+    internal string? VariableType(string name) => TypeOfVariable(name);
 
     private string? TypeOfVariable(string name) =>
         _triggers.Variables.FirstOrDefault(variable => variable.Name == name)?.Type ?? GeneratedType(name);

@@ -25,6 +25,7 @@
   "app.triggers.new.trigger": "Untitled Trigger",
   "app.triggers.noInfo": "The triggers were saved, but the map has no war3map.w3i, so its script was left as it is.",
   "app.triggers.noScript": "The triggers were saved, but the map has no war3map.j to update.",
+  "app.triggers.noValue": "a parameter has no value",
   "app.triggers.notExact": "These triggers would not be written back exactly, so they are shown read only.",
   "app.triggers.oldFormat": "These triggers are in an older format, so they are shown read only.",
   "app.triggers.readOnly": "These triggers are read only.",

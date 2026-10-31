@@ -117,7 +117,8 @@ public sealed class TriggerCatalogTests(ITestOutputHelper output)
         var unit = catalog.Categories.Single(category => category.Key == "TC_UNIT");
 
         Assert.Equal("Unit", unit.Title);
-        Assert.Contains("Actions-Unit", unit.Icon);
+        Assert.EndsWith("Actions-Unit.blp", unit.Icon);
+        Assert.NotNull(InstallMaps.ReadGame(unit.Icon));
         Assert.True(unit.Shown);
     }
 

@@ -4,6 +4,7 @@ using War3Net.Build.Extensions;
 using War3Net.Build.Info;
 using War3Net.Build.Script;
 using War3Net.CodeAnalysis;
+using War3Net.CodeAnalysis.Jass.Extensions;
 
 namespace MoonwellEditor.Triggers;
 
@@ -103,7 +104,8 @@ public sealed class TriggerScript : MapScriptBuilder
 
         // From the last place to the first, so a place found stays right.
         var triggers = BannerOf(lines, "Triggers");
-        var custom = BannerOf(lines, "Custom Script Code");
+        // Older World Editors wrote this banner twice, the code under the second.
+        var custom = lines.LastIndexOf("//*  Custom Script Code");
         if (triggers < 0 || custom < 0)
         {
             return problem;
@@ -134,7 +136,7 @@ public sealed class TriggerScript : MapScriptBuilder
         {
             var close = Find(lines, line => line == "endfunction", initGlobals);
             lines.RemoveRange(initGlobals, close - initGlobals + 1);
-            lines.InsertRange(initGlobals, Text(writer => GenerateInitGlobals(_map, writer)));
+            lines.InsertRange(initGlobals, Text(WriteInitGlobals));
         }
 
         ReplaceGlobals(lines, globals, end);
@@ -161,7 +163,10 @@ public sealed class TriggerScript : MapScriptBuilder
         lines.InsertRange(place, Text(writer =>
         {
             writer.Indent();
-            GenerateTriggerVariables(_map, writer);
+            foreach (var definition in Definitions())
+            {
+                writer.WriteAlignedGlobal("trigger", "gg_trg_" + TriggerJass.Identifier(definition.Name), "null");
+            }
         }));
 
         var user = Find(lines, line => line.Trim() == "// User-defined", globals);
@@ -180,7 +185,7 @@ public sealed class TriggerScript : MapScriptBuilder
             if (ShouldGenerateUserDefinedVariables(_map))
             {
                 writer.WriteLine("// User-defined");
-                GenerateUserDefinedVariables(_map, writer);
+                WriteVariables(writer);
                 if (generated >= 0)
                 {
                     writer.WriteLine();
@@ -188,6 +193,92 @@ public sealed class TriggerScript : MapScriptBuilder
             }
         });
         lines.InsertRange(position, block);
+    }
+
+    // InitGlobals as World Editor writes it. A value goes by its type, so an object's id has its quotes.
+    private void WriteInitGlobals(IndentedTextWriter writer)
+    {
+        var variables = _document.Triggers.Variables;
+        var values = new TriggerJass(writer, _document);
+        writer.WriteLine("function InitGlobals takes nothing returns nothing");
+        writer.Indent();
+        if (variables.Any(variable => (variable.IsArray || _map.Info!.FormatVersion >= MapInfoFormatVersion.v31)
+            && InitialOf(variable, values) != null))
+        {
+            writer.WriteLocal("integer", "i", "0");
+        }
+
+        foreach (var variable in variables)
+        {
+            if (InitialOf(variable, values) is not { } value)
+            {
+                continue;
+            }
+
+            var name = "udg_" + variable.Name;
+            if (!variable.IsArray)
+            {
+                writer.WriteSet(name, value);
+                continue;
+            }
+
+            writer.WriteSet("i", "0");
+            writer.WriteLoop();
+            writer.WriteExitWhen($"(i > {variable.ArraySize})");
+            writer.WriteSet($"{name}[i]", value);
+            writer.WriteSet("i", "i + 1");
+            writer.WriteEndLoop();
+            writer.WriteLine();
+        }
+
+        writer.Unindent();
+        writer.WriteLine("endfunction");
+    }
+
+    // What a variable starts as: its value, or its type's; null for neither.
+    private string? InitialOf(VariableDefinition variable, TriggerJass values)
+    {
+        if (variable.IsInitialized)
+        {
+            return TriggerData.TriggerParams.TryGetValue(variable.InitialValue, out var preset)
+                && preset.VariableType == variable.Type
+                    ? preset.ScriptText
+                    : values.Literal(variable.InitialValue, variable.Type);
+        }
+
+        if (TriggerData.TriggerTypeDefaults.TryGetValue(variable.Type, out var fallback))
+        {
+            return fallback.ScriptText;
+        }
+
+        return variable.Type == "string" ? "\"\"" : null;
+    }
+
+    // A variable's line in globals, by the script type its type is made of: unitcode is an integer.
+    private void WriteVariables(IndentedTextWriter writer)
+    {
+        foreach (var variable in _document.Triggers.Variables)
+        {
+            var type = _document.Catalog.Type(variable.Type)?.Base ?? variable.Type;
+            var name = "udg_" + variable.Name;
+            if (variable.IsArray)
+            {
+                writer.WriteAlignedGlobal(type + " array", name);
+            }
+            else if (type == "string")
+            {
+                writer.WriteAlignedGlobal(type, name);
+            }
+            else
+            {
+                writer.WriteAlignedGlobal(type, name, type switch
+                {
+                    "integer" or "real" => "0",
+                    "boolean" => "false",
+                    _ => "null",
+                });
+            }
+        }
     }
 
     private static bool IsAfterTriggers(string line)
@@ -213,12 +304,13 @@ public sealed class TriggerScript : MapScriptBuilder
         var initGlobals = Find(lines, line => line == "    call InitGlobals(  )", main);
         var blizzard = Find(lines, line => line == "    call InitBlizzard(  )", main);
         var place = (initGlobals >= 0 ? initGlobals : blizzard) + 1;
-        if (ShouldGenerateRunInitializationTriggers(_map))
+        var enabled = Definitions().Where(each => each.IsEnabled).ToList();
+        if (enabled.Any(RunsAtStart))
         {
             lines.Insert(place, "    call RunInitializationTriggers(  )");
         }
 
-        if (ShouldGenerateInitCustomTriggers(_map))
+        if (enabled.Count > 0)
         {
             lines.Insert(place, "    call InitCustomTriggers(  )");
         }
@@ -226,7 +318,7 @@ public sealed class TriggerScript : MapScriptBuilder
 
     private List<string> CustomSection()
     {
-        var code = _document.HeaderCode.Replace("\r\n", "\n");
+        var code = _document.HeaderCode.Replace("\r\n", "\n").Trim('\0');
         var lines = new List<string>();
         if (code.Length > 0)
         {
@@ -240,36 +332,70 @@ public sealed class TriggerScript : MapScriptBuilder
     private List<string> TriggerSection()
     {
         var lines = new List<string> { "" };
-        var triggers = _document.Triggers;
-        foreach (var definition in triggers.TriggerItems.OfType<TriggerDefinition>())
+        foreach (var definition in Definitions().Where(each => each.IsEnabled))
         {
-            if (definition.Type == TriggerItemType.Comment || !ShouldRenderTrigger(_map, definition))
-            {
-                continue;
-            }
-
             _rendering = definition.Name;
-            lines.AddRange(definition.IsCustomTextTrigger ? CustomTrigger(definition) : Text(writer =>
-                new TriggerRenderer(writer, TriggerData, triggers.Variables).RenderTrigger(definition)));
+            lines.AddRange(definition.IsCustomTextTrigger
+                ? CustomTrigger(definition)
+                : Text(writer => new TriggerJass(writer, _document).Write(definition)));
+            if (definition.IsCustomTextTrigger)
+            {
+                lines.Add("");
+            }
+        }
+
+        var enabled = Definitions().Where(each => each.IsEnabled).ToList();
+        if (enabled.Count > 0)
+        {
+            lines.Add(Line);
+            lines.AddRange(Text(writer =>
+            {
+                writer.WriteLine("function InitCustomTriggers takes nothing returns nothing");
+                writer.Indent();
+                foreach (var definition in enabled)
+                {
+                    writer.WriteCall("InitTrig_" + TriggerJass.Identifier(definition.Name));
+                }
+
+                writer.Unindent();
+                writer.WriteLine("endfunction");
+            }));
             lines.Add("");
         }
 
-        if (ShouldGenerateInitCustomTriggers(_map))
+        var atStart = enabled.Where(RunsAtStart).ToList();
+        if (atStart.Count > 0)
         {
             lines.Add(Line);
-            lines.AddRange(Text(writer => GenerateInitCustomTriggers(_map, writer)));
-            lines.Add("");
-        }
+            lines.AddRange(Text(writer =>
+            {
+                writer.WriteLine("function RunInitializationTriggers takes nothing returns nothing");
+                writer.Indent();
+                foreach (var definition in atStart)
+                {
+                    writer.WriteCall("ConditionalTriggerExecute", "gg_trg_" + TriggerJass.Identifier(definition.Name));
+                }
 
-        if (ShouldGenerateRunInitializationTriggers(_map))
-        {
-            lines.Add(Line);
-            lines.AddRange(Text(writer => GenerateRunInitializationTriggers(_map, writer)));
+                writer.Unindent();
+                writer.WriteLine("endfunction");
+            }));
             lines.Add("");
         }
 
         return lines;
     }
+
+    private static bool RunsAtStart(TriggerDefinition definition) =>
+        definition.IsInitiallyOn
+        && (definition.IsCustomTextTrigger
+            ? definition.RunOnMapInit
+            : definition.Functions.Any(function => function is
+                { Type: TriggerFunctionType.Event, IsEnabled: true, Name: "MapInitializationEvent" }));
+
+    // The triggers that are in the script.
+    private IEnumerable<TriggerDefinition> Definitions() => _document.Triggers.TriggerItems
+        .OfType<TriggerDefinition>()
+        .Where(definition => definition.Type != TriggerItemType.Comment && !definition.IsComment);
 
     private List<string> CustomTrigger(TriggerDefinition definition)
     {
@@ -281,7 +407,7 @@ public sealed class TriggerScript : MapScriptBuilder
         }
 
         lines.Add(Line);
-        lines.AddRange((_document.CodeOf(definition.Id) ?? "").Replace("\r\n", "\n").TrimEnd('\n').Split('\n'));
+        lines.AddRange((_document.CodeOf(definition.Id) ?? "").Replace("\r\n", "\n").Trim('\0').TrimEnd('\n').Split('\n'));
         return lines;
     }
 }

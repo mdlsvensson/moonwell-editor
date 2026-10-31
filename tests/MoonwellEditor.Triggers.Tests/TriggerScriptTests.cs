@@ -7,8 +7,18 @@ namespace MoonwellEditor.Triggers.Tests;
 
 public sealed class TriggerScriptTests(ITestOutputHelper output)
 {
-    private static string Normal(string script) =>
-        Regex.Replace(script.Replace("\r\n", "\n"), @"[ \t]+\n", "\n").Trim();
+    // World Editor's versions space parentheses differently, which does not change the code.
+    private static string Normal(string script)
+    {
+        var lines = Regex.Replace(script.Replace("\r\n", "\n"), @"[ \t]+\n", "\n").Trim();
+
+        // A map saved by an older World Editor has no unused local in InitGlobals.
+        lines = lines.Replace("nothing\n    local integer i = 0\n    set udg_", "nothing\n    set udg_");
+        // Nor do blank lines, or the empty lines of a trigger's comment.
+        lines = Regex.Replace(lines, @"\n//(?=\n)", "");
+        lines = Regex.Replace(lines, @"\n{3,}", "\n\n");
+        return Regex.Replace(Regex.Replace(lines, @"\([ ]+", "("), @"[ ]+\)", ")");
+    }
 
     private static TriggerDocument Read(MoonwellEditor.Files.IMapStore store, TriggerCatalog catalog) =>
         TriggerDocument.Read(store.Read(TriggerDocument.TriggersFile), store.Read(TriggerDocument.CustomTextFile), catalog);
@@ -68,9 +78,12 @@ public sealed class TriggerScriptTests(ITestOutputHelper output)
             var key = problem ?? $"[{(line < left.Length ? left[line] : "")}] [{(line < right.Length ? right[line] : "")}]";
             key = key.Length > 170 ? key[..170] : key;
             kinds[key] = kinds.GetValueOrDefault(key) + 1;
-            if (kinds.Count <= 6 && kinds[key] == 1)
+            if (kinds[key] == 1)
             {
                 output.WriteLine($"{path}: line {line}");
+                var from = Math.Max(0, line - 3);
+                output.WriteLine("  ORIG " + string.Join(" ~ ", left.Skip(from).Take(7)));
+                output.WriteLine("  OURS " + string.Join(" ~ ", right.Skip(from).Take(7)));
             }
         }
 
@@ -80,8 +93,9 @@ public sealed class TriggerScriptTests(ITestOutputHelper output)
             output.WriteLine($"{count}: {key}");
         }
 
-        // Until the War3Net fork writes multiple-action loops and trims a trigger's name: 10 and 2 maps.
+        // Skibi's Castle TD has an action with hidden children left from a function it was changed from; World Editor
+        // writes an unused helper for them.
         Assert.True(maps > 200);
-        Assert.True(same >= maps - 12, $"{same} of {maps}");
+        Assert.Equal(maps - 1, same);
     }
 }

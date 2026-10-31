@@ -341,7 +341,10 @@ public sealed partial class TriggerCatalog
             .Where(Data.TriggerCategories.ContainsKey)
             .Select(key => Data.TriggerCategories[key])
             .Select(category => new CatalogCategory(
-                category.CategoryIdentifier, Label(category.DisplayText), category.IconImageFile, !category.HideCategoryName))
+                category.CategoryIdentifier,
+                Label(category.DisplayText),
+                Path.HasExtension(category.IconImageFile) ? category.IconImageFile : category.IconImageFile + ".blp",
+                !category.HideCategoryName))
             .ToList();
 
         Types = Order("TriggerTypes")
