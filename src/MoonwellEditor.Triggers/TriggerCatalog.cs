@@ -228,10 +228,17 @@ public sealed partial class TriggerCatalog
 
         return output.ToString();
 
-        // Three calls in the game's file say 2 where War3Net reads 0 or 1 (UnitItemInEquipmentSlotBJ=0,2,item,...).
+        // Three calls in the game's file say 2 where War3Net reads 0 or 1 (UnitItemInEquipmentSlotBJ=0,2,item,...), and
+        // two actions end in a comma, which War3Net takes for one more argument (AllowHeroGlowOnAllUnitsBJ=1,).
         string Corrected(string line)
         {
-            if (section != "TriggerCalls" || line.StartsWith('_'))
+            if (!FunctionKeys.ContainsKey(section) || line.StartsWith('_') || line.StartsWith("//", StringComparison.Ordinal))
+            {
+                return line;
+            }
+
+            line = line.TrimEnd('\r').TrimEnd(',');
+            if (section != "TriggerCalls")
             {
                 return line;
             }
