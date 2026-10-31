@@ -1,0 +1,401 @@
+using War3Net.Build.Extensions;
+using War3Net.Build.Script;
+
+namespace MoonwellEditor.Triggers.Tests;
+
+public sealed class TriggerEditTests(ITestOutputHelper output)
+{
+    private sealed class Names : ITriggerNames
+    {
+        public string? ObjectName(string type, string id) => (type, id) switch
+        {
+            ("unitcode", "hfoo") => "Footman",
+            _ => null,
+        };
+
+        public string Text(string value) => value;
+    }
+
+    private static TriggerDocument? LostTemple()
+    {
+        var catalog = InstallMaps.Catalog;
+        var store = InstallMaps.Open(InstallMaps.LostTemple);
+        return catalog == null || store == null
+            ? null
+            : TriggerDocument.Read(
+                store.Read(TriggerDocument.TriggersFile), store.Read(TriggerDocument.CustomTextFile), catalog);
+    }
+
+    private static int Initialization(TriggerDocument document) =>
+        document.Tree().Single(item => item.Kind == "category").Id;
+
+    private static MapTriggers Reread(TriggerDocument document)
+    {
+        using var reader = new BinaryReader(new MemoryStream(document.TriggerBytes()!));
+        return reader.ReadMapTriggers(document.Catalog.Data);
+    }
+
+    [Fact]
+    public void A_new_trigger_gets_a_free_name_and_an_id_of_its_type()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var second = document.Add("trigger", Initialization(document));
+
+        Assert.Equal(3, id >> 24);
+        Assert.NotEqual(id, second);
+        var read = Reread(document);
+        Assert.Equal(["Untitled Trigger 001", "Untitled Trigger 002"], read.TriggerItems
+            .OfType<TriggerDefinition>().Where(each => each.Id != 0x3000000).Select(each => each.Name));
+        Assert.Equal(3, read.TriggerItemCounts[TriggerItemType.Gui]);
+    }
+
+    [Fact]
+    public void A_new_trigger_has_an_entry_in_the_custom_text_file_a_comment_has_none()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var script = document.Add("script", Initialization(document));
+        document.Add("comment", Initialization(document));
+        document.SetCode(script, "call DoNothing()");
+
+        using var reader = new BinaryReader(new MemoryStream(document.CustomTextBytes()!));
+        var read = reader.ReadMapCustomTextTriggers();
+        Assert.Equal(2, read.CustomTextTriggers.Count);
+        Assert.Equal("call DoNothing()", read.CustomTextTriggers[1].Code);
+        Assert.Equal("call DoNothing()", document.CodeOf(script));
+    }
+
+    [Fact]
+    public void A_snapshot_gives_back_the_same_bytes()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var before = document.TriggerBytes()!;
+        var snapshot = document.Snapshot();
+        var id = document.Add("trigger", Initialization(document));
+        document.AddFunction(id, null, 0, 0, "event", "TriggerRegisterTimerEventPeriodic");
+        document.Rename(id, "Tick");
+        var melee = document.Tree().Single(item => item.Name == "Melee Initialization").Id;
+        document.AddFunction(melee, null, 0, 0, "action", "DoNothing");
+        document.Delete(Initialization(document));
+
+        document.Restore(snapshot);
+
+        Assert.Equal(before, document.TriggerBytes());
+    }
+
+    [Fact]
+    public void A_function_starts_with_the_games_defaults_and_reads_as_its_sentence()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        document.AddFunction(id, null, 0, 0, "event", "TriggerRegisterTimerEventPeriodic");
+        document.AddFunction(id, null, 0, 0, "action", "CreateNUnitsAtLoc");
+
+        var view = document.Trigger(id, new Names());
+
+        Assert.Equal("Every 2.00 seconds of game time", string.Concat(view.Events[0].Sentence.Select(part => part.Text)));
+        var action = view.Actions[0];
+        Assert.Equal("Unit", action.Prefix);
+        Assert.Equal(
+            "Create 1 Footman for Player 1 (Red) at (Center of (Playable map area)) facing Default building facing (270) degrees",
+            string.Concat(action.Sentence.Select(part => part.Text)));
+        Assert.Equal(id, Reread(document).TriggerItems.OfType<TriggerDefinition>().Single(each => each.Id == id).Id);
+    }
+
+    [Fact]
+    public void Every_function_of_the_game_can_be_added_and_written()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var wrong = new List<string>();
+        foreach (var function in document.Catalog.Functions.Where(each => each.Kind != "call"))
+        {
+            try
+            {
+                document.AddFunction(id, null, 0, int.MaxValue, function.Kind, function.Name);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                wrong.Add($"{function.Name}: {exception.Message}");
+            }
+        }
+
+        output.WriteLine(string.Join("\n", wrong));
+        Assert.Empty(wrong);
+        var read = Reread(document);
+        Assert.Equal(
+            document.Catalog.Functions.Count(each => each.Kind != "call"),
+            read.TriggerItems.OfType<TriggerDefinition>().Single(each => each.Id == id).Functions.Count);
+        Assert.NotEmpty(document.Trigger(id, new Names()).Actions);
+    }
+
+    [Fact]
+    public void A_block_holds_its_functions_by_branch()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var ifThen = document.AddFunction(id, null, 0, 0, "action", "IfThenElseMultiple");
+        document.AddFunction(id, ifThen, 1, 0, "action", "DoNothing");
+        document.AddFunction(id, ifThen, 2, 0, "action", "ReturnAction");
+        document.AddFunction(id, ifThen, 0, 0, "condition", "OperatorCompareBoolean");
+
+        var blocks = document.Trigger(id, new Names()).Actions[0].Blocks;
+
+        Assert.Equal(["If - Conditions", "Then - Actions", "Else - Actions"], blocks.Select(block => block.Title));
+        Assert.Equal("OperatorCompareBoolean", Assert.Single(blocks[0].Functions).Name);
+        Assert.Equal("DoNothing", Assert.Single(blocks[1].Functions).Name);
+        Assert.Equal("ReturnAction", Assert.Single(blocks[2].Functions).Name);
+        var inRead = Reread(document).TriggerItems.OfType<TriggerDefinition>().Single(each => each.Id == id).Functions[0];
+        Assert.Equal(3, inRead.ChildFunctions.Count);
+    }
+
+    [Fact]
+    public void Moving_a_function_keeps_its_kinds_order()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        document.AddFunction(id, null, 0, 0, "event", "MapInitializationEvent");
+        document.AddFunction(id, null, 0, int.MaxValue, "action", "DoNothing");
+        document.AddFunction(id, null, 0, int.MaxValue, "action", "ReturnAction");
+
+        var view = document.Trigger(id, new Names());
+        var path = document.MoveFunction(id, view.Actions[1].Path, 0);
+
+        view = document.Trigger(id, new Names());
+        Assert.Equal(["ReturnAction", "DoNothing"], view.Actions.Select(action => action.Name));
+        Assert.Equal(path, view.Actions[0].Path);
+        Assert.Single(view.Events);
+    }
+
+    [Fact]
+    public void A_parameter_takes_each_kind_of_value()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var path = document.AddFunction(id, null, 0, 0, "action", "CreateNUnitsAtLoc");
+        document.AddVariable(new VariableInput("Spawned", "integer", false, 1, ""), Initialization(document));
+
+        document.SetParameter(id, path + "/p0", new ParamInput("variable", "Spawned"));
+        document.SetParameter(id, path + "/p1", new ParamInput("value", "hfoo"));
+        document.SetParameter(id, path + "/p2", new ParamInput("preset", "Player01"));
+        document.SetParameter(id, path + "/p3", new ParamInput("function", "GetUnitLoc"));
+
+        var parts = document.Trigger(id, new Names()).Actions[0].Sentence.Where(part => part.Parameter != null).ToList();
+        Assert.Equal("Spawned", parts[0].Text);
+        Assert.Equal("Footman", parts[1].Text);
+        Assert.Equal("Player 2 (Blue)", parts[2].Text);
+        Assert.Equal("(Position of (Triggering unit))", parts[3].Text);
+        var inner = Assert.Single(parts[3].Parameter!.Function!.Sentence, part => part.Parameter != null);
+        Assert.Equal("function", inner.Parameter!.Kind);
+
+        document.SetParameter(id, inner.Parameter.Path, new ParamInput("variable", "gg_unit_hfoo_0001"));
+
+        parts = document.Trigger(id, new Names()).Actions[0].Sentence.Where(part => part.Parameter != null).ToList();
+        Assert.Equal("(Position of Footman 0001 <gen>)", parts[3].Text);
+    }
+
+    [Fact]
+    public void An_array_variable_gets_an_index()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var path = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        document.AddVariable(new VariableInput("Times", "real", true, 4, ""), Initialization(document));
+
+        document.SetParameter(id, path + "/p0", new ParamInput("variable", "Times"));
+        document.SetParameter(id, path + "/p0/i", new ParamInput("value", "3"));
+
+        var part = document.Trigger(id, new Names()).Actions[0].Sentence.Single(each => each.Parameter != null);
+        Assert.Equal("Times[3]", part.Text);
+    }
+
+    [Fact]
+    public void Set_variable_reads_its_value_as_the_variables_type()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var id = document.Add("trigger", Initialization(document));
+        var path = document.AddFunction(id, null, 0, 0, "action", "SetVariable");
+        document.AddVariable(new VariableInput("Delay", "real", false, 1, ""), Initialization(document));
+
+        document.SetParameter(id, path + "/p0", new ParamInput("variable", "Delay"));
+        document.SetParameter(id, path + "/p1", new ParamInput("value", "1.5"));
+
+        var parts = document.Trigger(id, new Names()).Actions[0].Sentence.Where(part => part.Parameter != null).ToList();
+        Assert.Equal("real", parts[1].Parameter!.Type);
+        Assert.Equal("1.50", parts[1].Text);
+    }
+
+    [Fact]
+    public void A_renamed_variable_or_trigger_is_followed_by_what_uses_it()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        var path = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        var variable = document.AddVariable(new VariableInput("Delay", "real", false, 1, ""), category);
+        document.SetParameter(id, path + "/p0", new ParamInput("variable", "Delay"));
+        var other = document.Add("trigger", category);
+        var run = document.AddFunction(other, null, 0, 0, "action", "ConditionalTriggerExecute");
+        document.SetParameter(other, run + "/p0", new ParamInput("variable", "gg_trg_Untitled_Trigger_001"));
+
+        document.SetVariable(variable, new VariableInput("Pause", "real", false, 1, ""));
+        document.Rename(id, "Wait Here");
+
+        Assert.Equal("Pause", document.Trigger(id, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Text);
+        Assert.Equal(
+            "gg_trg_Wait_Here",
+            document.Trigger(other, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Parameter!.Value);
+    }
+
+    [Fact]
+    public void A_deleted_variable_leaves_its_parameters_without_a_value()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+        var path = document.AddFunction(id, null, 0, 0, "action", "TriggerSleepAction");
+        var variable = document.AddVariable(new VariableInput("Delay", "real", false, 1, ""), category);
+        document.SetParameter(id, path + "/p0", new ParamInput("variable", "Delay"));
+
+        document.Delete(variable);
+
+        Assert.Equal("none", document.Trigger(id, new Names()).Actions[0].Sentence.Single(part => part.Parameter != null).Parameter!.Kind);
+        Assert.Empty(document.Variables());
+        Assert.Empty(Reread(document).Variables);
+    }
+
+    [Fact]
+    public void Names_are_checked()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var category = Initialization(document);
+        var id = document.Add("trigger", category);
+
+        Assert.Throws<TriggerEditException>(() => document.Rename(id, "Melee Initialization"));
+        Assert.Throws<TriggerEditException>(() => document.Rename(id, "   "));
+        Assert.Throws<TriggerEditException>(() => document.AddVariable(new VariableInput("1st", "real", false, 1, ""), category));
+        Assert.Throws<TriggerEditException>(() => document.AddVariable(new VariableInput("Ends_", "real", false, 1, ""), category));
+    }
+
+    [Fact]
+    public void A_category_moves_with_what_is_in_it_and_not_into_itself()
+    {
+        var document = LostTemple();
+        if (document == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var root = document.Tree()[0].Id;
+        var outer = document.Add("category", root);
+        var inner = document.Add("category", outer);
+        var trigger = document.Add("trigger", inner);
+
+        Assert.Throws<TriggerEditException>(() => document.Move(outer, inner, 0));
+        document.Move(inner, root, 0);
+
+        var tree = document.Tree();
+        Assert.Equal(root, tree.Single(item => item.Id == inner).Parent);
+        Assert.Equal(inner, tree.Single(item => item.Id == trigger).Parent);
+        Assert.True(tree.ToList().FindIndex(item => item.Id == inner) < tree.ToList().FindIndex(item => item.Kind == "category" && item.Name == "Initialization"));
+    }
+
+    [Fact]
+    public void A_map_with_no_trigger_file_gets_one_with_a_root()
+    {
+        var catalog = InstallMaps.Catalog;
+        if (catalog == null)
+        {
+            output.WriteLine(InstallMaps.NoInstall);
+            return;
+        }
+
+        var document = TriggerDocument.Read(null, null, catalog);
+
+        var category = document.Add("category", -1);
+        document.Add("trigger", category);
+
+        Assert.Equal(["root", "category", "trigger"], document.Tree().Select(item => item.Kind));
+        Assert.Equal(1, Reread(document).TriggerItemCounts[TriggerItemType.Gui]);
+        Assert.NotNull(document.CustomTextBytes());
+    }
+}
